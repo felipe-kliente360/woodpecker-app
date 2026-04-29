@@ -431,33 +431,6 @@
       .timer-divider { margin: 10px 0 6px; }
     }
 
-    /* Barra sticky de feedback no mobile — mantém botão "Próximo" sempre visível */
-    .feedback-bar-mobile {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      background: var(--card);
-      border-top: 1px solid var(--border);
-      padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-      z-index: 30;
-      box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.25);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .feedback-bar-mobile .feedback-bar-status {
-      flex-shrink: 0;
-      width: 36px; height: 36px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px; font-weight: 700;
-      font-family: 'Courier New', Courier, monospace;
-    }
-    .feedback-bar-mobile.green .feedback-bar-status { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bdr); }
-    .feedback-bar-mobile.red .feedback-bar-status { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-bdr); }
-    .feedback-bar-mobile .btn { flex: 1; height: 44px; }
-    /* Compensa altura da barra pra conteúdo não ficar coberto */
-    .train-with-feedback-bar { padding-bottom: 80px; }
-
     /* Utilitários responsivos */
     .hide-mobile { display: initial; }
     .only-mobile { display: none; }
@@ -1113,19 +1086,43 @@
         };
         boardRef.current = window.Chessboard(boardId, cfg);
 
-        // Tap-to-move: chessboard.js não tem callback de click, então delegamos via jQuery.
-        // Cada casa tem [data-square="e2"]. Usamos mousedown:false controlado: o click só
-        // dispara quando NÃO houve drag (mousedown + mouseup na mesma casa sem mover).
+        // Tap-to-move robusto: chessboard.js intercepta click via mousedown handlers
+        // pra começar o drag, então um listener "click" puro nem sempre dispara.
+        // Solução: rastrear pointerdown/pointerup (ou mouse/touch como fallback) e
+        // só considerar tap quando press+release acontecem na mesma casa, sem
+        // movimento significativo entre os dois (drag emite movimento >> 8px).
         const $ = window.jQuery;
         const $board = $ && $('#' + boardId);
-        function onClick(e) {
+        let downSq = null, downX = 0, downY = 0;
+        function getXY(e) {
+          const oe = e.originalEvent || e;
+          if (oe.touches && oe.touches[0]) return [oe.touches[0].clientX, oe.touches[0].clientY];
+          if (oe.changedTouches && oe.changedTouches[0]) return [oe.changedTouches[0].clientX, oe.changedTouches[0].clientY];
+          return [oe.clientX || 0, oe.clientY || 0];
+        }
+        function onDown(e) {
           if (!draggableRef.current) return;
           const sq = e.currentTarget && e.currentTarget.getAttribute('data-square');
           if (!sq) return;
-          if (onSquareClickRef.current) onSquareClickRef.current(sq);
+          downSq = sq;
+          [downX, downY] = getXY(e);
+        }
+        function onUp(e) {
+          if (!draggableRef.current) { downSq = null; return; }
+          const sq = e.currentTarget && e.currentTarget.getAttribute('data-square');
+          if (!sq || !downSq) { downSq = null; return; }
+          const [x, y] = getXY(e);
+          const dx = Math.abs(x - downX);
+          const dy = Math.abs(y - downY);
+          // Tap = mesma casa + sem movimento significativo
+          if (sq === downSq && dx < 10 && dy < 10) {
+            if (onSquareClickRef.current) onSquareClickRef.current(sq);
+          }
+          downSq = null;
         }
         if ($board && $board.length) {
-          $board.on('click', '[data-square]', onClick);
+          $board.on('mousedown touchstart', '[data-square]', onDown);
+          $board.on('mouseup touchend', '[data-square]', onUp);
         }
 
         const onResize = () => { try { boardRef.current && boardRef.current.resize(); } catch (e) {} };
@@ -1133,7 +1130,10 @@
         const t = setTimeout(onResize, 80);
         return () => {
           if ($board && $board.length) {
-            try { $board.off('click', '[data-square]', onClick); } catch (e) {}
+            try {
+              $board.off('mousedown touchstart', '[data-square]', onDown);
+              $board.off('mouseup touchend', '[data-square]', onUp);
+            } catch (e) {}
           }
           window.removeEventListener('resize', onResize);
           clearTimeout(t);
@@ -2356,7 +2356,7 @@
       const boardId = 'board-' + (puzzle.id || puzzle.puzzleId || idx);
 
       return (
-        <div className={'train-layout' + (estado === 'feedback' ? ' train-with-feedback-bar' : '')}>
+        <div className="train-layout">
           <div>
             <div className="board-wrap" style={{ margin: '0 auto' }}>
               <ChessBoardView
@@ -2371,6 +2371,38 @@
                 selectedSquare={casaSelecionada}
               />
             </div>
+
+            {/* Mobile-only: botão grande logo abaixo do tabuleiro.
+                Vira "Próximo Puzzle" quando o estado é feedback. */}
+            <div className="only-mobile mt-12">
+              {estado === 'feedback' ? (
+                <button
+                  className={'btn btn-block btn-primary'}
+                  onClick={avancar}
+                  style={{
+                    height: 48,
+                    background: feedback && feedback.correto ? 'var(--green)' : 'var(--red)',
+                    borderColor: feedback && feedback.correto ? 'var(--green)' : 'var(--red)'
+                  }}>
+                  {feedback && feedback.correto ? '✓' : '✗'} {idx + 1 >= total ? 'Finalizar Ciclo' : 'Próximo Puzzle'} →
+                </button>
+              ) : lancePendente ? (
+                <div className="hstack gap-8">
+                  <button className="btn btn-primary" style={{ flex: 1, height: 48 }} onClick={confirmarPendente}>
+                    ✓ Confirmar {lancePendente.san}
+                  </button>
+                  <button className="btn btn-ghost" style={{ flex: '0 0 auto', height: 48 }} onClick={cancelarPendente}>
+                    ✗
+                  </button>
+                </div>
+              ) : (
+                <button className="btn btn-ghost btn-block" style={{ height: 44 }} onClick={pular}
+                  disabled={estado !== 'jogando' || pausado}>
+                  ⏭ Pular
+                </button>
+              )}
+            </div>
+
             <div className="mt-12 mono fs-12 center" style={{ color: 'var(--primary)' }}>
               ● {corLabel}
             </div>
@@ -2431,15 +2463,15 @@
 
             {estado === 'jogando' && (
               <div className="vstack gap-10">
-                {/* Toggle de modo confirmar */}
-                <label className="hstack gap-8" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                {/* Toggle de modo confirmar (apenas desktop — em mobile o tap-to-move
+                    já dá tempo de calcular antes de soltar o lance) */}
+                <label className="hstack gap-8 hide-mobile" style={{ cursor: 'pointer', userSelect: 'none' }}>
                   <input type="checkbox" checked={modoConfirmar}
                     onChange={e => setModoConfirmar(e.target.checked)}
                     disabled={!!lancePendente}
                     style={{ width: 16, height: 16 }} />
                   <span className="mono fs-11 txt-mid">
-                    <span className="hide-mobile">Modo confirmar — calcular antes de comitar</span>
-                    <span className="only-mobile">Modo confirmar</span>
+                    Modo confirmar — calcular antes de comitar
                   </span>
                 </label>
 
@@ -2472,7 +2504,7 @@
                       onClick={confirmarUci}>
                       ✓ Confirmar Lance
                     </button>
-                    <button className="btn btn-ghost btn-block" onClick={pular}>⏭ Pular</button>
+                    <button className="btn btn-ghost btn-block hide-mobile" onClick={pular}>⏭ Pular</button>
                   </>
                 )}
                 <div className="mono fs-9 txt-muted center mt-8 hide-mobile" style={{ letterSpacing: '0.05em' }}>
@@ -2497,7 +2529,7 @@
                     ))}
                   </div>
                 </div>
-                <button className="btn btn-primary btn-block" onClick={avancar}>
+                <button className="btn btn-primary btn-block hide-mobile" onClick={avancar}>
                   {idx + 1 >= total ? '🏁 Finalizar Ciclo' : '→ Próximo Puzzle'}
                 </button>
                 <div className="mono fs-9 txt-muted center hide-mobile" style={{ letterSpacing: '0.05em' }}>
@@ -2506,16 +2538,6 @@
               </div>
             )}
           </div>
-
-          {/* Barra fixa mobile com botão "Próximo" — sempre visível durante feedback */}
-          {estado === 'feedback' && feedback && (
-            <div className={'feedback-bar-mobile only-mobile ' + (feedback.correto ? 'green' : 'red')}>
-              <div className="feedback-bar-status">{feedback.correto ? '✓' : '✗'}</div>
-              <button className="btn btn-primary" onClick={avancar}>
-                {idx + 1 >= total ? '🏁 Finalizar Ciclo' : '→ Próximo Puzzle'}
-              </button>
-            </div>
-          )}
 
           {/* Overlay de promoção */}
           {promoPicker && (
