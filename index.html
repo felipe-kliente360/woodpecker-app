@@ -1855,11 +1855,14 @@
       const corTimer = seg < 60 ? 'green' : (seg < 120 ? 'gold' : 'red');
       const corLabel = determinaCorJogador(fenInicialJogadorRef.current || (puzzle && puzzle.fen) || '');
 
-      const onDrop = useCallback((source, target) => {
+      // Sem useCallback: onDrop precisa ler estado, modoConfirmar e lancePendente
+      // do render corrente (caso contrário a closure fica congelada e mudanças no
+      // toggle só seriam aplicadas no próximo puzzle). ChessBoardView lê via
+      // onDropRef.current, então a recriação a cada render só atualiza o ref.
+      const onDrop = (source, target) => {
         if (estado !== 'jogando') return false;
-        const r = processarLance(source, target);
-        return r;
-      }, [estado, idx]);
+        return processarLance(source, target);
+      };
 
       if (!puzzle) return <div className="card center">Sem puzzles para treinar.</div>;
       if (erroPuzzle) {
