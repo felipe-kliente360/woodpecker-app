@@ -1480,6 +1480,10 @@
       const erros = resultados.filter(r => !r.correto).length;
       const restantes = total - resultados.length;
       const pct = Math.round((idx / total) * 100);
+      const tempoConcluidos = resultados.reduce((a, r) => a + (r.tempo_s || 0), 0);
+      // Em estado 'feedback' o tempo do puzzle atual já foi somado em resultados;
+      // em 'jogando' o cronômetro corrente ainda não. Soma só quando jogando.
+      const tempoAcumulado = tempoConcluidos + (estado === 'jogando' ? seg : 0);
 
       // Inicia/recarrega cada puzzle
       const [erroPuzzle, setErroPuzzle] = useState(null);
@@ -1712,12 +1716,18 @@
               <div className="progress-bar mb-12">
                 <div className="progress-fill" style={{ width: pct + '%' }}></div>
               </div>
-              <div className="mono fs-12 hstack gap-8 flex-wrap">
-                <span className="txt-green bold">✓ {acertos}</span>
-                <span className="txt-muted">·</span>
-                <span className="txt-red bold">✗ {erros}</span>
-                <span className="txt-muted">·</span>
-                <span className="txt-muted">→ {restantes}</span>
+              <div className="between gap-8 flex-wrap">
+                <div className="mono fs-12 hstack gap-8 flex-wrap">
+                  <span className="txt-green bold">✓ {acertos}</span>
+                  <span className="txt-muted">·</span>
+                  <span className="txt-red bold">✗ {erros}</span>
+                  <span className="txt-muted">·</span>
+                  <span className="txt-muted">→ {restantes}</span>
+                </div>
+                <div className="mono fs-12 txt-mid">
+                  <span className="txt-muted">Total: </span>
+                  <span className="bold">{formatarTempo(tempoAcumulado)}</span>
+                </div>
               </div>
             </div>
 
