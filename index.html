@@ -1563,6 +1563,10 @@
       const [fenAtual, setFenAtual] = useState('');
       const [ultimoLanceErrado, setUltimoLanceErrado] = useState(null);
       const [ultimoLanceAdv, setUltimoLanceAdv] = useState(null); // {from, to} para highlight
+      const [lancePendente, setLancePendente] = useState(null); // {from, to, promo, san} no modo confirmar
+      const [promoPicker, setPromoPicker] = useState(null); // {from, to} aguardando escolha de promoção
+      const [modoConfirmar, setModoConfirmar] = useState(() => loadLS('wp_modo_confirmar', false));
+      useEffect(() => { saveLS('wp_modo_confirmar', modoConfirmar); }, [modoConfirmar]);
 
       const puzzle = puzzles[idx];
       const total = puzzles.length;
@@ -1604,6 +1608,8 @@
           setPendingDrop(null);
           setUltimoLanceErrado(null);
           setErroPuzzle(null);
+          setLancePendente(null);
+          setPromoPicker(null);
           segRef.current = 0;
           resetTimer();
           setRodando(true);
@@ -1612,6 +1618,37 @@
           setErroPuzzle(e.message || String(e));
         }
       }, [idx, puzzle && (puzzle.id || puzzle.puzzleId)]);
+
+      // Atalhos de teclado
+      useEffect(() => {
+        function onKey(e) {
+          // Ignora atalhos quando o usuário está digitando em algum input
+          if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+          if (promoPicker) {
+            if (e.key === 'Escape') { e.preventDefault(); cancelarPromocao(); }
+            else if (e.key === 'q' || e.key === 'Q') { e.preventDefault(); escolherPromocao('q'); }
+            else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); escolherPromocao('r'); }
+            else if (e.key === 'b' || e.key === 'B') { e.preventDefault(); escolherPromocao('b'); }
+            else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); escolherPromocao('n'); }
+            return;
+          }
+          if (estado === 'jogando' && lancePendente) {
+            if (e.key === 'Enter') { e.preventDefault(); confirmarPendente(); }
+            else if (e.key === 'Escape') { e.preventDefault(); cancelarPendente(); }
+            return;
+          }
+          if (estado === 'jogando') {
+            if (e.key === ' ') { e.preventDefault(); pular(); }
+            return;
+          }
+          if (estado === 'feedback') {
+            if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); avancar(); }
+            return;
+          }
+        }
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+      }, [estado, lancePendente, promoPicker, idx]);
 
       // Persiste sessão a cada mudança de progresso
       useEffect(() => {
@@ -1628,11 +1665,45 @@
         onSalvarSessao(s);
       }, [idx, resultados]);
 
+      function ehPromocao(c, from, to) {
+        const piece = c.get(from);
+        if (!piece || piece.type !== 'p') return false;
+        return to[1] === '8' || to[1] === '1';
+      }
+
+      // Etapa 1: receber o lance (drag ou input) — pode disparar picker de promoção
+      // ou guardar como pendente no modo confirmar.
       function processarLance(from, to, promo) {
         if (estado !== 'jogando') return false;
+        if (lancePendente) return false; // já há um lance aguardando confirmação
         const c = chessRef.current;
         if (!c) return false;
-        const fenAntes = c.fen();
+
+        // Detecta promoção sem peça especificada — abre picker
+        if (!promo && ehPromocao(c, from, to)) {
+          setPromoPicker({ from, to });
+          return false;
+        }
+
+        // Modo confirmar: aplica visualmente e segura para o usuário decidir
+        if (modoConfirmar) {
+          let m;
+          try { m = c.move({ from, to, promotion: promo || 'q' }); }
+          catch (e) { return false; }
+          if (!m) return false;
+          setFenAtual(c.fen());
+          setLancePendente({ from, to, promo: promo || 'q', san: m.san });
+          return true;
+        }
+
+        return avaliarLance(from, to, promo);
+      }
+
+      // Etapa 2: avalia o lance (correto/incorreto) e dispara feedback ou
+      // a sequência adversário+jogador.
+      function avaliarLance(from, to, promo) {
+        const c = chessRef.current;
+        if (!c) return false;
         let m;
         try {
           m = c.move({ from, to, promotion: promo || 'q' });
@@ -1695,6 +1766,37 @@
         // Não há resposta — puzzle concluído
         concluirCorreto();
         return true;
+      }
+
+      // Confirma lance que está pendente (modo confirmar). O lance já foi
+      // aplicado em chessRef pelo drop, precisa ser desfeito pra avaliarLance
+      // re-aplicar limpo (assim o caminho de erro consegue undo + feedback).
+      function confirmarPendente() {
+        if (!lancePendente) return;
+        const { from, to, promo } = lancePendente;
+        const c = chessRef.current;
+        try { c.undo(); } catch (e) {}
+        setLancePendente(null);
+        avaliarLance(from, to, promo);
+      }
+
+      function cancelarPendente() {
+        if (!lancePendente) return;
+        const c = chessRef.current;
+        try { c.undo(); } catch (e) {}
+        setFenAtual(c.fen());
+        setLancePendente(null);
+      }
+
+      function escolherPromocao(piece) {
+        if (!promoPicker) return;
+        const { from, to } = promoPicker;
+        setPromoPicker(null);
+        processarLance(from, to, piece);
+      }
+
+      function cancelarPromocao() {
+        setPromoPicker(null);
       }
 
       function concluirCorreto() {
@@ -1838,20 +1940,52 @@
 
             {estado === 'jogando' && (
               <div className="vstack gap-10">
-                <div>
-                  <div className="input-label">Ou digite o lance:</div>
-                  <input className="input-uci" type="text"
-                    placeholder="ex: e2e4"
-                    value={uciInput}
-                    onChange={e => setUciInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') confirmarUci(); }} />
+                {/* Toggle de modo confirmar */}
+                <label className="hstack gap-8" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  <input type="checkbox" checked={modoConfirmar}
+                    onChange={e => setModoConfirmar(e.target.checked)}
+                    disabled={!!lancePendente}
+                    style={{ width: 14, height: 14 }} />
+                  <span className="mono fs-11 txt-mid">Modo confirmar — calcular antes de comitar</span>
+                </label>
+
+                {lancePendente ? (
+                  <div className="vstack gap-10">
+                    <div className="card-soft" style={{ borderLeft: '3px solid var(--gold)' }}>
+                      <div className="mono fs-10 txt-muted ls-2 mb-4">LANCE PENDENTE</div>
+                      <div className="serif bold fs-15">{lancePendente.san}</div>
+                      <div className="mono fs-10 txt-muted mt-4">Calcule mais. Quando estiver pronto, confirme.</div>
+                    </div>
+                    <button className="btn btn-primary btn-block" onClick={confirmarPendente}>
+                      ✓ Confirmar {lancePendente.san}
+                    </button>
+                    <button className="btn btn-ghost btn-block" onClick={cancelarPendente}>
+                      ✗ Reverter
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <div className="input-label">Ou digite o lance:</div>
+                      <input className="input-uci" type="text"
+                        placeholder="ex: e2e4"
+                        value={uciInput}
+                        onChange={e => setUciInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') confirmarUci(); }} />
+                    </div>
+                    <button className="btn btn-primary btn-block"
+                      disabled={uciInput.trim().length < 4}
+                      onClick={confirmarUci}>
+                      ✓ Confirmar Lance
+                    </button>
+                    <button className="btn btn-ghost btn-block" onClick={pular}>⏭ Pular</button>
+                  </>
+                )}
+                <div className="mono fs-9 txt-muted center mt-8" style={{ letterSpacing: '0.05em' }}>
+                  {lancePendente
+                    ? 'Atalhos: Enter confirma · Esc reverte'
+                    : 'Atalhos: Espaço pula · Enter no input confirma'}
                 </div>
-                <button className="btn btn-primary btn-block"
-                  disabled={uciInput.trim().length < 4}
-                  onClick={confirmarUci}>
-                  ✓ Confirmar Lance
-                </button>
-                <button className="btn btn-ghost btn-block" onClick={pular}>⏭ Pular</button>
               </div>
             )}
 
@@ -1872,9 +2006,55 @@
                 <button className="btn btn-primary btn-block" onClick={avancar}>
                   {idx + 1 >= total ? '🏁 Finalizar Ciclo' : '→ Próximo Puzzle'}
                 </button>
+                <div className="mono fs-9 txt-muted center" style={{ letterSpacing: '0.05em' }}>
+                  Atalhos: Enter ou → avança
+                </div>
               </div>
             )}
           </div>
+
+          {/* Overlay de promoção */}
+          {promoPicker && (
+            <div className="modal-overlay" onClick={cancelarPromocao}>
+              <div className="modal-card" onClick={e => e.stopPropagation()}
+                style={{ maxWidth: 320, padding: 24 }}>
+                <div className="serif bold fs-15 mb-4 center">Escolha a peça de promoção</div>
+                <div className="mono fs-11 txt-muted center mb-16">
+                  {promoPicker.from} → {promoPicker.to}
+                </div>
+                <div className="hstack gap-10" style={{ justifyContent: 'center' }}>
+                  {(() => {
+                    const branca = promoPicker.to[1] === '8';
+                    const pieces = [
+                      { ch: branca ? '♕' : '♛', code: 'q', nome: 'Dama' },
+                      { ch: branca ? '♖' : '♜', code: 'r', nome: 'Torre' },
+                      { ch: branca ? '♗' : '♝', code: 'b', nome: 'Bispo' },
+                      { ch: branca ? '♘' : '♞', code: 'n', nome: 'Cavalo' }
+                    ];
+                    return pieces.map(p => (
+                      <button key={p.code}
+                        onClick={() => escolherPromocao(p.code)}
+                        title={p.nome}
+                        style={{
+                          width: 56, height: 56,
+                          fontSize: 36, lineHeight: 1,
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 10,
+                          cursor: 'pointer',
+                          color: 'var(--txt)'
+                        }}>
+                        {p.ch}
+                      </button>
+                    ));
+                  })()}
+                </div>
+                <div className="center mt-16">
+                  <button className="btn btn-ghost" onClick={cancelarPromocao}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -2237,6 +2417,42 @@
         }]
       }), [cs, csu, cpr]);
 
+      // Fadiga intra-ciclo: tempo por puzzle dentro do ciclo mais recente.
+      // Aplica média móvel (janela 10) pra suavizar o ruído quando o conjunto é grande.
+      const fadigaIntra = useMemo(() => {
+        const ult = cs[cs.length - 1];
+        if (!ult || !ult.resultados || ult.resultados.length < 30) return null;
+        const tempos = ult.resultados.map(r => r.tempo_s || 0);
+        const janela = Math.max(5, Math.round(tempos.length / 30));
+        const suavizado = tempos.map((_, i) => {
+          const start = Math.max(0, i - janela + 1);
+          const slice = tempos.slice(start, i + 1);
+          return Math.round(slice.reduce((a, b) => a + b, 0) / slice.length);
+        });
+        // Tendência: média dos primeiros 20% vs últimos 20%
+        const corte = Math.max(1, Math.floor(tempos.length * 0.2));
+        const inicio = tempos.slice(0, corte).reduce((a,b) => a + b, 0) / corte;
+        const fim = tempos.slice(-corte).reduce((a,b) => a + b, 0) / corte;
+        const subiuPct = inicio ? Math.round(((fim - inicio) / inicio) * 100) : 0;
+        return {
+          ciclo: ult.numero,
+          n: tempos.length,
+          subiuPct,
+          data: {
+            labels: suavizado.map((_, i) => i + 1),
+            datasets: [{
+              data: suavizado,
+              borderColor: subiuPct > 20 ? cre : cpr,
+              backgroundColor: subiuPct > 20 ? cre : cpr,
+              fill: false,
+              tension: 0.3,
+              pointRadius: 0,
+              borderWidth: 2
+            }]
+          }
+        };
+      }, [cs, cpr, cre]);
+
       // Resumo
       const ultimo = cs.length ? cs[cs.length - 1] : null;
       const primeiro = cs.length ? cs[0] : null;
@@ -2308,6 +2524,26 @@
                       <div style={{ height: Math.max(180, errosPorTema.length * 30) }}>
                         <GraficoCanvas tipo="bar" data={dataErros}
                           opcoes={{ ...optsBase, indexAxis: 'y' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {fadigaIntra && (
+                    <div className="card">
+                      <div className="serif bold fs-13 mb-4">😮‍💨 Fadiga Intra-Ciclo · Ciclo {fadigaIntra.ciclo}</div>
+                      <div className="mono fs-11 txt-muted mb-8">
+                        Tempo por puzzle (média móvel) na ordem em que foram resolvidos · n={fadigaIntra.n}
+                      </div>
+                      <div style={{ height: 220 }}>
+                        <GraficoCanvas tipo="line" data={fadigaIntra.data}
+                          opcoes={{ ...optsBase, scales: { ...optsBase.scales, x: { ...optsBase.scales.x, ticks: { ...optsBase.scales.x.ticks, maxTicksLimit: 8 } } } }} />
+                      </div>
+                      <div className={'mono fs-11 mt-8 ' + (fadigaIntra.subiuPct > 20 ? 'txt-red' : (fadigaIntra.subiuPct > 0 ? 'txt-amber' : 'txt-green'))}>
+                        {fadigaIntra.subiuPct > 20
+                          ? '↑ Tempo subiu ' + fadigaIntra.subiuPct + '% do início ao fim — fadiga clara. Considere quebrar o ciclo em duas sessões.'
+                          : (fadigaIntra.subiuPct > 0
+                            ? '↑ Tempo subiu ' + fadigaIntra.subiuPct + '% — leve fadiga aceitável.'
+                            : '↓ Tempo manteve-se ou caiu (' + fadigaIntra.subiuPct + '%) — bom condicionamento.')}
                       </div>
                     </div>
                   )}
