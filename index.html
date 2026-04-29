@@ -1165,9 +1165,53 @@
       );
     }
 
-    function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onAposImport }) {
+    function MiniCardConjunto({ c, ciclos, onTreinar, onEvolucao }) {
+      const cs = ciclosDoConjunto(ciclos, c.id);
+      const ult = cs.length ? cs[cs.length - 1] : null;
+      const horasDesde = ult && ult.data_fim ? (Date.now() - ult.data_fim) / 3600000 : null;
+      const tempoLabel = horasDesde === null
+        ? 'Ainda não iniciado'
+        : (horasDesde < 1 ? 'há ' + Math.round(horasDesde * 60) + 'min'
+          : horasDesde < 24 ? 'há ' + Math.round(horasDesde) + 'h'
+          : 'há ' + Math.round(horasDesde / 24) + 'd');
+      return (
+        <div className="card-soft" style={{ padding: '14px 16px' }}>
+          <div className="between mb-4" style={{ flexWrap: 'wrap', gap: 6 }}>
+            <div className="serif bold fs-13" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {c.nome}
+            </div>
+            <span className="badge">{c.tamanho}</span>
+          </div>
+          <div className="mono fs-11 txt-muted mb-8">
+            {ult
+              ? 'Ciclo ' + ult.numero + ' · ' + Math.round((ult.acertos/ult.total)*100) + '% · ' + formatarTempo(ult.tempo_medio_s) + ' médio · ' + tempoLabel
+              : 'Rating ' + formatarNumero(c.rating) + ' · ' + tempoLabel}
+          </div>
+          <div className="hstack gap-6 flex-wrap">
+            <button className="btn btn-small" onClick={() => onTreinar(c)}>▶ Treinar</button>
+            <button className="btn btn-small ghost" onClick={() => onEvolucao(c)}>📊 Evolução</button>
+          </div>
+        </div>
+      );
+    }
+
+    function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onTreinar, onEvolucao, onIrParaConjuntos, onAposImport }) {
       const temConjuntos = conjuntos.length > 0;
       const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
+
+      // Ordena conjuntos por última atividade desc — quem foi treinado mais recentemente vem primeiro
+      const conjuntosOrdenados = useMemo(() => {
+        return conjuntos.slice().sort((a, b) => {
+          const ua = ultimoCiclo(ciclos, a.id);
+          const ub = ultimoCiclo(ciclos, b.id);
+          const ta = ua && ua.data_fim ? ua.data_fim : a.criado_em || 0;
+          const tb = ub && ub.data_fim ? ub.data_fim : b.criado_em || 0;
+          return tb - ta;
+        });
+      }, [conjuntos, ciclos]);
+
+      const conjuntosVisiveis = conjuntosOrdenados.slice(0, 4);
+      const sobrando = conjuntosOrdenados.length - conjuntosVisiveis.length;
 
       return (
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '32px 4px' }}>
@@ -1187,6 +1231,25 @@
                       : 'Última: há ' + Math.round(atividade.diasDesde) + ' dia' + (Math.round(atividade.diasDesde) > 1 ? 's' : '')
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {temConjuntos && (
+            <div className="mb-16">
+              <div className="between mb-8">
+                <div className="mono fs-10 ls-2 txt-muted">SEUS CONJUNTOS</div>
+                {sobrando > 0 && (
+                  <button className="btn btn-small ghost" onClick={onIrParaConjuntos}>
+                    ver todos ({conjuntosOrdenados.length})
+                  </button>
+                )}
+              </div>
+              <div className="vstack gap-8">
+                {conjuntosVisiveis.map(c => (
+                  <MiniCardConjunto key={c.id} c={c} ciclos={ciclos}
+                    onTreinar={onTreinar} onEvolucao={onEvolucao} />
+                ))}
               </div>
             </div>
           )}
@@ -1755,7 +1818,8 @@
       const [uciInput, setUciInput] = useState('');
       const [pendingDrop, setPendingDrop] = useState(null);
       const [rodando, setRodando] = useState(true);
-      const [seg, resetTimer] = useTimer(rodando);
+      const [pausado, setPausado] = useState(false);
+      const [seg, resetTimer] = useTimer(rodando && !pausado);
 
       const chessRef = useRef(null);
       const expectedIdxRef = useRef(1);
@@ -1815,6 +1879,7 @@
           setErroPuzzle(null);
           setLancePendente(null);
           setPromoPicker(null);
+          setPausado(false);
           segRef.current = 0;
           resetTimer();
           setRodando(true);
@@ -1844,6 +1909,7 @@
           }
           if (estado === 'jogando') {
             if (e.key === ' ') { e.preventDefault(); pular(); }
+            else if (e.key === 'p' || e.key === 'P') { e.preventDefault(); setPausado(p => !p); }
             return;
           }
           if (estado === 'feedback') {
@@ -1853,7 +1919,7 @@
         }
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-      }, [estado, lancePendente, promoPicker, idx]);
+      }, [estado, lancePendente, promoPicker, idx, pausado]);
 
       // Persiste sessão a cada mudança de progresso
       useEffect(() => {
@@ -1880,6 +1946,7 @@
       // ou guardar como pendente no modo confirmar.
       function processarLance(from, to, promo) {
         if (estado !== 'jogando') return false;
+        if (pausado) return false;
         if (lancePendente) return false; // já há um lance aguardando confirmação
         const c = chessRef.current;
         if (!c) return false;
@@ -2098,7 +2165,7 @@
                 fen={fenAtual}
                 orientation={orientacaoRef.current}
                 onDrop={onDrop}
-                draggable={estado === 'jogando'}
+                draggable={estado === 'jogando' && !pausado}
                 highlightSquares={ultimoLanceAdv ? [ultimoLanceAdv.from, ultimoLanceAdv.to] : null}
               />
             </div>
@@ -2111,12 +2178,26 @@
           </div>
 
           <div>
-            <div className={'timer ' + corTimer + ' mb-16'}>
-              <div className="timer-value">{formatarTempo(seg)}</div>
-              <div className="timer-label">TEMPO DESTE PUZZLE</div>
+            <div className={'timer ' + corTimer + ' mb-16'} style={{ position: 'relative' }}>
+              <div className="timer-value" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(seg)}</div>
+              <div className="timer-label">TEMPO DESTE PUZZLE {pausado && '· PAUSADO'}</div>
               <div className="timer-divider"></div>
-              <div className="timer-total mono">{formatarTempo(tempoAcumulado)}</div>
+              <div className="timer-total mono" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(tempoAcumulado)}</div>
               <div className="timer-label">TEMPO TOTAL DO CICLO</div>
+              {estado === 'jogando' && (
+                <button
+                  onClick={() => setPausado(p => !p)}
+                  title={pausado ? 'Retomar' : 'Pausar'}
+                  style={{
+                    position: 'absolute', top: 8, right: 8,
+                    background: 'transparent', border: '1px solid var(--border)',
+                    borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                    fontSize: 12, color: 'var(--txt-mid)',
+                    fontFamily: "'Courier New', monospace"
+                  }}>
+                  {pausado ? '▶' : '⏸'}
+                </button>
+              )}
             </div>
 
             <div className="card-soft mb-16">
@@ -2192,7 +2273,7 @@
                 <div className="mono fs-9 txt-muted center mt-8" style={{ letterSpacing: '0.05em' }}>
                   {lancePendente
                     ? 'Atalhos: Enter confirma · Esc reverte'
-                    : 'Atalhos: Espaço pula · Enter no input confirma'}
+                    : 'Atalhos: Espaço pula · P pausa · Enter no input confirma'}
                 </div>
               </div>
             )}
@@ -3120,6 +3201,9 @@
                   ciclos={ciclos}
                   onCriar={() => setTela('criar')}
                   onContinuar={continuarTreino}
+                  onTreinar={iniciarTreino}
+                  onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
+                  onIrParaConjuntos={() => setTela('conjuntos')}
                   onAposImport={() => {
                     setConjuntos(loadLS('wp_conjuntos', []));
                     setCiclos(loadLS('wp_ciclos', []));
