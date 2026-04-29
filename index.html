@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no" />
+  <meta name="theme-color" content="#0d1520" />
   <title>Woodpecker · Método Tático</title>
 
   <script src="https://unpkg.com/jquery@3.7.1/dist/jquery.min.js"></script>
@@ -42,7 +43,7 @@
 
     /* === RESET / BASE === */
     * { box-sizing: border-box; }
-    html, body { margin:0; padding:0; height:100%; }
+    html, body { margin:0; padding:0; height:100%; overflow-x: hidden; }
     body {
       background: var(--bg);
       color: var(--txt);
@@ -50,6 +51,7 @@
       font-size: 14px;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
     }
     a { color: var(--primary); text-decoration: none; }
     button { font-family: inherit; }
@@ -180,6 +182,10 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 14px;
+    }
+    @media (max-width: 640px) {
+      .card { padding: 16px; border-radius: 10px; }
+      .card-soft { padding: 12px; }
     }
 
     .btn {
@@ -416,6 +422,23 @@
       line-height: 1;
     }
 
+    /* Mobile: compacta o timer sem perder legibilidade */
+    @media (max-width: 640px) {
+      .timer { padding: 12px 14px; }
+      .timer-value { font-size: 28px; }
+      .timer-total { font-size: 16px; }
+      .timer-label { font-size: 9px; margin-top: 4px; letter-spacing: 0.15em; }
+      .timer-divider { margin: 10px 0 6px; }
+    }
+
+    /* Utilitários responsivos */
+    .hide-mobile { display: initial; }
+    .only-mobile { display: none; }
+    @media (max-width: 640px) {
+      .hide-mobile { display: none !important; }
+      .only-mobile { display: initial !important; }
+    }
+
     /* === HIGHLIGHT ÚLTIMO LANCE === */
     .highlight-last-move {
       box-shadow: inset 0 0 0 5px rgba(130, 240, 90, 0.92);
@@ -455,6 +478,11 @@
 
     /* === GRID DE MÉTRICAS (tela conclusão) === */
     .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 640px) {
+      .metric-grid { gap: 8px; }
+      .metric-card { padding: 12px 14px; }
+      .metric-value { font-size: 18px; }
+    }
     .metric-card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -476,7 +504,22 @@
     @media (max-width: 640px) {
       .board-wrap { width: 100%; }
     }
-    .board-host { width: 100%; }
+    .board-host {
+      width: 100%;
+      /* impede que o navegador interprete o drag como scroll/zoom — sem isso
+         o touch fica "lutando" com o scroll vertical e os lances perdem o alvo. */
+      touch-action: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .board-host img,
+    .board-host .square-55d63 {
+      -webkit-user-drag: none;
+      -webkit-touch-callout: none;
+    }
     .train-layout {
       display: grid;
       grid-template-columns: minmax(0, 58%) minmax(0, 42%);
@@ -486,7 +529,12 @@
       align-items: start;
     }
     @media (max-width: 800px) {
-      .train-layout { grid-template-columns: 1fr; max-width: 520px; }
+      .train-layout { grid-template-columns: 1fr; max-width: 520px; gap: 12px; }
+    }
+    @media (max-width: 640px) {
+      /* Treino mobile: padding mínimo para o tabuleiro respirar */
+      .content-area.fullbleed { padding: 10px 8px 24px; }
+      .train-layout { gap: 10px; }
     }
 
     /* === HELPERS === */
@@ -521,6 +569,11 @@
     .fs-9 { font-size: 9px; } .fs-10 { font-size: 10px; } .fs-11 { font-size: 11px; }
     .fs-12 { font-size: 12px; } .fs-13 { font-size: 13px; } .fs-15 { font-size: 15px; }
     .fs-17 { font-size: 17px; } .fs-22 { font-size: 22px; } .fs-26 { font-size: 26px; } .fs-36 { font-size: 36px; }
+    @media (max-width: 640px) {
+      .fs-22 { font-size: 18px; }
+      .fs-26 { font-size: 22px; }
+      .fs-36 { font-size: 28px; }
+    }
     .bold { font-weight: 700; }
     .italic { font-style: italic; }
     .upper { text-transform: uppercase; }
@@ -1427,9 +1480,10 @@
             <input type="checkbox"
               checked={!!c.espelho}
               onChange={e => onAtualizar({ ...c, espelho: e.target.checked })}
-              style={{ width: 14, height: 14 }} />
+              style={{ width: 16, height: 16, flexShrink: 0 }} />
             <span className="mono fs-11 txt-mid">
-              🔄 Modo espelho — tabuleiro invertido para combater memorização da posição
+              <span className="hide-mobile">🔄 Modo espelho — tabuleiro invertido para combater memorização da posição</span>
+              <span className="only-mobile">🔄 Modo espelho (tabuleiro invertido)</span>
             </span>
           </label>
 
@@ -2223,7 +2277,7 @@
             <div className="mt-12 mono fs-12 center" style={{ color: 'var(--primary)' }}>
               ● {corLabel}
             </div>
-            <div className="mono fs-9 txt-muted center" style={{ wordBreak: 'break-all' }}>
+            <div className="mono fs-9 txt-muted center hide-mobile" style={{ wordBreak: 'break-all' }}>
               {fenAtual.length > 40 ? fenAtual.slice(0, 40) + '...' : fenAtual}
             </div>
           </div>
@@ -2285,8 +2339,11 @@
                   <input type="checkbox" checked={modoConfirmar}
                     onChange={e => setModoConfirmar(e.target.checked)}
                     disabled={!!lancePendente}
-                    style={{ width: 14, height: 14 }} />
-                  <span className="mono fs-11 txt-mid">Modo confirmar — calcular antes de comitar</span>
+                    style={{ width: 16, height: 16 }} />
+                  <span className="mono fs-11 txt-mid">
+                    <span className="hide-mobile">Modo confirmar — calcular antes de comitar</span>
+                    <span className="only-mobile">Modo confirmar</span>
+                  </span>
                 </label>
 
                 {lancePendente ? (
@@ -2294,7 +2351,7 @@
                     <div className="card-soft" style={{ borderLeft: '3px solid var(--gold)' }}>
                       <div className="mono fs-10 txt-muted ls-2 mb-4">LANCE PENDENTE</div>
                       <div className="serif bold fs-15">{lancePendente.san}</div>
-                      <div className="mono fs-10 txt-muted mt-4">Calcule mais. Quando estiver pronto, confirme.</div>
+                      <div className="mono fs-10 txt-muted mt-4 hide-mobile">Calcule mais. Quando estiver pronto, confirme.</div>
                     </div>
                     <button className="btn btn-primary btn-block" onClick={confirmarPendente}>
                       ✓ Confirmar {lancePendente.san}
@@ -2305,7 +2362,7 @@
                   </div>
                 ) : (
                   <>
-                    <div>
+                    <div className="hide-mobile">
                       <div className="input-label">Ou digite o lance:</div>
                       <input className="input-uci" type="text"
                         placeholder="ex: e2e4"
@@ -2313,7 +2370,7 @@
                         onChange={e => setUciInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') confirmarUci(); }} />
                     </div>
-                    <button className="btn btn-primary btn-block"
+                    <button className="btn btn-primary btn-block hide-mobile"
                       disabled={uciInput.trim().length < 4}
                       onClick={confirmarUci}>
                       ✓ Confirmar Lance
@@ -2321,7 +2378,7 @@
                     <button className="btn btn-ghost btn-block" onClick={pular}>⏭ Pular</button>
                   </>
                 )}
-                <div className="mono fs-9 txt-muted center mt-8" style={{ letterSpacing: '0.05em' }}>
+                <div className="mono fs-9 txt-muted center mt-8 hide-mobile" style={{ letterSpacing: '0.05em' }}>
                   {lancePendente
                     ? 'Atalhos: Enter confirma · Esc reverte'
                     : 'Atalhos: Espaço pula · P pausa · Enter no input confirma'}
@@ -2346,7 +2403,7 @@
                 <button className="btn btn-primary btn-block" onClick={avancar}>
                   {idx + 1 >= total ? '🏁 Finalizar Ciclo' : '→ Próximo Puzzle'}
                 </button>
-                <div className="mono fs-9 txt-muted center" style={{ letterSpacing: '0.05em' }}>
+                <div className="mono fs-9 txt-muted center hide-mobile" style={{ letterSpacing: '0.05em' }}>
                   Atalhos: Enter ou → avança
                 </div>
               </div>
