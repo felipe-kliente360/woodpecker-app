@@ -1191,7 +1191,7 @@
       const [rating, setRating] = useState(1200);
       const [variacao, setVariacao] = useState(200);
       const [temas, setTemas] = useState([]);
-      const [tamanho, setTamanho] = useState(200);
+      const [tamanho, setTamanho] = useState(1000);
       const [nome, setNome] = useState('');
       const [montando, setMontando] = useState(false);
       const [progresso, setProgresso] = useState('');
@@ -1250,10 +1250,10 @@
       }
 
       const tamanhos = [
-        { v: 100,  nome: '⚡ Rápido',    tempo: '~2h por ciclo' },
-        { v: 200,  nome: '♟ Padrão',     tempo: '~4h por ciclo', rec: true },
-        { v: 500,  nome: '♞ Intensivo',  tempo: '~10h por ciclo' },
-        { v: 1000, nome: '♜ Completo',   tempo: '~20h por ciclo' }
+        { v: 100,  nome: '⚡ Mini',       tempo: '~2h por ciclo · pré-treino' },
+        { v: 300,  nome: '♟ Reduzido',   tempo: '~6h por ciclo · mínimo útil' },
+        { v: 500,  nome: '♞ Intermediário', tempo: '~10h por ciclo' },
+        { v: 1000, nome: '♜ Woodpecker', tempo: '~20h por ciclo · método original', rec: true }
       ];
 
       return (
@@ -1429,12 +1429,55 @@
         return Object.entries(dist).sort((a,b)=>b[1]-a[1]).slice(0,3);
       }, [ult]);
 
+      // Espaçamento desde o último ciclo (consolidação por sono/repouso)
+      const espacamento = useMemo(() => {
+        if (!ult || !ult.data_fim) return null;
+        const horas = (Date.now() - ult.data_fim) / 3600000;
+        const tempoSubiu = cs.length >= 2
+          && ult.tempo_medio_s > cs[cs.length - 2].tempo_medio_s;
+        let texto, cor, recomenda;
+        if (horas < 1) {
+          cor = 'var(--red)';
+          recomenda = 'Aguarde pelo menos 12h. A consolidação acontece com sono.';
+          texto = 'há ' + Math.round(horas * 60) + ' min';
+        } else if (horas < 12) {
+          cor = 'var(--amber)';
+          recomenda = tempoSubiu
+            ? 'Tempo subiu no último ciclo — fadiga. Aguarde 24h.'
+            : 'Cedo. O ideal é 12–24h entre ciclos para o método funcionar.';
+          texto = 'há ' + Math.round(horas) + 'h';
+        } else if (horas < 24) {
+          cor = 'var(--gold)';
+          recomenda = 'Bom intervalo. Pode iniciar agora se estiver descansado.';
+          texto = 'há ' + Math.round(horas) + 'h';
+        } else if (horas < 24 * 14) {
+          cor = 'var(--green)';
+          recomenda = 'Janela ideal — padrões consolidados, prosseguir.';
+          texto = horas < 48 ? 'há 1 dia' : ('há ' + Math.round(horas / 24) + ' dias');
+        } else {
+          cor = 'var(--slate)';
+          recomenda = 'Faz tempo — espere os primeiros puzzles serem mais lentos enquanto retoma.';
+          texto = 'há ' + Math.round(horas / 24) + ' dias';
+        }
+        return { texto, cor, recomenda, horas };
+      }, [ult, cs]);
+
       return (
         <div style={{ maxWidth: 520, margin: '0 auto' }}>
-          <div className="card mb-16">
+          <div className="card mb-12">
             <div className="serif bold fs-15 mb-4">{conjunto.nome}</div>
             <div className="mono fs-11 txt-muted">{cs.length} ciclos completados</div>
           </div>
+
+          {espacamento && (
+            <div className="card-soft mb-16" style={{ borderLeft: '3px solid ' + espacamento.cor }}>
+              <div className="mono fs-10 ls-2 txt-muted mb-4">DESDE O ÚLTIMO CICLO</div>
+              <div className="serif fs-13" style={{ color: espacamento.cor }}>
+                <span className="bold">{espacamento.texto}</span>
+              </div>
+              <div className="mono fs-11 txt-mid mt-4">{espacamento.recomenda}</div>
+            </div>
+          )}
 
           <div className="vstack gap-12">
             <div
@@ -1846,6 +1889,15 @@
       const tempoTotal = ciclo.tempo_total_s;
 
       const anterior = ciclosAnteriores.length >= 2 ? ciclosAnteriores[ciclosAnteriores.length - 2] : null;
+      // Baseline = ciclo 1 (referência do método). Em ciclo 2 baseline === anterior.
+      const baseline = (ciclosAnteriores.length >= 2 && ciclo.numero > 1) ? ciclosAnteriores[0] : null;
+      const baselineDistinto = baseline && anterior && baseline !== anterior;
+      const razaoBaseline = baseline ? (ciclo.tempo_total_s / baseline.tempo_total_s) : 1;
+      // Meta sugerida pro próximo ciclo: 15% abaixo do atual, mas nunca abaixo do halving (50% do baseline).
+      const metaProximo = baseline
+        ? Math.max(Math.round(baseline.tempo_total_s * 0.5), Math.round(ciclo.tempo_total_s * 0.85))
+        : Math.round(ciclo.tempo_total_s * 0.85);
+      const halvingAtingido = baseline && razaoBaseline <= 0.5;
 
       const dataLabel = useMemo(() => {
         const d = new Date(ciclo.data_fim || Date.now());
@@ -1925,9 +1977,51 @@
             </div>
           </div>
 
-          {anterior && (
+          {baseline && (
             <div className="card-soft mb-16">
-              <div className="vstack gap-8 mono fs-13">
+              <div className="mono fs-10 ls-2 txt-muted mb-8">VS CICLO 1 (BASELINE)</div>
+              <div className="vstack gap-6 mono fs-13">
+                {(() => {
+                  const tDelta = ciclo.tempo_total_s - baseline.tempo_total_s;
+                  const tPct = baseline.tempo_total_s ? Math.round((tDelta / baseline.tempo_total_s) * 100) : 0;
+                  const tCor = tDelta < 0 ? 'var(--green)' : 'var(--red)';
+                  const tSeta = tDelta < 0 ? '↓' : '↑';
+                  return (
+                    <div>
+                      Tempo total: {formatarTempoLongo(baseline.tempo_total_s)} → <span className="bold">{formatarTempoLongo(ciclo.tempo_total_s)}</span>
+                      <span style={{color: tCor, marginLeft: 8}}>{tSeta} {Math.abs(tPct)}%</span>
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  const mDelta = tempoMedio - baseline.tempo_medio_s;
+                  const mPct = baseline.tempo_medio_s ? Math.round((mDelta / baseline.tempo_medio_s) * 100) : 0;
+                  const mCor = mDelta < 0 ? 'var(--green)' : 'var(--red)';
+                  const mSeta = mDelta < 0 ? '↓' : '↑';
+                  return (
+                    <div>
+                      Tempo médio: {formatarTempo(baseline.tempo_medio_s)} → <span className="bold">{formatarTempo(tempoMedio)}</span>
+                      <span style={{color: mCor, marginLeft: 8}}>{mSeta} {Math.abs(mPct)}%</span>
+                    </div>
+                  );
+                })()}
+                <div className="hstack gap-8 flex-wrap mt-8" style={{ alignItems: 'center' }}>
+                  <span className="badge" style={{
+                    background: halvingAtingido ? 'var(--green-bg)' : 'var(--surface)',
+                    borderColor: halvingAtingido ? 'var(--green-bdr)' : 'var(--border)',
+                    color: halvingAtingido ? 'var(--green)' : 'var(--txt-mid)'
+                  }}>
+                    {halvingAtingido ? '🎯 Halving atingido' : Math.round(razaoBaseline * 100) + '% do baseline · meta: 50%'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {baselineDistinto && (
+            <div className="card-soft mb-16">
+              <div className="mono fs-10 ls-2 txt-muted mb-8">VS CICLO {anterior.numero} (ANTERIOR)</div>
+              <div className="vstack gap-6 mono fs-13">
                 {(() => {
                   const taxaAntes = Math.round((anterior.acertos / anterior.total) * 100);
                   const taxaDelta = taxaAcerto - taxaAntes;
@@ -1952,6 +2046,22 @@
                     </div>
                   );
                 })()}
+              </div>
+            </div>
+          )}
+
+          {ciclo.numero >= 1 && metaProximo > 0 && (
+            <div className="card-soft mb-16" style={{ borderLeft: '3px solid var(--primary)' }}>
+              <div className="mono fs-10 ls-2 txt-muted mb-4">META SUGERIDA · CICLO {ciclo.numero + 1}</div>
+              <div className="serif fs-15">
+                Tempo total ≤ <span className="bold txt-primary">{formatarTempoLongo(metaProximo)}</span>
+              </div>
+              <div className="mono fs-11 txt-muted mt-4">
+                {halvingAtingido
+                  ? 'Você já bateu o halving — manter ritmo é suficiente.'
+                  : (baseline
+                      ? '−15% do ciclo atual. Halving (50% do Ciclo 1) seria ' + formatarTempoLongo(Math.round(baseline.tempo_total_s * 0.5)) + '.'
+                      : '−15% do ciclo atual. A partir do Ciclo 2 a meta passa a referenciar o halving.')}
               </div>
             </div>
           )}
@@ -2077,6 +2187,33 @@
         return Object.entries(dist).sort((a,b)=>b[1]-a[1]).slice(0,8);
       }, [cs]);
 
+      // Puzzles teimosos: errados em ≥2 ciclos (assumindo que cada ciclo
+      // resolve cada puzzle no máximo uma vez — verdadeiro no fluxo atual).
+      const teimosos = useMemo(() => {
+        const errosPorPuzzle = {};
+        for (const c of cs) {
+          for (const r of (c.resultados || [])) {
+            if (!r.correto) {
+              if (!errosPorPuzzle[r.puzzle_id]) {
+                errosPorPuzzle[r.puzzle_id] = {
+                  id: r.puzzle_id,
+                  count: 0,
+                  ciclos: [],
+                  temas: r.temas || []
+                };
+              }
+              errosPorPuzzle[r.puzzle_id].count += 1;
+              errosPorPuzzle[r.puzzle_id].ciclos.push(c.numero);
+              if ((r.temas || []).length > 0) errosPorPuzzle[r.puzzle_id].temas = r.temas;
+            }
+          }
+        }
+        return Object.values(errosPorPuzzle)
+          .filter(e => e.count >= 2)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 12);
+      }, [cs]);
+
       const dataErros = useMemo(() => {
         const max = errosPorTema.length ? errosPorTema[0][1] : 1;
         return {
@@ -2184,6 +2321,29 @@
                       <div className="mono fs-11 txt-green mt-8">Você economizou {minEconomizado} min desde o Ciclo 1</div>
                     )}
                   </div>
+
+                  {teimosos.length > 0 && (
+                    <div className="card">
+                      <div className="serif bold fs-13 mb-4">🪵 Puzzles Teimosos</div>
+                      <div className="mono fs-11 txt-muted mb-12">
+                        Errados em ≥2 ciclos — esses são os padrões que ainda não gravaram. Crie um conjunto focado nos temas abaixo.
+                      </div>
+                      <div className="vstack gap-8">
+                        {teimosos.map(t => (
+                          <div key={t.id} className="hstack gap-8 flex-wrap" style={{ padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                            <span className="badge red">×{t.count}</span>
+                            <span className="mono fs-11 txt-muted">#{t.id}</span>
+                            <span className="mono fs-10 txt-muted">ciclos: {t.ciclos.join(', ')}</span>
+                            <div className="hstack gap-6 flex-wrap" style={{ marginLeft: 'auto' }}>
+                              {(t.temas || []).slice(0, 3).map(tem => (
+                                <span key={tem} className="badge">{traduzirTema(tem)}</span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="card">
                     <div className="metric-grid">
