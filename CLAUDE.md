@@ -12,8 +12,9 @@ Protótipo em desenvolvimento ativo. Iteração rápida, sem PRs.
   com sucesso (sem erros de push).
 
 ## Estrutura
-- App single-file: `woodpecker.html` (HTML + CSS + React/JSX inline,
-  zero build step). Abre direto no browser.
+- App single-file: `index.html` (HTML + CSS + React/JSX inline,
+  zero build step). Abre direto no browser. Nome `index.html` para
+  servir na raiz do Netlify sem configuração adicional.
 - Dependências via CDN (React, Chess.js, Chessboard.js, Pako, Chart.js).
 - Sem servidor, sem backend. Persistência em `localStorage`.
 
