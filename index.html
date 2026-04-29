@@ -2674,6 +2674,56 @@
     }
 
     /* === TELA EVOLUÇÃO === */
+    function LinhaTeimoso({ t }) {
+      const [aberto, setAberto] = useState(false);
+      const acertos = t.historico.filter(h => h.correto).length;
+      const totalAttempts = t.historico.length;
+      // Tendência simples: o último foi acerto?
+      const ultimoCorreto = t.historico.length && t.historico[t.historico.length - 1].correto;
+      const corBordaEsq = ultimoCorreto ? 'var(--green)' : 'var(--red)';
+
+      return (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, borderLeft: '3px solid ' + corBordaEsq, overflow: 'hidden' }}>
+          <div className="hstack gap-8 flex-wrap" onClick={() => setAberto(a => !a)}
+            style={{ padding: '8px 12px', cursor: 'pointer' }}>
+            <span className="badge red">×{t.count}</span>
+            <span className="mono fs-11 txt-muted">#{t.id}</span>
+            {t.rating && <span className="mono fs-10 txt-muted">Rating {t.rating}</span>}
+            <span className="mono fs-10 txt-muted">{acertos}/{totalAttempts}</span>
+            <div className="hstack gap-6 flex-wrap" style={{ marginLeft: 'auto' }}>
+              {(t.temas || []).slice(0, 3).map(tem => (
+                <span key={tem} className="badge">{traduzirTema(tem)}</span>
+              ))}
+              <span className="mono fs-11 txt-muted">{aberto ? '▾' : '▸'}</span>
+            </div>
+          </div>
+          {aberto && (
+            <div style={{ padding: '8px 12px 12px', borderTop: '1px solid var(--border)' }}>
+              <div className="mono fs-10 txt-muted ls-2 mb-8">HISTÓRICO POR CICLO</div>
+              <div className="vstack gap-4">
+                {t.historico.map((h, i) => (
+                  <div key={i} className="hstack gap-8 mono fs-12">
+                    <span className="txt-muted" style={{ width: 56 }}>Ciclo {h.ciclo}</span>
+                    <span style={{ color: h.correto ? 'var(--green)' : 'var(--red)', width: 16 }}>
+                      {h.correto ? '✓' : '✗'}
+                    </span>
+                    <span className="txt-mid">{formatarTempo(h.tempo_s)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-12">
+                <a href={'https://lichess.org/training/' + t.id} target="_blank" rel="noopener"
+                  className="mono fs-11"
+                  style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                  ↗ Ver puzzle #{t.id} no Lichess
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     function TelaEvolucao({ conjuntos, ciclos, conjuntoInicial, onVoltar, onCriarFocado }) {
       const [conjuntoId, setConjuntoId] = useState(
         conjuntoInicial ? conjuntoInicial.id : (conjuntos[0] && conjuntos[0].id) || null
@@ -2735,27 +2785,30 @@
       // Puzzles teimosos: errados em ≥2 ciclos (assumindo que cada ciclo
       // resolve cada puzzle no máximo uma vez — verdadeiro no fluxo atual).
       const teimosos = useMemo(() => {
-        const errosPorPuzzle = {};
+        const porId = {};
         for (const c of cs) {
           for (const r of (c.resultados || [])) {
-            if (!r.correto) {
-              if (!errosPorPuzzle[r.puzzle_id]) {
-                errosPorPuzzle[r.puzzle_id] = {
-                  id: r.puzzle_id,
-                  count: 0,
-                  ciclos: [],
-                  temas: r.temas || []
-                };
-              }
-              errosPorPuzzle[r.puzzle_id].count += 1;
-              errosPorPuzzle[r.puzzle_id].ciclos.push(c.numero);
-              if ((r.temas || []).length > 0) errosPorPuzzle[r.puzzle_id].temas = r.temas;
+            if (!porId[r.puzzle_id]) {
+              porId[r.puzzle_id] = {
+                id: r.puzzle_id,
+                historico: [],
+                temas: r.temas || [],
+                rating: r.rating
+              };
             }
+            porId[r.puzzle_id].historico.push({
+              ciclo: c.numero,
+              correto: !!r.correto,
+              tempo_s: r.tempo_s || 0
+            });
+            if ((r.temas || []).length > 0) porId[r.puzzle_id].temas = r.temas;
+            if (r.rating) porId[r.puzzle_id].rating = r.rating;
           }
         }
-        return Object.values(errosPorPuzzle)
-          .filter(e => e.count >= 2)
-          .sort((a, b) => b.count - a.count)
+        return Object.values(porId)
+          .map(p => ({ ...p, count: p.historico.filter(h => !h.correto).length }))
+          .filter(p => p.count >= 2)
+          .sort((a, b) => b.count - a.count || b.historico.length - a.historico.length)
           .slice(0, 12);
       }, [cs]);
 
@@ -2934,20 +2987,11 @@
                     <div className="card">
                       <div className="serif bold fs-13 mb-4">🪵 Puzzles Teimosos</div>
                       <div className="mono fs-11 txt-muted mb-12">
-                        Errados em ≥2 ciclos — esses são os padrões que ainda não gravaram. Crie um conjunto focado nos temas abaixo.
+                        Errados em ≥2 ciclos — clique pra ver o histórico completo do puzzle ao longo dos ciclos.
                       </div>
                       <div className="vstack gap-8">
                         {teimosos.map(t => (
-                          <div key={t.id} className="hstack gap-8 flex-wrap" style={{ padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
-                            <span className="badge red">×{t.count}</span>
-                            <span className="mono fs-11 txt-muted">#{t.id}</span>
-                            <span className="mono fs-10 txt-muted">ciclos: {t.ciclos.join(', ')}</span>
-                            <div className="hstack gap-6 flex-wrap" style={{ marginLeft: 'auto' }}>
-                              {(t.temas || []).slice(0, 3).map(tem => (
-                                <span key={tem} className="badge">{traduzirTema(tem)}</span>
-                              ))}
-                            </div>
-                          </div>
+                          <LinhaTeimoso key={t.id} t={t} />
                         ))}
                       </div>
                     </div>
