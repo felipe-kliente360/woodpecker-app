@@ -1513,6 +1513,10 @@
       const expectedIdxRef = useRef(1);
       const fenInicialJogadorRef = useRef('');
       const orientacaoRef = useRef('white');
+      // Ref sempre atualizado com o seg atual — evita closures antigas (useCallback,
+      // setTimeout do adversário) gravarem tempo_s = 0 no resultado do puzzle.
+      const segRef = useRef(0);
+      useEffect(() => { segRef.current = seg; }, [seg]);
       const [fenAtual, setFenAtual] = useState('');
       const [ultimoLanceErrado, setUltimoLanceErrado] = useState(null);
       const [ultimoLanceAdv, setUltimoLanceAdv] = useState(null); // {from, to} para highlight
@@ -1557,6 +1561,7 @@
           setPendingDrop(null);
           setUltimoLanceErrado(null);
           setErroPuzzle(null);
+          segRef.current = 0;
           resetTimer();
           setRodando(true);
         } catch (e) {
@@ -1603,7 +1608,7 @@
 
         if (!ok) {
           // Errou
-          const tempo = seg;
+          const tempo = segRef.current;
           setRodando(false);
           // Construir SAN da solução completa
           const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
@@ -1650,7 +1655,7 @@
       }
 
       function concluirCorreto() {
-        const tempo = seg;
+        const tempo = segRef.current;
         setRodando(false);
         const lances = puzzle.lances || puzzle.moves || [];
         const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
@@ -1661,7 +1666,7 @@
 
       function pular() {
         if (estado !== 'jogando') return;
-        const tempo = seg;
+        const tempo = segRef.current;
         setRodando(false);
         const lances = puzzle.lances || puzzle.moves || [];
         const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
