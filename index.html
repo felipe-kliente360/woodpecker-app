@@ -850,6 +850,69 @@
       return c.length ? c[c.length - 1] : null;
     }
 
+    /* === EXPORT / IMPORT === */
+    const CHAVES_LS_BACKUP = ['wp_conjuntos', 'wp_ciclos', 'wp_tema', 'wp_modo_confirmar', 'wp_sessao', 'wp_auto_backup'];
+
+    function exportarBackup() {
+      const dados = { versao: '1.0', gerado_em: new Date().toISOString(), app: 'woodpecker' };
+      for (const k of CHAVES_LS_BACKUP) {
+        const v = loadLS(k, null);
+        if (v !== null) dados[k] = v;
+      }
+      const json = JSON.stringify(dados, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dt = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      a.download = 'woodpecker-backup-' + dt + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // modo: 'merge' (mescla por id) ou 'replace' (sobrescreve tudo)
+    function importarBackup(textoJson, modo) {
+      const dados = JSON.parse(textoJson);
+      if (dados.app !== 'woodpecker') {
+        throw new Error('Arquivo não é um backup do Woodpecker (campo "app" ausente).');
+      }
+      if (!Array.isArray(dados.wp_conjuntos)) {
+        throw new Error('Backup inválido: wp_conjuntos não é um array.');
+      }
+      if (modo === 'replace') {
+        for (const k of CHAVES_LS_BACKUP) {
+          if (dados[k] !== undefined) saveLS(k, dados[k]);
+        }
+        return { adicionados_conjuntos: dados.wp_conjuntos.length, adicionados_ciclos: (dados.wp_ciclos || []).length, modo };
+      }
+      // merge
+      const conjuntosAtuais = loadLS('wp_conjuntos', []);
+      const ciclosAtuais = loadLS('wp_ciclos', []);
+      const idsConj = new Set(conjuntosAtuais.map(c => c.id));
+      const idsCic = new Set(ciclosAtuais.map(c => c.id));
+      const novosConj = (dados.wp_conjuntos || []).filter(c => !idsConj.has(c.id));
+      const novosCic = (dados.wp_ciclos || []).filter(c => !idsCic.has(c.id));
+      saveLS('wp_conjuntos', conjuntosAtuais.concat(novosConj));
+      saveLS('wp_ciclos', ciclosAtuais.concat(novosCic));
+      return { adicionados_conjuntos: novosConj.length, adicionados_ciclos: novosCic.length, modo };
+    }
+
+    /* === MÉTRICAS DE ATIVIDADE === */
+    function metricasAtividade(ciclos) {
+      if (!ciclos.length) return { total: 0, diasAtivos: 0, ultimaMs: 0, diasDesde: null };
+      const sorted = ciclos.slice().sort((a, b) => (a.data_fim || 0) - (b.data_fim || 0));
+      const dias = new Set();
+      for (const c of sorted) {
+        if (c.data_fim) dias.add(new Date(c.data_fim).toISOString().slice(0, 10));
+      }
+      const ultima = sorted[sorted.length - 1];
+      const ultimaMs = ultima ? (ultima.data_fim || 0) : 0;
+      const diasDesde = ultimaMs ? (Date.now() - ultimaMs) / 86400000 : null;
+      return { total: sorted.length, diasAtivos: dias.size, ultimaMs, diasDesde };
+    }
+
     function lanceUciParaSan(uci, fenAntes) {
       try {
         const c = new Chess(fenAntes);
@@ -1040,10 +1103,94 @@
     }
 
     /* === TELA INÍCIO === */
-    function TelaInicio({ conjuntos, onCriar, onContinuar }) {
+    /* === SEÇÃO BACKUP / IMPORTAÇÃO === */
+    function SecaoBackup({ onAposImport }) {
+      const [autoBackup, setAutoBackup] = useState(() => loadLS('wp_auto_backup', false));
+      const [erro, setErro] = useState(null);
+      const [aviso, setAviso] = useState(null);
+      const fileRef = useRef(null);
+
+      useEffect(() => { saveLS('wp_auto_backup', autoBackup); }, [autoBackup]);
+
+      function aoExportar() {
+        try {
+          exportarBackup();
+          setAviso('Backup exportado com sucesso.');
+          setErro(null);
+          setTimeout(() => setAviso(null), 4000);
+        } catch (e) { setErro(e.message || String(e)); }
+      }
+
+      function aoSelecionarArquivo(e) {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = (ev) => {
+          try {
+            const conjuntosAtuais = loadLS('wp_conjuntos', []);
+            const modo = conjuntosAtuais.length === 0
+              ? 'replace'
+              : (confirm('Já existem conjuntos no app. OK para mesclar (mantém os atuais e adiciona novos por id) · Cancelar para sobrescrever tudo.') ? 'merge' : 'replace');
+            const r2 = importarBackup(ev.target.result, modo);
+            setErro(null);
+            setAviso('Importado: ' + r2.adicionados_conjuntos + ' conjuntos · ' + r2.adicionados_ciclos + ' ciclos (' + r2.modo + ').');
+            if (onAposImport) onAposImport();
+          } catch (err) {
+            setErro('Falha ao importar: ' + (err.message || err));
+            setAviso(null);
+          }
+        };
+        r.readAsText(f);
+        e.target.value = ''; // permite reimportar o mesmo arquivo
+      }
+
+      return (
+        <div className="card-soft mt-16">
+          <div className="serif bold fs-13 mb-8">💾 Backup e Restauração</div>
+          <div className="mono fs-11 txt-muted mb-12">
+            Os dados ficam só neste navegador. Baixe um backup com regularidade — em outro dispositivo, importe o arquivo aqui.
+          </div>
+          <div className="hstack gap-8 flex-wrap">
+            <button className="btn btn-small" onClick={aoExportar}>↓ Exportar JSON</button>
+            <button className="btn btn-small ghost" onClick={() => fileRef.current && fileRef.current.click()}>↑ Importar JSON</button>
+            <input ref={fileRef} type="file" accept="application/json,.json" onChange={aoSelecionarArquivo} style={{ display: 'none' }} />
+          </div>
+          <label className="hstack gap-8 mt-12" style={{ cursor: 'pointer', userSelect: 'none' }}>
+            <input type="checkbox" checked={autoBackup} onChange={e => setAutoBackup(e.target.checked)} style={{ width: 14, height: 14 }} />
+            <span className="mono fs-11 txt-mid">Backup automático ao concluir cada ciclo</span>
+          </label>
+          {erro && <div className="mono fs-11 txt-red mt-8">{erro}</div>}
+          {aviso && <div className="mono fs-11 txt-green mt-8">{aviso}</div>}
+        </div>
+      );
+    }
+
+    function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onAposImport }) {
       const temConjuntos = conjuntos.length > 0;
+      const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
+
       return (
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '32px 4px' }}>
+          {temConjuntos && atividade.total > 0 && (
+            <div className="card-soft mb-12">
+              <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'space-between' }}>
+                <div>
+                  <div className="mono fs-10 ls-2 txt-muted">ATIVIDADE</div>
+                  <div className="serif bold fs-15">
+                    {atividade.total} ciclo{atividade.total > 1 ? 's' : ''} · {atividade.diasAtivos} dia{atividade.diasAtivos > 1 ? 's' : ''} ativo{atividade.diasAtivos > 1 ? 's' : ''}
+                  </div>
+                </div>
+                <div className="mono fs-11 txt-muted center">
+                  {atividade.diasDesde !== null && (
+                    atividade.diasDesde < 1
+                      ? 'Última: há ' + Math.round(atividade.diasDesde * 24) + 'h'
+                      : 'Última: há ' + Math.round(atividade.diasDesde) + ' dia' + (Math.round(atividade.diasDesde) > 1 ? 's' : '')
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="card mb-12">
             <div className="center" style={{ fontSize: 36, color: 'var(--primary)', marginBottom: 12 }}>♞</div>
             <div className="center mono fs-10 ls-2 txt-muted mb-12">REPETIÇÃO · VELOCIDADE · PADRÕES</div>
@@ -1053,36 +1200,40 @@
             </div>
           </div>
 
-          <div className="card mb-12">
-            <div className="serif bold fs-15 mb-12">Como Funciona</div>
-            <div className="vstack gap-10">
-              {[
-                "Monte seu conjunto com base no seu rating",
-                "Complete o Ciclo 1 resolvendo todos os puzzles",
-                "Repita os mesmos puzzles mais rápido a cada ciclo",
-                "Acompanhe seu tempo médio caindo a cada ciclo"
-              ].map((txt, i) => (
-                <div key={i} className="hstack gap-10">
-                  <div style={{
-                    width: 24, height: 24, borderRadius: '50%',
-                    background: 'var(--primary)', color: '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, flexShrink: 0,
-                    fontFamily: "'Courier New', monospace"
-                  }}>{i+1}</div>
-                  <div className="serif fs-13">{txt}</div>
-                </div>
-              ))}
+          {!temConjuntos && (
+            <div className="card mb-12">
+              <div className="serif bold fs-15 mb-12">Como Funciona</div>
+              <div className="vstack gap-10">
+                {[
+                  "Monte seu conjunto com base no seu rating",
+                  "Complete o Ciclo 1 resolvendo todos os puzzles",
+                  "Repita os mesmos puzzles mais rápido a cada ciclo",
+                  "Acompanhe seu tempo médio caindo a cada ciclo"
+                ].map((txt, i) => (
+                  <div key={i} className="hstack gap-10">
+                    <div style={{
+                      width: 24, height: 24, borderRadius: '50%',
+                      background: 'var(--primary)', color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 700, flexShrink: 0,
+                      fontFamily: "'Courier New', monospace"
+                    }}>{i+1}</div>
+                    <div className="serif fs-13">{txt}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="card">
-            <div className="center serif bold fs-22 txt-primary mb-8">⏱ Tempo Médio</div>
-            <div className="serif fs-13 txt-mid center" style={{ lineHeight: 1.7 }}>
-              O indicador do Woodpecker não é quantos você acertou — é quanto tempo você levou.
-              Cada ciclo deve ser mais rápido que o anterior.
+          {!temConjuntos && (
+            <div className="card">
+              <div className="center serif bold fs-22 txt-primary mb-8">⏱ Tempo Médio</div>
+              <div className="serif fs-13 txt-mid center" style={{ lineHeight: 1.7 }}>
+                O indicador do Woodpecker não é quantos você acertou — é quanto tempo você levou.
+                Cada ciclo deve ser mais rápido que o anterior.
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-32 center">
             {!temConjuntos ? (
@@ -1096,12 +1247,100 @@
               </div>
             )}
           </div>
+
+          <SecaoBackup onAposImport={onAposImport} />
         </div>
       );
     }
 
     /* === TELA MEUS CONJUNTOS === */
-    function TelaConjuntos({ conjuntos, ciclos, onTreinar, onEvolucao, onExcluir, onCriar }) {
+    function CardConjunto({ c, ciclos, onTreinar, onEvolucao, onExcluir, onAtualizar }) {
+      const cs = ciclosDoConjunto(ciclos, c.id);
+      const ult = cs.length ? cs[cs.length - 1] : null;
+      const [editandoNota, setEditandoNota] = useState(false);
+      const [textoNota, setTextoNota] = useState(c.notas || '');
+      const temNota = (c.notas || '').trim().length > 0;
+
+      function salvarNota() {
+        onAtualizar({ ...c, notas: textoNota.trim() });
+        setEditandoNota(false);
+      }
+      function cancelarNota() {
+        setTextoNota(c.notas || '');
+        setEditandoNota(false);
+      }
+
+      return (
+        <div className="card">
+          <div className="between mb-8" style={{ flexWrap: 'wrap', gap: 8 }}>
+            <div className="serif bold fs-15">{c.nome}</div>
+            <span className="badge">{c.tamanho} puzzles</span>
+          </div>
+          <div className="mono fs-10 txt-muted mb-8">
+            Rating: {formatarNumero(c.rating)} · Variação: ±{c.variacao}
+          </div>
+          {c.temas && c.temas.length > 0 && (
+            <div className="hstack flex-wrap gap-6 mb-12">
+              {c.temas.slice(0, 4).map(t => (
+                <span key={t} className="badge">{traduzirTema(t)}</span>
+              ))}
+              {c.temas.length > 4 && <span className="badge">+{c.temas.length - 4}</span>}
+            </div>
+          )}
+          {ult ? (
+            <div className="mono fs-12 txt-muted mb-12">
+              Ciclo {ult.numero} · Acertos: {Math.round((ult.acertos/ult.total)*100)}% · Tempo médio: {formatarTempo(ult.tempo_medio_s)}
+            </div>
+          ) : (
+            <div className="mono fs-12 txt-muted italic mb-12">Ainda não iniciado</div>
+          )}
+
+          {editandoNota ? (
+            <div className="mb-12">
+              <div className="input-label">Notas</div>
+              <textarea
+                value={textoNota}
+                onChange={e => setTextoNota(e.target.value)}
+                placeholder="Ex: focado em finais de torres, ciclo 4 marcou meu PR..."
+                rows={3}
+                style={{
+                  width: '100%', resize: 'vertical',
+                  background: 'var(--surface)', color: 'var(--txt)',
+                  border: '1px solid var(--border)', borderRadius: 6,
+                  padding: '8px 10px', fontFamily: 'Georgia, serif', fontSize: 13,
+                  lineHeight: 1.5, outline: 'none'
+                }} />
+              <div className="hstack gap-8 mt-8">
+                <button className="btn btn-small" onClick={salvarNota}>Salvar</button>
+                <button className="btn btn-small ghost" onClick={cancelarNota}>Cancelar</button>
+              </div>
+            </div>
+          ) : temNota ? (
+            <div onClick={() => setEditandoNota(true)}
+              className="card-soft mb-12"
+              style={{ cursor: 'pointer', borderLeft: '3px solid var(--gold)' }}>
+              <div className="mono fs-10 txt-muted ls-2 mb-4">📝 NOTAS</div>
+              <div className="serif fs-13" style={{ whiteSpace: 'pre-wrap' }}>{c.notas}</div>
+            </div>
+          ) : null}
+
+          <div className="hstack gap-8 flex-wrap">
+            <button className="btn btn-small" onClick={() => onTreinar(c)}>▶ Treinar</button>
+            <button className="btn btn-small ghost" onClick={() => onEvolucao(c)}>📊 Evolução</button>
+            {!editandoNota && !temNota && (
+              <button className="btn btn-small ghost" onClick={() => setEditandoNota(true)}>📝 Notas</button>
+            )}
+            <button className="btn btn-small danger" onClick={() => {
+              if (confirm('Excluir o conjunto "' + c.nome + '"? Isso apaga também os ciclos.')) {
+                onExcluir(c.id);
+              }
+            }}>🗑</button>
+          </div>
+        </div>
+      );
+    }
+
+    function TelaConjuntos({ conjuntos, ciclos, onTreinar, onEvolucao, onExcluir, onAtualizar, onCriar }) {
       return (
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           <div className="between mb-16">
@@ -1117,45 +1356,11 @@
             </div>
           ) : (
             <div className="vstack gap-12">
-              {conjuntos.map(c => {
-                const cs = ciclosDoConjunto(ciclos, c.id);
-                const ult = cs.length ? cs[cs.length - 1] : null;
-                return (
-                  <div key={c.id} className="card">
-                    <div className="between mb-8" style={{ flexWrap: 'wrap', gap: 8 }}>
-                      <div className="serif bold fs-15">{c.nome}</div>
-                      <span className="badge">{c.tamanho} puzzles</span>
-                    </div>
-                    <div className="mono fs-10 txt-muted mb-8">
-                      Rating: {formatarNumero(c.rating)} · Variação: ±{c.variacao}
-                    </div>
-                    {c.temas && c.temas.length > 0 && (
-                      <div className="hstack flex-wrap gap-6 mb-12">
-                        {c.temas.slice(0, 4).map(t => (
-                          <span key={t} className="badge">{traduzirTema(t)}</span>
-                        ))}
-                        {c.temas.length > 4 && <span className="badge">+{c.temas.length - 4}</span>}
-                      </div>
-                    )}
-                    {ult ? (
-                      <div className="mono fs-12 txt-muted mb-12">
-                        Ciclo {ult.numero} · Acertos: {Math.round((ult.acertos/ult.total)*100)}% · Tempo médio: {formatarTempo(ult.tempo_medio_s)}
-                      </div>
-                    ) : (
-                      <div className="mono fs-12 txt-muted italic mb-12">Ainda não iniciado</div>
-                    )}
-                    <div className="hstack gap-8 flex-wrap">
-                      <button className="btn btn-small" onClick={() => onTreinar(c)}>▶ Treinar</button>
-                      <button className="btn btn-small ghost" onClick={() => onEvolucao(c)}>📊 Evolução</button>
-                      <button className="btn btn-small danger" onClick={() => {
-                        if (confirm('Excluir o conjunto "' + c.nome + '"? Isso apaga também os ciclos.')) {
-                          onExcluir(c.id);
-                        }
-                      }}>🗑</button>
-                    </div>
-                  </div>
-                );
-              })}
+              {conjuntos.map(c => (
+                <CardConjunto key={c.id} c={c} ciclos={ciclos}
+                  onTreinar={onTreinar} onEvolucao={onEvolucao}
+                  onExcluir={onExcluir} onAtualizar={onAtualizar} />
+              ))}
             </div>
           )}
         </div>
@@ -2721,6 +2926,11 @@
         delete memCache.puzzlesPorConjunto[id];
       }
 
+      // Atualizar conjunto (notas e outros campos editáveis)
+      function atualizarConjunto(novo) {
+        setConjuntos(cs => cs.map(c => c.id === novo.id ? { ...c, ...novo } : c));
+      }
+
       // Iniciar treino
       async function iniciarTreino(conjunto) {
         const cs = ciclosDoConjunto(ciclos, conjunto.id);
@@ -2793,6 +3003,13 @@
         setCicloAtual(cicloFinal);
         limparSessao();
         setTela('conclusao');
+        // Auto-backup opcional: dispara download do JSON após o ciclo ser persistido.
+        // Aguarda o useEffect de setCiclos gravar no localStorage antes de gerar o blob.
+        if (loadLS('wp_auto_backup', false)) {
+          setTimeout(() => {
+            try { exportarBackup(); } catch (e) { console.warn("auto-backup falhou:", e); }
+          }, 200);
+        }
       }
 
       // Continuar treino (botão da tela inicial)
@@ -2900,8 +3117,15 @@
               {!carregando && tela === 'inicio' && (
                 <TelaInicio
                   conjuntos={conjuntos}
+                  ciclos={ciclos}
                   onCriar={() => setTela('criar')}
                   onContinuar={continuarTreino}
+                  onAposImport={() => {
+                    setConjuntos(loadLS('wp_conjuntos', []));
+                    setCiclos(loadLS('wp_ciclos', []));
+                    setSessaoSalva(loadLS('wp_sessao', null));
+                    setTema(loadLS('wp_tema', tema));
+                  }}
                 />
               )}
               {!carregando && tela === 'conjuntos' && (
@@ -2911,6 +3135,7 @@
                   onTreinar={iniciarTreino}
                   onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
                   onExcluir={excluirConjunto}
+                  onAtualizar={atualizarConjunto}
                   onCriar={() => setTela('criar')}
                 />
               )}
