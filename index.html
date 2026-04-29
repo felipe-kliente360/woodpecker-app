@@ -6,7 +6,7 @@
   <title>Woodpecker · Método Tático</title>
 
   <script src="https://unpkg.com/jquery@3.7.1/dist/jquery.min.js"></script>
-  <script src="https://unpkg.com/chess.js@1.0.0-beta.8/dist/chess.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chess.js@0.13.4/chess.min.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
   <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
@@ -517,6 +517,38 @@
 </head>
 <body>
   <div id="root"></div>
+  <div id="erro-overlay" style="display:none;position:fixed;left:14px;right:14px;bottom:14px;
+       background:#2a0e0e;color:#ffd0d0;border:1px solid #5a2222;border-radius:10px;
+       padding:14px 18px;font-family:'Courier New',monospace;font-size:12px;z-index:200;
+       max-height:40vh;overflow:auto;line-height:1.5;"></div>
+  <script>
+    // Captura erros JS que de outra forma deixariam a tela em branco.
+    (function() {
+      const overlay = document.getElementById('erro-overlay');
+      function mostrar(msg) {
+        overlay.style.display = 'block';
+        const linha = document.createElement('div');
+        linha.textContent = '⚠ ' + msg;
+        overlay.appendChild(linha);
+      }
+      window.addEventListener('error', e => {
+        mostrar((e.message || 'erro') + (e.filename ? ' @ ' + e.filename + ':' + e.lineno : ''));
+      });
+      window.addEventListener('unhandledrejection', e => {
+        mostrar('Promise rejeitada: ' + (e.reason && (e.reason.message || e.reason)));
+      });
+      window.addEventListener('load', () => {
+        const faltando = [];
+        if (typeof window.React === 'undefined') faltando.push('React');
+        if (typeof window.ReactDOM === 'undefined') faltando.push('ReactDOM');
+        if (typeof window.Chess === 'undefined') faltando.push('Chess (chess.js)');
+        if (typeof window.Chessboard === 'undefined') faltando.push('Chessboard');
+        if (typeof window.pako === 'undefined') faltando.push('pako');
+        if (typeof window.Chart === 'undefined') faltando.push('Chart.js');
+        if (faltando.length) mostrar('Dependências não carregaram: ' + faltando.join(', '));
+      });
+    })();
+  </script>
   <script type="text/babel" data-presets="env,react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
@@ -1443,26 +1475,37 @@
       const pct = Math.round((idx / total) * 100);
 
       // Inicia/recarrega cada puzzle
+      const [erroPuzzle, setErroPuzzle] = useState(null);
       useEffect(() => {
         if (!puzzle) return;
-        const c = new Chess(puzzle.fen);
-        // Aplica lance do adversário (lances[0])
-        const lances = puzzle.lances || puzzle.moves || [];
-        if (lances[0]) {
-          aplicarLanceSilencioso(c, lances[0]);
+        try {
+          if (typeof Chess === 'undefined') {
+            throw new Error("Biblioteca Chess não carregou (CDN bloqueada?)");
+          }
+          const c = new Chess(puzzle.fen);
+          const lances = puzzle.lances || puzzle.moves || [];
+          if (lances[0]) {
+            try { aplicarLanceSilencioso(c, lances[0]); } catch (e) {
+              console.warn("Lance inicial inválido:", lances[0], e);
+            }
+          }
+          chessRef.current = c;
+          expectedIdxRef.current = 1;
+          fenInicialJogadorRef.current = c.fen();
+          orientacaoRef.current = corDoTabuleiro(c.fen());
+          setFenAtual(c.fen());
+          setEstado('jogando');
+          setFeedback(null);
+          setUciInput('');
+          setPendingDrop(null);
+          setUltimoLanceErrado(null);
+          setErroPuzzle(null);
+          resetTimer();
+          setRodando(true);
+        } catch (e) {
+          console.error("Falha ao inicializar puzzle:", e);
+          setErroPuzzle(e.message || String(e));
         }
-        chessRef.current = c;
-        expectedIdxRef.current = 1;
-        fenInicialJogadorRef.current = c.fen();
-        orientacaoRef.current = corDoTabuleiro(c.fen());
-        setFenAtual(c.fen());
-        setEstado('jogando');
-        setFeedback(null);
-        setUciInput('');
-        setPendingDrop(null);
-        setUltimoLanceErrado(null);
-        resetTimer();
-        setRodando(true);
       }, [idx, puzzle && (puzzle.id || puzzle.puzzleId)]);
 
       // Persiste sessão a cada mudança de progresso
@@ -1609,6 +1652,21 @@
       }, [estado, idx]);
 
       if (!puzzle) return <div className="card center">Sem puzzles para treinar.</div>;
+      if (erroPuzzle) {
+        return (
+          <div className="card" style={{ maxWidth: 520, margin: '0 auto' }}>
+            <div className="feedback-banner red" style={{ marginTop: 0 }}>
+              <div className="feedback-title">⚠ Falha ao carregar puzzle</div>
+              <div className="mono fs-12">{erroPuzzle}</div>
+            </div>
+            <div className="hstack gap-10 mt-16" style={{ justifyContent: 'center' }}>
+              <button className="btn btn-primary" onClick={() => setIdx(idx + 1)}
+                disabled={idx + 1 >= total}>→ Pular puzzle</button>
+              <button className="btn btn-ghost" onClick={onSair}>Sair</button>
+            </div>
+          </div>
+        );
+      }
 
       const boardId = 'board-' + (puzzle.id || puzzle.puzzleId || idx);
 
