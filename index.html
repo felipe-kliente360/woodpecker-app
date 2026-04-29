@@ -431,6 +431,33 @@
       .timer-divider { margin: 10px 0 6px; }
     }
 
+    /* Barra sticky de feedback no mobile — mantém botão "Próximo" sempre visível */
+    .feedback-bar-mobile {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      z-index: 30;
+      box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.25);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .feedback-bar-mobile .feedback-bar-status {
+      flex-shrink: 0;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    .feedback-bar-mobile.green .feedback-bar-status { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bdr); }
+    .feedback-bar-mobile.red .feedback-bar-status { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-bdr); }
+    .feedback-bar-mobile .btn { flex: 1; height: 44px; }
+    /* Compensa altura da barra pra conteúdo não ficar coberto */
+    .train-with-feedback-bar { padding-bottom: 80px; }
+
     /* Utilitários responsivos */
     .hide-mobile { display: initial; }
     .only-mobile { display: none; }
@@ -447,6 +474,15 @@
     :root[data-theme="claro"] .highlight-last-move {
       box-shadow: inset 0 0 0 5px rgba(70, 200, 70, 0.95);
       background-color: rgba(120, 230, 100, 0.45) !important;
+    }
+    /* Casa selecionada (tap-to-move) — azul vivo prevalece sobre highlight de último lance */
+    .selected-square {
+      box-shadow: inset 0 0 0 5px rgba(78, 142, 203, 0.95) !important;
+      background-color: rgba(78, 142, 203, 0.35) !important;
+    }
+    :root[data-theme="claro"] .selected-square {
+      box-shadow: inset 0 0 0 5px rgba(30, 74, 122, 0.95) !important;
+      background-color: rgba(30, 74, 122, 0.25) !important;
     }
 
     /* === BANNER FEEDBACK === */
@@ -1028,14 +1064,16 @@
     }
 
     /* === COMPONENTE ChessBoard (wrapper Chessboard.js) === */
-    function ChessBoardView({ boardId, fen, orientation, onDrop, draggable, highlightSquares }) {
+    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, draggable, highlightSquares, selectedSquare }) {
       const onDropRef = useRef(onDrop);
+      const onSquareClickRef = useRef(onSquareClick);
       const draggableRef = useRef(draggable !== false);
       const boardRef = useRef(null);
       useEffect(() => { onDropRef.current = onDrop; }, [onDrop]);
+      useEffect(() => { onSquareClickRef.current = onSquareClick; }, [onSquareClick]);
       useEffect(() => { draggableRef.current = draggable !== false; }, [draggable]);
 
-      // Aplica/remove highlight nas casas do último lance do adversário
+      // Aplica/remove highlight nas casas do último lance do adversário + casa selecionada
       useEffect(() => {
         if (!boardRef.current) return;
         const apply = () => {
@@ -1043,22 +1081,23 @@
             const $root = window.jQuery && window.jQuery('#' + boardId);
             if (!$root || !$root.length) return;
             $root.find('.highlight-last-move').removeClass('highlight-last-move');
+            $root.find('.selected-square').removeClass('selected-square');
             if (highlightSquares && highlightSquares.length) {
               for (const sq of highlightSquares) {
                 $root.find('.square-' + sq).addClass('highlight-last-move');
               }
             }
+            if (selectedSquare) {
+              $root.find('.square-' + selectedSquare).addClass('selected-square');
+            }
           } catch (e) {}
         };
-        // Aguarda o board.position terminar de animar
         const t = setTimeout(apply, 60);
         return () => clearTimeout(t);
-      }, [highlightSquares, fen, boardId]);
+      }, [highlightSquares, selectedSquare, fen, boardId]);
 
       useEffect(() => {
         const cfg = {
-          // Sempre inicializa draggable:true; o toggle dinâmico vai por onDragStart,
-          // já que chessboard.js não permite trocar draggable após o init.
           draggable: true,
           position: fen || 'start',
           orientation: orientation || 'white',
@@ -1073,10 +1112,29 @@
           }
         };
         boardRef.current = window.Chessboard(boardId, cfg);
+
+        // Tap-to-move: chessboard.js não tem callback de click, então delegamos via jQuery.
+        // Cada casa tem [data-square="e2"]. Usamos mousedown:false controlado: o click só
+        // dispara quando NÃO houve drag (mousedown + mouseup na mesma casa sem mover).
+        const $ = window.jQuery;
+        const $board = $ && $('#' + boardId);
+        function onClick(e) {
+          if (!draggableRef.current) return;
+          const sq = e.currentTarget && e.currentTarget.getAttribute('data-square');
+          if (!sq) return;
+          if (onSquareClickRef.current) onSquareClickRef.current(sq);
+        }
+        if ($board && $board.length) {
+          $board.on('click', '[data-square]', onClick);
+        }
+
         const onResize = () => { try { boardRef.current && boardRef.current.resize(); } catch (e) {} };
         window.addEventListener('resize', onResize);
         const t = setTimeout(onResize, 80);
         return () => {
+          if ($board && $board.length) {
+            try { $board.off('click', '[data-square]', onClick); } catch (e) {}
+          }
           window.removeEventListener('resize', onResize);
           clearTimeout(t);
           try { boardRef.current && boardRef.current.destroy(); } catch (e) {}
@@ -1934,6 +1992,7 @@
       const [ultimoLanceAdv, setUltimoLanceAdv] = useState(null); // {from, to} para highlight
       const [lancePendente, setLancePendente] = useState(null); // {from, to, promo, san} no modo confirmar
       const [promoPicker, setPromoPicker] = useState(null); // {from, to} aguardando escolha de promoção
+      const [casaSelecionada, setCasaSelecionada] = useState(null); // tap-to-move: 1ª casa clicada
       const [modoConfirmar, setModoConfirmar] = useState(() => loadLS('wp_modo_confirmar', false));
       useEffect(() => { saveLS('wp_modo_confirmar', modoConfirmar); }, [modoConfirmar]);
 
@@ -1984,6 +2043,7 @@
           setErroPuzzle(null);
           setLancePendente(null);
           setPromoPicker(null);
+          setCasaSelecionada(null);
           setPausado(false);
           segRef.current = 0;
           resetTimer();
@@ -2025,6 +2085,11 @@
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
       }, [estado, lancePendente, promoPicker, idx, pausado]);
+
+      // Limpa seleção (tap-to-move) sempre que sai do estado 'jogando'
+      useEffect(() => {
+        if (estado !== 'jogando') setCasaSelecionada(null);
+      }, [estado]);
 
       // Persiste sessão a cada mudança de progresso
       useEffect(() => {
@@ -2238,7 +2303,37 @@
       // onDropRef.current, então a recriação a cada render só atualiza o ref.
       const onDrop = (source, target) => {
         if (estado !== 'jogando') return false;
+        setCasaSelecionada(null); // qualquer drag limpa a seleção pendente
         return processarLance(source, target);
+      };
+
+      // Tap-to-move: 1º tap escolhe peça do jogador; 2º tap tenta o lance.
+      // Tocar de novo na mesma casa desseleciona; tocar em outra peça do jogador troca.
+      const onSquareClick = (sq) => {
+        if (estado !== 'jogando' || pausado || lancePendente || promoPicker) return;
+        const c = chessRef.current;
+        if (!c) return;
+
+        if (!casaSelecionada) {
+          const piece = c.get(sq);
+          if (!piece || piece.color !== c.turn()) return;
+          setCasaSelecionada(sq);
+          return;
+        }
+        if (casaSelecionada === sq) {
+          setCasaSelecionada(null);
+          return;
+        }
+        // Tenta movimento da casa selecionada para a nova
+        const r = processarLance(casaSelecionada, sq);
+        if (r === false) {
+          // Movimento inválido: se a nova casa tem peça do jogador, troca seleção;
+          // caso contrário, limpa.
+          const piece = c.get(sq);
+          setCasaSelecionada(piece && piece.color === c.turn() ? sq : null);
+        } else {
+          setCasaSelecionada(null);
+        }
       };
 
       if (!puzzle) return <div className="card center">Sem puzzles para treinar.</div>;
@@ -2261,7 +2356,7 @@
       const boardId = 'board-' + (puzzle.id || puzzle.puzzleId || idx);
 
       return (
-        <div className="train-layout">
+        <div className={'train-layout' + (estado === 'feedback' ? ' train-with-feedback-bar' : '')}>
           <div>
             <div className="board-wrap" style={{ margin: '0 auto' }}>
               <ChessBoardView
@@ -2270,8 +2365,10 @@
                 fen={fenAtual}
                 orientation={orientacaoRef.current}
                 onDrop={onDrop}
+                onSquareClick={onSquareClick}
                 draggable={estado === 'jogando' && !pausado}
                 highlightSquares={ultimoLanceAdv ? [ultimoLanceAdv.from, ultimoLanceAdv.to] : null}
+                selectedSquare={casaSelecionada}
               />
             </div>
             <div className="mt-12 mono fs-12 center" style={{ color: 'var(--primary)' }}>
@@ -2409,6 +2506,16 @@
               </div>
             )}
           </div>
+
+          {/* Barra fixa mobile com botão "Próximo" — sempre visível durante feedback */}
+          {estado === 'feedback' && feedback && (
+            <div className={'feedback-bar-mobile only-mobile ' + (feedback.correto ? 'green' : 'red')}>
+              <div className="feedback-bar-status">{feedback.correto ? '✓' : '✗'}</div>
+              <button className="btn btn-primary" onClick={avancar}>
+                {idx + 1 >= total ? '🏁 Finalizar Ciclo' : '→ Próximo Puzzle'}
+              </button>
+            </div>
+          )}
 
           {/* Overlay de promoção */}
           {promoPicker && (
