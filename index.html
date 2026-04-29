@@ -866,15 +866,22 @@
     /* === COMPONENTE ChessBoard (wrapper Chessboard.js) === */
     function ChessBoardView({ boardId, fen, orientation, onDrop, draggable }) {
       const onDropRef = useRef(onDrop);
+      const draggableRef = useRef(draggable !== false);
       const boardRef = useRef(null);
       useEffect(() => { onDropRef.current = onDrop; }, [onDrop]);
+      useEffect(() => { draggableRef.current = draggable !== false; }, [draggable]);
 
       useEffect(() => {
         const cfg = {
-          draggable: draggable !== false,
+          // Sempre inicializa draggable:true; o toggle dinâmico vai por onDragStart,
+          // já que chessboard.js não permite trocar draggable após o init.
+          draggable: true,
           position: fen || 'start',
           orientation: orientation || 'white',
           pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+          onDragStart: (source, piece) => {
+            if (!draggableRef.current) return false;
+          },
           onDrop: (source, target) => {
             if (source === target) return 'snapback';
             const r = onDropRef.current && onDropRef.current(source, target);
