@@ -899,6 +899,32 @@
       return { adicionados_conjuntos: novosConj.length, adicionados_ciclos: novosCic.length, modo };
     }
 
+    /* === CALIBRAÇÃO === */
+    function calcularRatingSugerido(ciclo) {
+      const r = (ciclo && ciclo.resultados) || [];
+      if (r.length === 0) return null;
+      const corretos = r.filter(x => x.correto);
+      const total = r.length;
+      const taxa = corretos.length / total;
+      if (corretos.length === 0) {
+        const ratings = r.filter(x => x.rating).map(x => x.rating);
+        if (!ratings.length) return null;
+        return Math.max(600, Math.min(...ratings) - 200);
+      }
+      const ratings = corretos.filter(x => x.rating).map(x => x.rating);
+      if (!ratings.length) return 1200;
+      const media = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+      // Lichess puzzles ratam pra ~50% de acerto. Ajusta conforme a taxa observada.
+      let ajuste;
+      if (taxa >= 0.85) ajuste = 150;
+      else if (taxa >= 0.70) ajuste = 75;
+      else if (taxa >= 0.50) ajuste = 0;
+      else if (taxa >= 0.30) ajuste = -75;
+      else ajuste = -150;
+      const sugerido = Math.round((media + ajuste) / 50) * 50; // arredonda para múltiplo de 50
+      return Math.max(600, Math.min(2800, sugerido));
+    }
+
     /* === MÉTRICAS DE ATIVIDADE === */
     function metricasAtividade(ciclos) {
       if (!ciclos.length) return { total: 0, diasAtivos: 0, ultimaMs: 0, diasDesde: null };
@@ -1195,7 +1221,7 @@
       );
     }
 
-    function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onTreinar, onEvolucao, onIrParaConjuntos, onAposImport }) {
+    function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onTreinar, onEvolucao, onIrParaConjuntos, onCalibrar, onAposImport }) {
       const temConjuntos = conjuntos.length > 0;
       const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
 
@@ -1300,13 +1326,23 @@
 
           <div className="mt-32 center">
             {!temConjuntos ? (
-              <button className="btn btn-primary" onClick={onCriar}>
-                → Criar Meu Primeiro Conjunto
-              </button>
+              <div className="vstack gap-12" style={{ alignItems: 'center' }}>
+                <button className="btn btn-primary" onClick={onCriar}>
+                  → Criar Meu Primeiro Conjunto
+                </button>
+                {onCalibrar && (
+                  <button className="btn btn-ghost" onClick={onCalibrar}>
+                    🎯 Não sei meu rating — calibrar (30 puzzles)
+                  </button>
+                )}
+              </div>
             ) : (
-              <div className="hstack gap-12" style={{ justifyContent: 'center' }}>
+              <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'center' }}>
                 <button className="btn btn-primary" onClick={onContinuar}>▶ Continuar Treino</button>
                 <button className="btn btn-ghost" onClick={onCriar}>+ Novo Conjunto</button>
+                {onCalibrar && (
+                  <button className="btn btn-ghost" onClick={onCalibrar}>🎯 Calibrar</button>
+                )}
               </div>
             )}
           </div>
@@ -1387,6 +1423,16 @@
             </div>
           ) : null}
 
+          <label className="hstack gap-8 mb-12" style={{ cursor: 'pointer', userSelect: 'none' }}>
+            <input type="checkbox"
+              checked={!!c.espelho}
+              onChange={e => onAtualizar({ ...c, espelho: e.target.checked })}
+              style={{ width: 14, height: 14 }} />
+            <span className="mono fs-11 txt-mid">
+              🔄 Modo espelho — tabuleiro invertido para combater memorização da posição
+            </span>
+          </label>
+
           <div className="hstack gap-8 flex-wrap">
             <button className="btn btn-small" onClick={() => onTreinar(c)}>▶ Treinar</button>
             <button className="btn btn-small ghost" onClick={() => onEvolucao(c)}>📊 Evolução</button>
@@ -1454,13 +1500,13 @@
       );
     }
 
-    function TelaCriar({ onSalvarTreinar, onSalvar, onCancelar }) {
-      const [passo, setPasso] = useState(1);
-      const [rating, setRating] = useState(1200);
-      const [variacao, setVariacao] = useState(200);
-      const [temas, setTemas] = useState([]);
-      const [tamanho, setTamanho] = useState(1000);
-      const [nome, setNome] = useState('');
+    function TelaCriar({ onSalvarTreinar, onSalvar, onCancelar, preset }) {
+      const [passo, setPasso] = useState(preset ? 3 : 1); // se há preset, pula direto pro tamanho/nome
+      const [rating, setRating] = useState(preset && preset.rating ? preset.rating : 1200);
+      const [variacao, setVariacao] = useState(preset && preset.variacao ? preset.variacao : 200);
+      const [temas, setTemas] = useState(preset && preset.temas ? preset.temas : []);
+      const [tamanho, setTamanho] = useState(preset && preset.tamanho ? preset.tamanho : 1000);
+      const [nome, setNome] = useState(preset && preset.nome ? preset.nome : '');
       const [montando, setMontando] = useState(false);
       const [progresso, setProgresso] = useState('');
       const [progPct, setProgPct] = useState(0);
@@ -1869,7 +1915,12 @@
           chessRef.current = c;
           expectedIdxRef.current = 1;
           fenInicialJogadorRef.current = c.fen();
-          orientacaoRef.current = corDoTabuleiro(c.fen());
+          // Modo espelho: inverte a orientação do tabuleiro pra forçar
+          // re-reconhecimento do padrão em vez de memorização da disposição.
+          const corNatural = corDoTabuleiro(c.fen());
+          orientacaoRef.current = (conjunto && conjunto.espelho)
+            ? (corNatural === 'white' ? 'black' : 'white')
+            : corNatural;
           setFenAtual(c.fen());
           setEstado('jogando');
           setFeedback(null);
@@ -2009,7 +2060,7 @@
           c.undo();
           setFenAtual(c.fen());
           setEstado('feedback');
-          setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: false, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [] }]));
+          setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: false, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating }]));
           return true; // O lance foi removido — board.position vai sincronizar
         }
 
@@ -2078,7 +2129,7 @@
         const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
         setFeedback({ correto: true, tempo_s: tempo, sans });
         setEstado('feedback');
-        setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: true, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [] }]));
+        setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: true, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating }]));
       }
 
       function pular() {
@@ -2089,7 +2140,7 @@
         const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
         setFeedback({ correto: false, tempo_s: tempo, sans, pulado: true });
         setEstado('feedback');
-        setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: false, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [] }]));
+        setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: false, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating }]));
       }
 
       function avancar() {
@@ -2349,7 +2400,7 @@
     }
 
     /* === TELA CONCLUSÃO === */
-    function TelaConclusao({ conjunto, ciclo, ciclosAnteriores, onProximoCiclo, onApenasErros, onEvolucao }) {
+    function TelaConclusao({ conjunto, ciclo, ciclosAnteriores, onProximoCiclo, onApenasErros, onEvolucao, onCriarComRating }) {
       const total = ciclo.total;
       const acertos = ciclo.acertos;
       const erros = ciclo.erros;
@@ -2422,10 +2473,35 @@
         return { d, pct, formatador };
       }
 
+      const ehCalibracao = !!(conjunto && conjunto.calibracao);
+      const ratingSugerido = ehCalibracao ? calcularRatingSugerido(ciclo) : null;
+
       return (
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <div className="center serif bold fs-22 mb-4">🎉 Ciclo {ciclo.numero} Concluído!</div>
+          <div className="center serif bold fs-22 mb-4">
+            {ehCalibracao ? '🎯 Calibração Concluída!' : '🎉 Ciclo ' + ciclo.numero + ' Concluído!'}
+          </div>
           <div className="center mono fs-11 txt-muted mb-20">{conjunto.nome} · {dataLabel}</div>
+
+          {ehCalibracao && ratingSugerido !== null && (
+            <div className="card mb-16" style={{ borderTop: '4px solid var(--primary)' }}>
+              <div className="mono fs-10 ls-2 txt-muted mb-4">RATING SUGERIDO</div>
+              <div className="serif bold fs-26 txt-primary">{formatarNumero(ratingSugerido)}</div>
+              <div className="mono fs-11 txt-mid mt-4">
+                Nível: {nivelDoRating(ratingSugerido)}
+              </div>
+              <div className="serif fs-13 txt-mid mt-12" style={{ lineHeight: 1.6 }}>
+                Baseado em {acertos} acertos de {total} puzzles ({taxaAcerto}%) na faixa 600–2200.
+                {' '}Esse rating te coloca em puzzles que você resolve em ~50% das vezes — onde o método rende mais.
+              </div>
+              {onCriarComRating && (
+                <button className="btn btn-primary btn-block mt-16"
+                  onClick={() => onCriarComRating(ratingSugerido)}>
+                  ▶ Criar conjunto com rating {ratingSugerido}
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="metric-grid mb-16">
             <div className="metric-card">
@@ -2598,7 +2674,7 @@
     }
 
     /* === TELA EVOLUÇÃO === */
-    function TelaEvolucao({ conjuntos, ciclos, conjuntoInicial, onVoltar }) {
+    function TelaEvolucao({ conjuntos, ciclos, conjuntoInicial, onVoltar, onCriarFocado }) {
       const [conjuntoId, setConjuntoId] = useState(
         conjuntoInicial ? conjuntoInicial.id : (conjuntos[0] && conjuntos[0].id) || null
       );
@@ -2814,6 +2890,13 @@
                         <GraficoCanvas tipo="bar" data={dataErros}
                           opcoes={{ ...optsBase, indexAxis: 'y' }} />
                       </div>
+                      {onCriarFocado && (
+                        <div className="mt-12">
+                          <button className="btn btn-small ghost" onClick={() => onCriarFocado(errosPorTema[0][0], conjunto)}>
+                            ＋ Criar conjunto focado em "{traduzirTema(errosPorTema[0][0])}" ({errosPorTema[0][1]} erros)
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2960,6 +3043,7 @@
       const [sessaoSalva, setSessaoSalva] = useState(() => loadLS('wp_sessao', null));
       const [showModalRetomar, setShowModalRetomar] = useState(() => !!loadLS('wp_sessao', null));
       const [evolucaoConjunto, setEvolucaoConjunto] = useState(null);
+      const [presetCriar, setPresetCriar] = useState(null);
 
       // Aplicar tema no <html>
       useEffect(() => {
@@ -3010,6 +3094,42 @@
       // Atualizar conjunto (notas e outros campos editáveis)
       function atualizarConjunto(novo) {
         setConjuntos(cs => cs.map(c => c.id === novo.id ? { ...c, ...novo } : c));
+      }
+
+      // Calibração: cria conjunto efêmero com rating amplo (1400 ± 800), 30 puzzles,
+      // sem temas, e inicia treino. Após o ciclo, TelaConclusao mostra rating sugerido.
+      async function iniciarCalibracao() {
+        setCarregando(true);
+        setErroCarregar(null);
+        setCarregandoMsg('Montando puzzles de calibração...');
+        try {
+          const r = await montarConjunto(1400, 800, [], 30, setCarregandoMsg);
+          if (r.puzzles.length === 0) {
+            setErroCarregar('Não foi possível montar a calibração — sem puzzles disponíveis.');
+            setCarregando(false);
+            return;
+          }
+          const novo = {
+            id: gerarId(),
+            nome: '🎯 Calibração',
+            criado_em: Date.now(),
+            rating: 1400,
+            variacao: 800,
+            temas: [],
+            tamanho: r.puzzles.length,
+            puzzle_ids: r.puzzles.map(p => p.id || p.puzzleId),
+            faixas_usadas: r.stats.faixas_usadas,
+            range_efetivo: r.stats.range_efetivo,
+            calibracao: true
+          };
+          setConjuntos(cs => cs.concat([novo]));
+          memCache.puzzlesPorConjunto[novo.id] = r.puzzles;
+          iniciarCiclo(novo, r.puzzles, 1, false);
+        } catch (e) {
+          setErroCarregar('Falha ao iniciar calibração: ' + (e.message || e));
+        } finally {
+          setCarregando(false);
+        }
       }
 
       // Iniciar treino
@@ -3204,6 +3324,7 @@
                   onTreinar={iniciarTreino}
                   onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
                   onIrParaConjuntos={() => setTela('conjuntos')}
+                  onCalibrar={iniciarCalibracao}
                   onAposImport={() => {
                     setConjuntos(loadLS('wp_conjuntos', []));
                     setCiclos(loadLS('wp_ciclos', []));
@@ -3225,9 +3346,10 @@
               )}
               {!carregando && tela === 'criar' && (
                 <TelaCriar
-                  onSalvarTreinar={(novo, puzzles) => aoSalvarConjunto(novo, puzzles, true)}
-                  onSalvar={(novo, puzzles) => aoSalvarConjunto(novo, puzzles, false)}
-                  onCancelar={() => setTela('inicio')}
+                  preset={presetCriar}
+                  onSalvarTreinar={(novo, puzzles) => { setPresetCriar(null); aoSalvarConjunto(novo, puzzles, true); }}
+                  onSalvar={(novo, puzzles) => { setPresetCriar(null); aoSalvarConjunto(novo, puzzles, false); }}
+                  onCancelar={() => { setPresetCriar(null); setTela('inicio'); }}
                 />
               )}
               {!carregando && tela === 'selecao' && conjuntoAtivo && (
@@ -3260,6 +3382,10 @@
                   onProximoCiclo={aoProximoCiclo}
                   onApenasErros={aoApenasErros}
                   onEvolucao={() => { setEvolucaoConjunto(conjuntoAtivo); setTela('evolucao'); }}
+                  onCriarComRating={(rating) => {
+                    setPresetCriar({ rating, variacao: 200, temas: [], tamanho: 1000, nome: '' });
+                    setTela('criar');
+                  }}
                 />
               )}
               {!carregando && tela === 'evolucao' && (
@@ -3268,6 +3394,16 @@
                   ciclos={ciclos}
                   conjuntoInicial={evolucaoConjunto}
                   onVoltar={() => setTela('conjuntos')}
+                  onCriarFocado={(tema, conjuntoBase) => {
+                    setPresetCriar({
+                      rating: conjuntoBase ? conjuntoBase.rating : 1200,
+                      variacao: conjuntoBase ? conjuntoBase.variacao : 200,
+                      temas: [tema],
+                      tamanho: 200,
+                      nome: 'Foco · ' + traduzirTema(tema)
+                    });
+                    setTela('criar');
+                  }}
                 />
               )}
             </div>
