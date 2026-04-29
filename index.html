@@ -639,14 +639,16 @@
       return "2000_2800";
     }
 
-    function faixasNecessarias(rating, variacao) {
-      const min = rating - variacao;
-      const max = rating + variacao;
+    function faixasNoIntervalo(min, max) {
       const out = [];
       for (const [chave, lo, hi] of FAIXAS_ORDER) {
         if (hi > min && lo <= max) out.push(chave);
       }
-      return out.length ? out : [faixaDeRating(rating)];
+      return out.length ? out : [faixaDeRating(Math.round((min + max) / 2))];
+    }
+
+    function faixasNecessarias(rating, variacao) {
+      return faixasNoIntervalo(rating - variacao, rating + variacao);
     }
 
     async function buscarFaixa(chave, onProgress) {
@@ -668,17 +670,24 @@
     }
 
     async function montarConjunto(rating, variacao, temas, tamanho, onProgress) {
-      onProgress && onProgress("Calculando faixas necessárias...");
-      const chaves = faixasNecessarias(rating, variacao);
+      const FLOOR = 600, CEIL = 2800;
+      const STEP = 100;
+
+      // Quanto podemos expandir em cada direção a partir do rating
+      const maxDown = Math.max(0, rating - FLOOR);
+      const maxUp   = Math.max(0, CEIL - rating);
+
+      // Variações iniciais — limitadas pelos extremos
+      let varDown = Math.min(variacao, maxDown);
+      let varUp   = Math.min(variacao, maxUp);
+
+      const chavesBaixadas = new Set();
+      const passos = []; // ['fetch:1200_1400', ...]
       let todos = [];
-      for (const k of chaves) {
-        const lista = await buscarFaixa(k, onProgress);
-        todos = todos.concat(lista);
-      }
-      onProgress && onProgress("Filtrando por rating e temas...");
-      const min = rating - variacao;
-      const max = rating + variacao;
-      let filtrados = todos.filter(p => {
+      let filtrados = [];
+      let expandiu = false;
+
+      const filtrar = (min, max) => todos.filter(p => {
         const r = p.rating || 0;
         if (r < min || r > max) return false;
         if (temas && temas.length > 0) {
@@ -687,6 +696,42 @@
         }
         return true;
       });
+
+      const tentarRange = async () => {
+        const min = rating - varDown;
+        const max = rating + varUp;
+        const chaves = faixasNoIntervalo(min, max);
+        for (const k of chaves) {
+          if (!chavesBaixadas.has(k)) {
+            const lista = await buscarFaixa(k, onProgress);
+            todos = todos.concat(lista);
+            chavesBaixadas.add(k);
+          }
+        }
+        filtrados = filtrar(min, max);
+        return { chaves, min, max };
+      };
+
+      onProgress && onProgress("Calculando faixas necessárias...");
+      let { chaves, min, max } = await tentarRange();
+      onProgress && onProgress("Filtrando por rating e temas...");
+
+      // Expansão automática se faltar puzzles
+      while (filtrados.length < tamanho) {
+        const podeDescer = varDown < maxDown;
+        const podeSubir  = varUp   < maxUp;
+        if (!podeDescer && !podeSubir) break;
+        if (podeDescer) varDown = Math.min(maxDown, varDown + STEP);
+        if (podeSubir)  varUp   = Math.min(maxUp,   varUp   + STEP);
+        expandiu = true;
+        const lado = (!podeDescer) ? "para cima"
+                  : (!podeSubir)   ? "para baixo"
+                  : "para ambos os lados";
+        onProgress && onProgress("Poucos puzzles — expandindo " + lado + " (" + (rating - varDown) + "–" + (rating + varUp) + ")...");
+        const r = await tentarRange();
+        chaves = r.chaves; min = r.min; max = r.max;
+      }
+
       onProgress && onProgress("Embaralhando " + filtrados.length + " puzzles...");
       filtrados = embaralhar(filtrados);
       const escolhidos = filtrados.slice(0, tamanho);
@@ -699,14 +744,20 @@
       const ratingMedio = escolhidos.length
         ? Math.round(escolhidos.reduce((a, p) => a + (p.rating || 0), 0) / escolhidos.length)
         : 0;
-      onProgress && onProgress("✓ Conjunto montado!");
+      onProgress && onProgress(escolhidos.length < tamanho
+        ? "⚠ Apenas " + escolhidos.length + " puzzles disponíveis"
+        : "✓ Conjunto montado!");
       return {
         puzzles: escolhidos,
         stats: {
           total_encontrado: filtrados.length,
           rating_medio: ratingMedio,
           dist_temas: dist,
-          faixas_usadas: chaves
+          faixas_usadas: chaves,
+          expandido: expandiu,
+          variacao_efetiva: { down: varDown, up: varUp },
+          range_efetivo: { min, max },
+          tamanho_pedido: tamanho
         }
       };
     }
@@ -1109,7 +1160,9 @@
           rating, variacao,
           temas: temas.slice(),
           tamanho,
-          puzzle_ids: resultado.puzzles.map(p => p.id || p.puzzleId)
+          puzzle_ids: resultado.puzzles.map(p => p.id || p.puzzleId),
+          faixas_usadas: resultado.stats.faixas_usadas,
+          range_efetivo: resultado.stats.range_efetivo
         };
         if (treinar) onSalvarTreinar(novo, resultado.puzzles);
         else onSalvar(novo, resultado.puzzles);
@@ -1223,11 +1276,24 @@
 
             {resultado && (
               <div>
-                <div className="feedback-banner green mb-16" style={{ marginTop: 0 }}>
-                  <div className="feedback-title">✓ {resultado.puzzles.length} puzzles selecionados</div>
+                {(() => {
+                  const incompleto = resultado.puzzles.length < resultado.stats.tamanho_pedido;
+                  const cls = incompleto ? 'feedback-banner red' : 'feedback-banner green';
+                  return (
+                <div className={cls + ' mb-16'} style={{ marginTop: 0 }}>
+                  <div className="feedback-title">
+                    {incompleto
+                      ? '⚠ Apenas ' + resultado.puzzles.length + ' de ' + resultado.stats.tamanho_pedido + ' puzzles disponíveis'
+                      : '✓ ' + resultado.puzzles.length + ' puzzles selecionados'}
+                  </div>
                   <div className="mono fs-12 txt-mid mb-8">
                     Rating médio: {formatarNumero(resultado.stats.rating_medio)} · Faixas: {resultado.stats.faixas_usadas.join(', ').replace(/_/g, '–')}
                   </div>
+                  {resultado.stats.expandido && (
+                    <div className="mono fs-11 txt-amber mb-8">
+                      Faixa expandida automaticamente: {formatarNumero(resultado.stats.range_efetivo.min)}–{formatarNumero(resultado.stats.range_efetivo.max)}
+                    </div>
+                  )}
                   <div className="hstack gap-6 flex-wrap">
                     {Object.entries(resultado.stats.dist_temas)
                       .sort((a,b)=>b[1]-a[1]).slice(0,5)
@@ -1236,6 +1302,8 @@
                       ))}
                   </div>
                 </div>
+                  );
+                })()}
                 <div className="vstack gap-10">
                   <button className="btn btn-primary btn-block" onClick={() => aceitarESalvar(true)}>
                     ▶ Iniciar Ciclo 1
@@ -2034,8 +2102,11 @@
       const cached = memCache.puzzlesPorConjunto[conjunto.id];
       if (cached) return cached;
       onProgress && onProgress("Recuperando puzzles do conjunto...");
-      const chaves = faixasNecessarias(conjunto.rating, conjunto.variacao);
-      const ids = new Set(conjunto.puzzle_ids || []);
+      // Usa as faixas reais usadas no momento da montagem (caso tenha havido expansão).
+      // Fallback p/ conjuntos antigos sem o campo: deriva do rating ± variacao.
+      const chaves = (conjunto.faixas_usadas && conjunto.faixas_usadas.length)
+        ? conjunto.faixas_usadas
+        : faixasNecessarias(conjunto.rating, conjunto.variacao);
       let todos = [];
       for (const k of chaves) {
         const lista = await buscarFaixa(k, onProgress);
