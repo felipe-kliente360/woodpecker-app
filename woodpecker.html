@@ -1,0 +1,2387 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <title>Woodpecker · Método Tático</title>
+
+  <script src="https://unpkg.com/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://unpkg.com/chess.js@1.0.0-beta.8/dist/chess.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
+  <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://unpkg.com/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* === TEMAS === */
+    :root[data-theme="escuro"] {
+      --bg:#111827; --surface:#1a2535; --card:#1f2d3f;
+      --border:#2e4058; --border-mid:#3a5070;
+      --primary:#4e8ecb; --primary-bg:#1a3050;
+      --green:#4aaa6e; --green-bg:#0e2a1a; --green-bdr:#1e4a30;
+      --red:#e05252; --red-bg:#2a0e0e; --red-bdr:#4a1e1e;
+      --gold:#d4a843; --gold-bg:#2a2010;
+      --amber:#d4843a; --slate:#7090a8;
+      --txt:#dce8f5; --txt-mid:#8faabf; --txt-muted:#4e6880;
+      --header-bg:#0d1520;
+    }
+    :root[data-theme="claro"] {
+      --bg:#f4f0e8; --surface:#faf7f2; --card:#ffffff;
+      --border:#ddd5c4; --border-mid:#c8bfae;
+      --primary:#1e4a7a; --primary-bg:#e8f0f8;
+      --green:#2a6e42; --green-bg:#edf7f2; --green-bdr:#a8d5bc;
+      --red:#8b2222; --red-bg:#fdf0f0; --red-bdr:#e8b8b8;
+      --gold:#a07030; --gold-bg:#fdf8e8;
+      --amber:#9a5a18; --slate:#607080;
+      --txt:#1a1a1a; --txt-mid:#4a3c2e; --txt-muted:#8a7a68;
+      --header-bg:#1e4a7a;
+    }
+
+    /* === RESET / BASE === */
+    * { box-sizing: border-box; }
+    html, body { margin:0; padding:0; height:100%; }
+    body {
+      background: var(--bg);
+      color: var(--txt);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--primary); text-decoration: none; }
+    button { font-family: inherit; }
+    input, select { font-family: inherit; color: var(--txt); }
+    .mono { font-family: 'Courier New', Courier, monospace; }
+    .serif { font-family: Georgia, 'Times New Roman', serif; }
+
+    /* === LAYOUT === */
+    .app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+    .header {
+      height: 56px;
+      background: var(--header-bg);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 18px;
+      flex-shrink: 0;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; color: #fff; }
+    .header-knight { font-size: 22px; line-height: 1; }
+    .header-title {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px; font-weight: 700; color: #fff;
+      letter-spacing: 0.3em;
+    }
+    .header-sub {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 9px; color: rgba(255,255,255,0.5);
+      letter-spacing: 0.22em;
+    }
+    @media (max-width: 640px) { .header-sub { display: none; } }
+    .theme-toggle {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px; font-weight: 600;
+      cursor: pointer;
+    }
+    .theme-toggle:hover { background: rgba(255,255,255,0.22); }
+    @media (max-width: 640px) { .theme-toggle .ttxt { display: none; } }
+
+    .main-row { flex: 1; display: flex; min-height: 0; }
+    .sidebar {
+      width: 200px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 14px 0;
+    }
+    .sidebar.hidden { display: none; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 18px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px; font-weight: 600;
+      color: var(--txt-mid);
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      letter-spacing: 0.05em;
+    }
+    .nav-item:hover { background: var(--card); }
+    .nav-item.active {
+      background: var(--primary-bg);
+      border-left-color: var(--primary);
+      color: var(--primary);
+    }
+    .nav-icon { font-size: 16px; }
+
+    .content-area {
+      flex: 1;
+      padding: 24px 20px;
+      overflow-x: hidden;
+      min-width: 0;
+    }
+    .content-area.fullbleed { padding: 18px 14px; }
+    @media (max-width: 640px) {
+      .content-area { padding: 16px 14px; }
+      .sidebar { display: none; }
+      .mobile-menu { display: block; }
+    }
+
+    .mobile-menu {
+      display: none;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      gap: 8px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    @media (max-width: 640px) {
+      .mobile-menu { display: flex; }
+      .mobile-menu.hidden { display: none !important; }
+    }
+    .mobile-menu .nav-item {
+      padding: 8px 12px;
+      border-left: none;
+      border-bottom: 2px solid transparent;
+      font-size: 11px;
+    }
+    .mobile-menu .nav-item.active {
+      border-left: none;
+      border-bottom-color: var(--primary);
+    }
+
+    .footer {
+      background: var(--header-bg);
+      border-top: 1px solid var(--border);
+      padding: 14px;
+      text-align: center;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 0.22em;
+    }
+
+    /* === COMPONENTES === */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .card-soft {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .btn {
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      transition: opacity 0.12s, transform 0.05s;
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 6px;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      height: 42px; padding: 0 22px;
+      background: var(--primary); color: #fff;
+      border-color: var(--primary);
+      font-size: 13px;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+    .btn-ghost {
+      height: 42px; padding: 0 22px;
+      background: transparent; color: var(--txt-muted);
+      border-color: var(--border);
+      font-size: 13px;
+    }
+    .btn-ghost:hover:not(:disabled) {
+      background: var(--surface); color: var(--txt-mid);
+    }
+    .btn-small {
+      height: 32px; padding: 0 14px;
+      background: var(--primary); color: #fff;
+      border-color: var(--primary);
+      font-size: 11px;
+    }
+    .btn-small.ghost {
+      background: transparent; color: var(--txt-muted);
+      border-color: var(--border);
+    }
+    .btn-small.danger {
+      background: transparent; color: var(--red);
+      border-color: var(--border);
+    }
+    .btn-block { width: 100%; }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 4px 10px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--txt-muted);
+    }
+    .badge.primary { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); }
+    .badge.green { background: var(--green-bg); border-color: var(--green-bdr); color: var(--green); }
+    .badge.red { background: var(--red-bg); border-color: var(--red-bdr); color: var(--red); }
+    .badge.amber { background: var(--gold-bg); border-color: var(--gold); color: var(--amber); }
+
+    .input-text {
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 1.5px solid var(--primary);
+      padding: 8px 2px;
+      font-size: 15px;
+      font-family: Georgia, serif;
+      color: var(--txt);
+      outline: none;
+    }
+    .input-text:focus { border-bottom-color: var(--primary); }
+    .input-uci {
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 1.5px solid var(--primary);
+      padding: 6px 2px;
+      font-size: 13px;
+      font-family: 'Courier New', Courier, monospace;
+      color: var(--txt);
+      outline: none;
+    }
+    .input-label {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      color: var(--txt-muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 4px;
+      background: var(--border-mid);
+      border-radius: 2px;
+      outline: none;
+    }
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 20px; height: 20px;
+      background: var(--primary);
+      border-radius: 50%; cursor: pointer;
+      border: 2px solid var(--card);
+    }
+    .slider::-moz-range-thumb {
+      width: 20px; height: 20px;
+      background: var(--primary);
+      border-radius: 50%; cursor: pointer;
+      border: 2px solid var(--card);
+    }
+
+    /* === STEPPER === */
+    .stepper { display: flex; align-items: center; justify-content: center; margin-bottom: 22px; gap: 0; }
+    .step-node {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--card);
+      color: var(--txt-muted);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px; font-weight: 700;
+    }
+    .step-node.current { border-color: var(--primary); color: var(--primary); }
+    .step-node.done { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .step-conn { width: 36px; height: 2px; background: var(--border); margin: 0 6px; }
+    .step-conn.done { background: var(--primary); }
+    .step-label {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 9px;
+      color: var(--txt-muted);
+      text-align: center;
+      letter-spacing: 0.12em;
+      margin-top: 4px;
+    }
+    .step-cell { display: flex; flex-direction: column; align-items: center; }
+    @media (max-width: 640px) { .step-label { display: none; } .step-conn { width: 22px; } }
+
+    /* === TILES (tamanho do conjunto) === */
+    .tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .tile {
+      border-radius: 12px;
+      padding: 18px 14px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--card);
+      border: 1px solid var(--border);
+      transition: all 0.12s;
+    }
+    .tile.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .tile.recommended { box-shadow: inset 0 0 0 1px var(--primary); }
+    .tile-num { font-size: 24px; font-weight: 700; font-family: Georgia, serif; }
+    .tile-name { font-family: 'Courier New', Courier, monospace; font-size: 11px; margin-top: 4px; }
+    .tile-time { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+
+    /* === BADGE TEMA SELECIONÁVEL === */
+    .tema-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    @media (min-width: 640px) { .tema-grid { grid-template-columns: 1fr 1fr 1fr; } }
+    .tema-pill {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      cursor: pointer;
+      text-align: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--txt-muted);
+      transition: all 0.1s;
+    }
+    .tema-pill.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    /* === BARRA PROGRESSO === */
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar.thin { height: 5px; }
+    .progress-fill {
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.3s;
+    }
+
+    /* === TIMER === */
+    .timer {
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+      border: 1px solid var(--border);
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .timer.green { background: var(--green-bg); border-color: var(--green-bdr); }
+    .timer.gold  { background: var(--gold-bg); border-color: var(--gold); }
+    .timer.red   { background: var(--red-bg);  border-color: var(--red-bdr); }
+    .timer-value {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 36px; font-weight: 700;
+      color: var(--txt);
+      line-height: 1;
+    }
+    .timer-label {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      color: var(--txt-muted);
+      letter-spacing: 0.18em;
+      margin-top: 6px;
+    }
+
+    /* === BANNER FEEDBACK === */
+    .feedback-banner {
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 12px;
+    }
+    .feedback-banner.green { background: var(--green-bg); border: 1px solid var(--green-bdr); }
+    .feedback-banner.red   { background: var(--red-bg);   border: 1px solid var(--red-bdr); }
+    .feedback-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .feedback-banner.green .feedback-title { color: var(--green); }
+    .feedback-banner.red   .feedback-title { color: var(--red); }
+
+    /* === MODAL === */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 16px;
+    }
+    .modal-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 440px; width: 100%;
+    }
+
+    /* === GRID DE MÉTRICAS (tela conclusão) === */
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--primary);
+      border-radius: 8px;
+      padding: 16px 18px;
+    }
+    .metric-card.green { border-top-color: var(--green); }
+    .metric-card.slate { border-top-color: var(--slate); }
+    .metric-card.gold  { border-top-color: var(--gold); }
+    .metric-label { font-family: 'Courier New', Courier, monospace; font-size: 10px; color: var(--txt-muted); letter-spacing: 0.15em; }
+    .metric-value { font-family: Georgia, serif; font-size: 22px; font-weight: 700; margin-top: 6px; }
+
+    /* === CHESSBOARD === */
+    .board-wrap {
+      width: 420px;
+      max-width: 100%;
+    }
+    @media (max-width: 640px) {
+      .board-wrap { width: 100%; }
+    }
+    .board-host { width: 100%; }
+    .train-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 58%) minmax(0, 42%);
+      gap: 20px;
+      max-width: 900px;
+      margin: 0 auto;
+      align-items: start;
+    }
+    @media (max-width: 800px) {
+      .train-layout { grid-template-columns: 1fr; max-width: 520px; }
+    }
+
+    /* === HELPERS === */
+    .hstack { display: flex; align-items: center; gap: 8px; }
+    .vstack { display: flex; flex-direction: column; gap: 8px; }
+    .between { display: flex; align-items: center; justify-content: space-between; }
+    .center { text-align: center; }
+    .mt-4 { margin-top: 4px; }
+    .mt-8 { margin-top: 8px; }
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+    .mt-20 { margin-top: 20px; }
+    .mt-24 { margin-top: 24px; }
+    .mt-32 { margin-top: 32px; }
+    .mb-4 { margin-bottom: 4px; }
+    .mb-8 { margin-bottom: 8px; }
+    .mb-12 { margin-bottom: 12px; }
+    .mb-16 { margin-bottom: 16px; }
+    .mb-20 { margin-bottom: 20px; }
+    .gap-6 { gap: 6px; }
+    .gap-8 { gap: 8px; }
+    .gap-10 { gap: 10px; }
+    .gap-12 { gap: 12px; }
+    .gap-14 { gap: 14px; }
+    .flex-wrap { flex-wrap: wrap; }
+    .txt-muted { color: var(--txt-muted); }
+    .txt-mid { color: var(--txt-mid); }
+    .txt-primary { color: var(--primary); }
+    .txt-green { color: var(--green); }
+    .txt-red { color: var(--red); }
+    .txt-amber { color: var(--amber); }
+    .fs-9 { font-size: 9px; } .fs-10 { font-size: 10px; } .fs-11 { font-size: 11px; }
+    .fs-12 { font-size: 12px; } .fs-13 { font-size: 13px; } .fs-15 { font-size: 15px; }
+    .fs-17 { font-size: 17px; } .fs-22 { font-size: 22px; } .fs-26 { font-size: 26px; } .fs-36 { font-size: 36px; }
+    .bold { font-weight: 700; }
+    .italic { font-style: italic; }
+    .upper { text-transform: uppercase; }
+    .ls-1 { letter-spacing: 0.1em; }
+    .ls-2 { letter-spacing: 0.18em; }
+    .ls-3 { letter-spacing: 0.3em; }
+
+    /* Loading peças */
+    .pieces-row { display: flex; justify-content: center; gap: 8px; font-size: 22px; }
+    .piece-on { color: var(--primary); }
+    .piece-off { color: var(--border); }
+
+    /* Container do tabuleiro com altura mínima */
+    [id^="board-"] { width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="env,react">
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+    /* === CONFIG === */
+    const CONFIG = {
+      base_url: "https://github.com/felipe-kliente360/woodpecker-puzzles/releases/download/v1.0-puzzles",
+      faixas: {
+        "600_800":   "puzzles_600_800.json.gz",
+        "800_1000":  "puzzles_800_1000.json.gz",
+        "1000_1200": "puzzles_1000_1200.json.gz",
+        "1200_1400": "puzzles_1200_1400.json.gz",
+        "1400_1600": "puzzles_1400_1600.json.gz",
+        "1600_1800": "puzzles_1600_1800.json.gz",
+        "1800_2000": "puzzles_1800_2000.json.gz",
+        "2000_2800": "puzzles_2000_2800.json.gz",
+        "manifest":  "manifest.json"
+      }
+    };
+
+    const TEMAS = {
+      fork:             "Garfo",
+      pin:              "Cravada",
+      skewer:           "Espeto",
+      discoveredAttack: "Ataque Descoberto",
+      doubleCheck:      "Xeque Duplo",
+      mateIn1:          "Mate em 1",
+      mateIn2:          "Mate em 2",
+      mateIn3:          "Mate em 3",
+      backRankMate:     "Mate na Última Fileira",
+      hangingPiece:     "Peça Pendurada",
+      sacrifice:        "Sacrifício",
+      deflection:       "Desvio",
+      decoy:            "Isca",
+      interference:     "Interferência",
+      zugzwang:         "Zugzwang",
+      endgame:          "Final",
+      opening:          "Abertura",
+      middlegame:       "Meio-jogo",
+      long:             "Sequência Longa",
+      short:            "Sequência Curta"
+    };
+
+    const FAIXAS_ORDER = [
+      ["600_800", 600, 800],
+      ["800_1000", 800, 1000],
+      ["1000_1200", 1000, 1200],
+      ["1200_1400", 1200, 1400],
+      ["1400_1600", 1400, 1600],
+      ["1600_1800", 1600, 1800],
+      ["1800_2000", 1800, 2000],
+      ["2000_2800", 2000, 2800]
+    ];
+
+    /* === CACHE GLOBAL === */
+    const cacheFaixas = {};
+
+    /* === UTILS === */
+    function gerarId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function formatarTempo(s) {
+      s = Math.max(0, Math.floor(s));
+      if (s < 60) return "0:" + pad(s);
+      if (s < 3600) {
+        const m = Math.floor(s / 60); const sec = s % 60;
+        return pad(m) + ":" + pad(sec);
+      }
+      const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60);
+      return h + ":" + pad(m) + ":" + pad(s % 60);
+    }
+
+    function formatarTempoLongo(s) {
+      s = Math.max(0, Math.floor(s));
+      if (s < 60) return s + "s";
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + "min";
+      const h = Math.floor(m / 60);
+      const rm = m % 60;
+      return rm === 0 ? (h + "h") : (h + "h " + rm + "min");
+    }
+
+    function formatarNumero(n) {
+      return n.toLocaleString('pt-BR');
+    }
+
+    function embaralhar(arr) {
+      const out = arr.slice();
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
+    }
+
+    function determinaCorJogador(fen) {
+      const turno = fen.split(' ')[1];
+      return turno === 'w' ? "Brancas jogam" : "Pretas jogam";
+    }
+
+    function corDoTabuleiro(fen) {
+      const turno = fen.split(' ')[1];
+      return turno === 'w' ? 'white' : 'black';
+    }
+
+    function traduzirTema(chave) {
+      return TEMAS[chave] || chave;
+    }
+
+    function faixaDeRating(rating) {
+      if (rating < 800)  return "600_800";
+      if (rating < 1000) return "800_1000";
+      if (rating < 1200) return "1000_1200";
+      if (rating < 1400) return "1200_1400";
+      if (rating < 1600) return "1400_1600";
+      if (rating < 1800) return "1600_1800";
+      if (rating < 2000) return "1800_2000";
+      return "2000_2800";
+    }
+
+    function faixasNecessarias(rating, variacao) {
+      const min = rating - variacao;
+      const max = rating + variacao;
+      const out = [];
+      for (const [chave, lo, hi] of FAIXAS_ORDER) {
+        if (hi > min && lo <= max) out.push(chave);
+      }
+      return out.length ? out : [faixaDeRating(rating)];
+    }
+
+    async function buscarFaixa(chave, onProgress) {
+      if (cacheFaixas[chave]) return cacheFaixas[chave];
+      const arquivo = CONFIG.faixas[chave];
+      if (!arquivo) throw new Error("Faixa desconhecida: " + chave);
+      const url = CONFIG.base_url + "/" + arquivo;
+      if (onProgress) onProgress("Baixando puzzles " + chave.replace('_','–') + "...");
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error("Falha ao baixar " + arquivo + " (" + resp.status + ")");
+      const buf = await resp.arrayBuffer();
+      const tamMB = (buf.byteLength / (1024 * 1024)).toFixed(1);
+      if (onProgress) onProgress("Descomprimindo " + chave.replace('_','–') + " (" + tamMB + " MB)...");
+      const txt = pako.inflate(new Uint8Array(buf), { to: 'string' });
+      const json = JSON.parse(txt);
+      const lista = Array.isArray(json) ? json : (json.puzzles || []);
+      cacheFaixas[chave] = lista;
+      return lista;
+    }
+
+    async function montarConjunto(rating, variacao, temas, tamanho, onProgress) {
+      onProgress && onProgress("Calculando faixas necessárias...");
+      const chaves = faixasNecessarias(rating, variacao);
+      let todos = [];
+      for (const k of chaves) {
+        const lista = await buscarFaixa(k, onProgress);
+        todos = todos.concat(lista);
+      }
+      onProgress && onProgress("Filtrando por rating e temas...");
+      const min = rating - variacao;
+      const max = rating + variacao;
+      let filtrados = todos.filter(p => {
+        const r = p.rating || 0;
+        if (r < min || r > max) return false;
+        if (temas && temas.length > 0) {
+          const pTemas = p.temas || p.themes || [];
+          if (!pTemas.some(t => temas.includes(t))) return false;
+        }
+        return true;
+      });
+      onProgress && onProgress("Embaralhando " + filtrados.length + " puzzles...");
+      filtrados = embaralhar(filtrados);
+      const escolhidos = filtrados.slice(0, tamanho);
+      const dist = {};
+      for (const p of escolhidos) {
+        for (const t of (p.temas || p.themes || [])) {
+          dist[t] = (dist[t] || 0) + 1;
+        }
+      }
+      const ratingMedio = escolhidos.length
+        ? Math.round(escolhidos.reduce((a, p) => a + (p.rating || 0), 0) / escolhidos.length)
+        : 0;
+      onProgress && onProgress("✓ Conjunto montado!");
+      return {
+        puzzles: escolhidos,
+        stats: {
+          total_encontrado: filtrados.length,
+          rating_medio: ratingMedio,
+          dist_temas: dist,
+          faixas_usadas: chaves
+        }
+      };
+    }
+
+    function nivelDoRating(r) {
+      if (r < 1000) return "Iniciante";
+      if (r < 1200) return "Básico";
+      if (r < 1400) return "Intermediário";
+      if (r < 1600) return "Avançado";
+      if (r < 1800) return "Expert";
+      return "Mestre";
+    }
+
+    /* === PERSISTÊNCIA === */
+    function loadLS(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw == null) return fallback;
+        return JSON.parse(raw);
+      } catch (e) { return fallback; }
+    }
+    function saveLS(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); }
+      catch (e) { console.warn("Falha ao salvar", key, e); }
+    }
+    function clearLS(key) {
+      try { localStorage.removeItem(key); } catch (e) {}
+    }
+
+    function ciclosDoConjunto(ciclos, conjuntoId) {
+      return ciclos.filter(c => c.conjunto_id === conjuntoId)
+        .sort((a, b) => a.numero - b.numero);
+    }
+    function ultimoCiclo(ciclos, conjuntoId) {
+      const c = ciclosDoConjunto(ciclos, conjuntoId);
+      return c.length ? c[c.length - 1] : null;
+    }
+
+    function lanceUciParaSan(uci, fenAntes) {
+      try {
+        const c = new Chess(fenAntes);
+        const m = c.move({
+          from: uci.slice(0, 2),
+          to: uci.slice(2, 4),
+          promotion: uci[4] || 'q'
+        });
+        return m ? m.san : uci;
+      } catch (e) { return uci; }
+    }
+    function aplicarLanceSilencioso(chess, uci) {
+      return chess.move({
+        from: uci.slice(0, 2),
+        to: uci.slice(2, 4),
+        promotion: uci[4] || 'q'
+      });
+    }
+
+    function sequenciaSan(fenInicial, lances) {
+      const c = new Chess(fenInicial);
+      const sans = [];
+      for (const uci of lances) {
+        try {
+          const m = c.move({
+            from: uci.slice(0, 2),
+            to: uci.slice(2, 4),
+            promotion: uci[4] || 'q'
+          });
+          sans.push(m ? m.san : uci);
+        } catch (e) { sans.push(uci); }
+      }
+      return sans;
+    }
+
+    /* === COMPONENTE ChessBoard (wrapper Chessboard.js) === */
+    function ChessBoardView({ boardId, fen, orientation, onDrop, draggable }) {
+      const onDropRef = useRef(onDrop);
+      const boardRef = useRef(null);
+      useEffect(() => { onDropRef.current = onDrop; }, [onDrop]);
+
+      useEffect(() => {
+        const cfg = {
+          draggable: draggable !== false,
+          position: fen || 'start',
+          orientation: orientation || 'white',
+          pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+          onDrop: (source, target) => {
+            if (source === target) return 'snapback';
+            const r = onDropRef.current && onDropRef.current(source, target);
+            if (r === false) return 'snapback';
+          }
+        };
+        boardRef.current = window.Chessboard(boardId, cfg);
+        const onResize = () => { try { boardRef.current && boardRef.current.resize(); } catch (e) {} };
+        window.addEventListener('resize', onResize);
+        const t = setTimeout(onResize, 80);
+        return () => {
+          window.removeEventListener('resize', onResize);
+          clearTimeout(t);
+          try { boardRef.current && boardRef.current.destroy(); } catch (e) {}
+          boardRef.current = null;
+        };
+      }, [boardId]);
+
+      useEffect(() => {
+        if (boardRef.current && fen) {
+          try { boardRef.current.position(fen, false); } catch (e) {}
+        }
+      }, [fen]);
+
+      useEffect(() => {
+        if (boardRef.current && orientation) {
+          try {
+            if (boardRef.current.orientation() !== orientation) {
+              boardRef.current.orientation(orientation);
+            }
+          } catch (e) {}
+        }
+      }, [orientation]);
+
+      return <div id={boardId} className="board-host"></div>;
+    }
+
+    /* === HEADER === */
+    function Header({ tema, onToggleTema }) {
+      return (
+        <div className="header">
+          <div className="header-left">
+            <span className="header-knight">♞</span>
+            <span className="header-title">WOODPECKER</span>
+            <span className="header-sub">MÉTODO TÁTICO</span>
+          </div>
+          <button className="theme-toggle" onClick={onToggleTema} title="Alternar tema">
+            <span>{tema === 'escuro' ? '☀' : '☽'}</span>
+            <span className="ttxt">{tema === 'escuro' ? 'Claro' : 'Escuro'}</span>
+          </button>
+        </div>
+      );
+    }
+
+    /* === SIDEBAR === */
+    function Sidebar({ tela, onNav, mobile }) {
+      const itens = [
+        { id: 'inicio',    icon: '🏠', label: 'Início' },
+        { id: 'conjuntos', icon: '♟', label: 'Meus Conjuntos' },
+        { id: 'criar',     icon: '＋', label: 'Criar Conjunto' },
+        { id: 'evolucao',  icon: '📊', label: 'Evolução' }
+      ];
+      return (
+        <div className={mobile ? 'mobile-menu' : 'sidebar'}>
+          {itens.map(it => (
+            <div
+              key={it.id}
+              className={'nav-item' + (tela === it.id ? ' active' : '')}
+              onClick={() => onNav(it.id)}
+            >
+              <span className="nav-icon">{it.icon}</span>
+              <span>{it.label}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    /* === FOOTER === */
+    function Footer() {
+      return (
+        <div className="footer">
+          WOODPECKER · PUZZLES: LICHESS CC0 · OFFLINE READY
+        </div>
+      );
+    }
+
+    /* === MODAL DE RETOMADA === */
+    function ModalRetomada({ sessao, conjunto, onRetomar, onDescartar }) {
+      const total = sessao.puzzle_ids_ciclo.length;
+      const idx = sessao.index_atual;
+      const pct = total ? Math.round((idx / total) * 100) : 0;
+      const acertos = sessao.resultados_parciais.filter(r => r.correto).length;
+      return (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="fs-15 bold serif mb-12">⏸ Sessão Interrompida</div>
+            <div className="fs-13 serif txt-mid mb-12">Você tinha uma sessão em andamento:</div>
+            <div className="vstack gap-6 mb-20 mono fs-12 txt-mid">
+              <div>· Conjunto: <span className="txt-primary bold">{conjunto ? conjunto.nome : '—'}</span></div>
+              <div>· Ciclo: <span className="bold">{sessao.ciclo_numero}</span></div>
+              <div>· Progresso: {idx} de {total} puzzles ({pct}%)</div>
+              <div>· Acertos até agora: <span className="txt-green bold">{acertos}</span></div>
+            </div>
+            <div className="vstack gap-10">
+              <button className="btn btn-primary btn-block" onClick={onRetomar}>▶ Retomar Sessão</button>
+              <button className="btn btn-ghost btn-block" style={{color:'var(--red)'}} onClick={onDescartar}>
+                Descartar e começar do zero
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* === TELA INÍCIO === */
+    function TelaInicio({ conjuntos, onCriar, onContinuar }) {
+      const temConjuntos = conjuntos.length > 0;
+      return (
+        <div style={{ maxWidth: 560, margin: '0 auto', padding: '32px 4px' }}>
+          <div className="card mb-12">
+            <div className="center" style={{ fontSize: 36, color: 'var(--primary)', marginBottom: 12 }}>♞</div>
+            <div className="center mono fs-10 ls-2 txt-muted mb-12">REPETIÇÃO · VELOCIDADE · PADRÕES</div>
+            <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.8 }}>
+              Monte um conjunto fixo de puzzles e resolva em ciclos repetidos, cada vez mais rápido.
+              O objetivo não é aprender puzzles novos — é gravar padrões táticos na memória de longo prazo.
+            </div>
+          </div>
+
+          <div className="card mb-12">
+            <div className="serif bold fs-15 mb-12">Como Funciona</div>
+            <div className="vstack gap-10">
+              {[
+                "Monte seu conjunto com base no seu rating",
+                "Complete o Ciclo 1 resolvendo todos os puzzles",
+                "Repita os mesmos puzzles mais rápido a cada ciclo",
+                "Acompanhe seu tempo médio caindo a cada ciclo"
+              ].map((txt, i) => (
+                <div key={i} className="hstack gap-10">
+                  <div style={{
+                    width: 24, height: 24, borderRadius: '50%',
+                    background: 'var(--primary)', color: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700, flexShrink: 0,
+                    fontFamily: "'Courier New', monospace"
+                  }}>{i+1}</div>
+                  <div className="serif fs-13">{txt}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="center serif bold fs-22 txt-primary mb-8">⏱ Tempo Médio</div>
+            <div className="serif fs-13 txt-mid center" style={{ lineHeight: 1.7 }}>
+              O indicador do Woodpecker não é quantos você acertou — é quanto tempo você levou.
+              Cada ciclo deve ser mais rápido que o anterior.
+            </div>
+          </div>
+
+          <div className="mt-32 center">
+            {!temConjuntos ? (
+              <button className="btn btn-primary" onClick={onCriar}>
+                → Criar Meu Primeiro Conjunto
+              </button>
+            ) : (
+              <div className="hstack gap-12" style={{ justifyContent: 'center' }}>
+                <button className="btn btn-primary" onClick={onContinuar}>▶ Continuar Treino</button>
+                <button className="btn btn-ghost" onClick={onCriar}>+ Novo Conjunto</button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* === TELA MEUS CONJUNTOS === */
+    function TelaConjuntos({ conjuntos, ciclos, onTreinar, onEvolucao, onExcluir, onCriar }) {
+      return (
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <div className="between mb-16">
+            <div className="serif bold fs-17">Meus Conjuntos</div>
+            <button className="btn btn-small" onClick={onCriar}>+ Novo</button>
+          </div>
+
+          {conjuntos.length === 0 ? (
+            <div className="card center">
+              <div style={{ fontSize: 36, color: 'var(--txt-muted)', marginBottom: 12 }}>♟</div>
+              <div className="serif fs-13 txt-muted mb-16">Nenhum conjunto criado ainda</div>
+              <button className="btn btn-primary" onClick={onCriar}>+ Criar Conjunto</button>
+            </div>
+          ) : (
+            <div className="vstack gap-12">
+              {conjuntos.map(c => {
+                const cs = ciclosDoConjunto(ciclos, c.id);
+                const ult = cs.length ? cs[cs.length - 1] : null;
+                return (
+                  <div key={c.id} className="card">
+                    <div className="between mb-8" style={{ flexWrap: 'wrap', gap: 8 }}>
+                      <div className="serif bold fs-15">{c.nome}</div>
+                      <span className="badge">{c.tamanho} puzzles</span>
+                    </div>
+                    <div className="mono fs-10 txt-muted mb-8">
+                      Rating: {formatarNumero(c.rating)} · Variação: ±{c.variacao}
+                    </div>
+                    {c.temas && c.temas.length > 0 && (
+                      <div className="hstack flex-wrap gap-6 mb-12">
+                        {c.temas.slice(0, 4).map(t => (
+                          <span key={t} className="badge">{traduzirTema(t)}</span>
+                        ))}
+                        {c.temas.length > 4 && <span className="badge">+{c.temas.length - 4}</span>}
+                      </div>
+                    )}
+                    {ult ? (
+                      <div className="mono fs-12 txt-muted mb-12">
+                        Ciclo {ult.numero} · Acertos: {Math.round((ult.acertos/ult.total)*100)}% · Tempo médio: {formatarTempo(ult.tempo_medio_s)}
+                      </div>
+                    ) : (
+                      <div className="mono fs-12 txt-muted italic mb-12">Ainda não iniciado</div>
+                    )}
+                    <div className="hstack gap-8 flex-wrap">
+                      <button className="btn btn-small" onClick={() => onTreinar(c)}>▶ Treinar</button>
+                      <button className="btn btn-small ghost" onClick={() => onEvolucao(c)}>📊 Evolução</button>
+                      <button className="btn btn-small danger" onClick={() => {
+                        if (confirm('Excluir o conjunto "' + c.nome + '"? Isso apaga também os ciclos.')) {
+                          onExcluir(c.id);
+                        }
+                      }}>🗑</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* === TELA CRIAR (WIZARD 3 PASSOS) === */
+    function StepBar({ passo }) {
+      const labels = ['Rating', 'Temas', 'Tamanho'];
+      return (
+        <div className="stepper">
+          {labels.map((lbl, i) => {
+            const idx = i + 1;
+            const klass = idx < passo ? 'done' : (idx === passo ? 'current' : '');
+            return (
+              <React.Fragment key={lbl}>
+                <div className="step-cell">
+                  <div className={'step-node ' + klass}>{idx < passo ? '✓' : idx}</div>
+                  <div className="step-label">{lbl.toUpperCase()}</div>
+                </div>
+                {i < labels.length - 1 && (
+                  <div className={'step-conn' + (idx < passo ? ' done' : '')}></div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function TelaCriar({ onSalvarTreinar, onSalvar, onCancelar }) {
+      const [passo, setPasso] = useState(1);
+      const [rating, setRating] = useState(1200);
+      const [variacao, setVariacao] = useState(200);
+      const [temas, setTemas] = useState([]);
+      const [tamanho, setTamanho] = useState(200);
+      const [nome, setNome] = useState('');
+      const [montando, setMontando] = useState(false);
+      const [progresso, setProgresso] = useState('');
+      const [progPct, setProgPct] = useState(0);
+      const [pieceLit, setPieceLit] = useState(0);
+      const [resultado, setResultado] = useState(null);
+      const [erro, setErro] = useState(null);
+
+      const nomeDefault = useMemo(() => {
+        const lbl = temas.length === 0 ? 'Geral'
+          : (temas.length <= 2 ? temas.map(traduzirTema).join('+') : (temas.length + ' temas'));
+        return 'Conjunto ' + rating + ' · ' + lbl;
+      }, [rating, temas]);
+      const nomeFinal = nome.trim() || nomeDefault;
+
+      const toggleTema = (t) => {
+        setTemas(prev => prev.includes(t) ? prev.filter(x => x !== t) : prev.concat(t));
+      };
+
+      async function montar() {
+        setMontando(true);
+        setErro(null);
+        setProgPct(8);
+        setPieceLit(0);
+        const pieceTimer = setInterval(() => setPieceLit(p => Math.min(6, p + 1)), 600);
+        try {
+          const r = await montarConjunto(rating, variacao, temas, tamanho, (msg) => {
+            setProgresso(msg);
+            setProgPct(p => Math.min(95, p + 12));
+          });
+          setProgPct(100);
+          setResultado(r);
+        } catch (e) {
+          console.error(e);
+          setErro(e.message || String(e));
+        } finally {
+          clearInterval(pieceTimer);
+          setMontando(false);
+        }
+      }
+
+      function aceitarESalvar(treinar) {
+        const novo = {
+          id: gerarId(),
+          nome: nomeFinal,
+          criado_em: Date.now(),
+          rating, variacao,
+          temas: temas.slice(),
+          tamanho,
+          puzzle_ids: resultado.puzzles.map(p => p.id || p.puzzleId)
+        };
+        if (treinar) onSalvarTreinar(novo, resultado.puzzles);
+        else onSalvar(novo, resultado.puzzles);
+      }
+
+      const tamanhos = [
+        { v: 100,  nome: '⚡ Rápido',    tempo: '~2h por ciclo' },
+        { v: 200,  nome: '♟ Padrão',     tempo: '~4h por ciclo', rec: true },
+        { v: 500,  nome: '♞ Intensivo',  tempo: '~10h por ciclo' },
+        { v: 1000, nome: '♜ Completo',   tempo: '~20h por ciclo' }
+      ];
+
+      return (
+        <div style={{ maxWidth: 520, margin: '0 auto' }}>
+          <StepBar passo={passo} />
+          <div className="card" style={{ borderRadius: 18 }}>
+            {erro && (
+              <div className="feedback-banner red mb-16">
+                <div className="feedback-title">⚠ Erro ao montar</div>
+                <div className="mono fs-12">{erro}</div>
+              </div>
+            )}
+
+            {!resultado && passo === 1 && (
+              <div>
+                <div className="center" style={{ fontSize: 36, marginBottom: 12 }}>♔</div>
+                <div className="center serif bold fs-17 mb-8">Qual é o seu rating atual?</div>
+                <div className="center mono fs-11 txt-muted mb-20">Os puzzles serão selecionados próximos ao seu nível</div>
+
+                <div className="center mb-8">
+                  <div className="serif bold fs-26 txt-primary">{formatarNumero(rating)}</div>
+                  <div className="mono fs-12 txt-mid">{nivelDoRating(rating)}</div>
+                </div>
+                <input className="slider mb-20" type="range" min="600" max="2800" step="50"
+                  value={rating} onChange={e => setRating(parseInt(e.target.value))} />
+
+                <div className="mt-16">
+                  <div className="input-label">Variação ±{variacao}</div>
+                  <input className="slider" type="range" min="50" max="400" step="50"
+                    value={variacao} onChange={e => setVariacao(parseInt(e.target.value))} />
+                  <div className="mono fs-11 txt-muted mt-4">
+                    Puzzles de {formatarNumero(rating - variacao)} a {formatarNumero(rating + variacao)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!resultado && passo === 2 && (
+              <div>
+                <div className="center" style={{ fontSize: 36, marginBottom: 12 }}>♟</div>
+                <div className="center serif bold fs-17 mb-8">Quais temas quer treinar?</div>
+                <div className="center mono fs-11 txt-muted mb-20">Deixe vazio para incluir todos</div>
+
+                <div className="tema-grid">
+                  {Object.keys(TEMAS).map(k => (
+                    <div key={k}
+                      className={'tema-pill' + (temas.includes(k) ? ' active' : '')}
+                      onClick={() => toggleTema(k)}>
+                      {TEMAS[k]}
+                    </div>
+                  ))}
+                </div>
+                <div className="center mono fs-12 txt-muted mt-12">
+                  {temas.length === 0 ? 'Todos os temas incluídos' : (temas.length + ' temas selecionados')}
+                </div>
+              </div>
+            )}
+
+            {!resultado && passo === 3 && !montando && (
+              <div>
+                <div className="center" style={{ fontSize: 36, marginBottom: 12 }}>⚡</div>
+                <div className="center serif bold fs-17 mb-20">Configure seu conjunto</div>
+
+                <div className="tile-grid">
+                  {tamanhos.map(t => (
+                    <div key={t.v}
+                      className={'tile' + (tamanho === t.v ? ' active' : '') + (t.rec ? ' recommended' : '')}
+                      onClick={() => setTamanho(t.v)}>
+                      <div className="tile-num">{t.v}</div>
+                      <div className="tile-name">{t.nome}</div>
+                      <div className="tile-time mono">{t.tempo}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-20">
+                  <div className="input-label">Nome do conjunto</div>
+                  <input className="input-text" type="text"
+                    value={nome} placeholder={nomeDefault}
+                    onChange={e => setNome(e.target.value)} />
+                </div>
+
+                <button className="btn btn-primary btn-block mt-32" onClick={montar}>
+                  ♞ Montar Conjunto
+                </button>
+              </div>
+            )}
+
+            {montando && (
+              <div className="center">
+                <div className="serif bold fs-15 mb-16">Montando seu conjunto...</div>
+                <div className="progress-bar thin mb-12"><div className="progress-fill" style={{width: progPct + '%'}}></div></div>
+                <div className="mono fs-12 txt-mid mb-16">{progresso}</div>
+                <div className="pieces-row">
+                  {['♔','♕','♖','♗','♘','♙'].map((p, i) => (
+                    <span key={i} className={i < pieceLit ? 'piece-on' : 'piece-off'}>{p}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {resultado && (
+              <div>
+                <div className="feedback-banner green mb-16" style={{ marginTop: 0 }}>
+                  <div className="feedback-title">✓ {resultado.puzzles.length} puzzles selecionados</div>
+                  <div className="mono fs-12 txt-mid mb-8">
+                    Rating médio: {formatarNumero(resultado.stats.rating_medio)} · Faixas: {resultado.stats.faixas_usadas.join(', ').replace(/_/g, '–')}
+                  </div>
+                  <div className="hstack gap-6 flex-wrap">
+                    {Object.entries(resultado.stats.dist_temas)
+                      .sort((a,b)=>b[1]-a[1]).slice(0,5)
+                      .map(([t, n]) => (
+                        <span key={t} className="badge primary">{traduzirTema(t)} ({n})</span>
+                      ))}
+                  </div>
+                </div>
+                <div className="vstack gap-10">
+                  <button className="btn btn-primary btn-block" onClick={() => aceitarESalvar(true)}>
+                    ▶ Iniciar Ciclo 1
+                  </button>
+                  <button className="btn btn-ghost btn-block" onClick={() => aceitarESalvar(false)}>
+                    Salvar e treinar depois
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!resultado && !montando && (
+            <div className="between mt-16">
+              <button className="btn btn-ghost" onClick={() => passo === 1 ? onCancelar() : setPasso(passo - 1)}
+                style={{ visibility: passo === 1 ? 'hidden' : 'visible' }}>← Voltar</button>
+              {passo < 3 && (
+                <button className="btn btn-primary" onClick={() => setPasso(passo + 1)}>Próximo →</button>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* === TELA SELEÇÃO DE CICLO === */
+    function TelaSelecao({ conjunto, ciclos, onIniciar, onVoltar }) {
+      const cs = ciclosDoConjunto(ciclos, conjunto.id);
+      const ult = cs.length ? cs[cs.length - 1] : null;
+      const erros = ult ? (ult.total - ult.acertos) : 0;
+      const proxNum = cs.length + 1;
+      const [opcao, setOpcao] = useState('completo');
+
+      const errosTemas = useMemo(() => {
+        if (!ult) return [];
+        const dist = {};
+        for (const r of (ult.resultados || [])) {
+          if (!r.correto && r.temas) {
+            for (const t of r.temas) dist[t] = (dist[t] || 0) + 1;
+          }
+        }
+        return Object.entries(dist).sort((a,b)=>b[1]-a[1]).slice(0,3);
+      }, [ult]);
+
+      return (
+        <div style={{ maxWidth: 520, margin: '0 auto' }}>
+          <div className="card mb-16">
+            <div className="serif bold fs-15 mb-4">{conjunto.nome}</div>
+            <div className="mono fs-11 txt-muted">{cs.length} ciclos completados</div>
+          </div>
+
+          <div className="vstack gap-12">
+            <div
+              onClick={() => setOpcao('completo')}
+              style={{
+                cursor: 'pointer',
+                borderRadius: 12, padding: 18,
+                background: opcao === 'completo' ? 'var(--primary-bg)' : 'var(--card)',
+                border: '1px solid ' + (opcao === 'completo' ? 'var(--primary)' : 'var(--border)')
+              }}>
+              <div className="serif bold fs-15 mb-4">▶ Ciclo {proxNum} Completo</div>
+              <div className="mono fs-12 txt-mid mb-4">Resolver todos os {conjunto.tamanho} puzzles</div>
+              {ult && (
+                <div className="mono fs-11 txt-muted">
+                  Último: {Math.round((ult.acertos/ult.total)*100)}% acertos · {formatarTempo(ult.tempo_medio_s)} médio
+                </div>
+              )}
+            </div>
+
+            {ult && erros > 0 && (
+              <div
+                onClick={() => setOpcao('erros')}
+                style={{
+                  cursor: 'pointer',
+                  borderRadius: 12, padding: 18,
+                  background: opcao === 'erros' ? 'var(--primary-bg)' : 'var(--card)',
+                  border: '1px solid ' + (opcao === 'erros' ? 'var(--primary)' : 'var(--border)')
+                }}>
+                <div className="serif bold fs-15 mb-4">🔁 Apenas Erros do Ciclo {ult.numero}</div>
+                <div className="mono fs-12 txt-mid mb-8">Resolver os {erros} puzzles que errou</div>
+                {errosTemas.length > 0 && (
+                  <div className="hstack gap-6 flex-wrap">
+                    {errosTemas.map(([t, n]) => (
+                      <span key={t} className="badge red">{traduzirTema(t)} ({n})</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <button className="btn btn-primary btn-block mt-24" onClick={() => onIniciar(opcao === 'erros')}>
+            ▶ Iniciar
+          </button>
+          <div className="center mt-12">
+            <button className="btn btn-ghost" onClick={onVoltar}>← Voltar</button>
+          </div>
+        </div>
+      );
+    }
+
+    /* === HOOK TIMER === */
+    function useTimer(rodando) {
+      const [seg, setSeg] = useState(0);
+      useEffect(() => {
+        if (!rodando) return;
+        const t = setInterval(() => setSeg(s => s + 1), 1000);
+        return () => clearInterval(t);
+      }, [rodando]);
+      const reset = useCallback(() => setSeg(0), []);
+      return [seg, reset];
+    }
+
+    /* === TELA TREINAR (EXECUÇÃO DO CICLO) === */
+    function TelaTreinar({ conjunto, ciclo, puzzles, sessao, onConcluir, onSalvarSessao, onSair }) {
+      const [idx, setIdx] = useState(sessao ? sessao.index_atual : 0);
+      const [resultados, setResultados] = useState(sessao ? (sessao.resultados_parciais || []) : []);
+      const [estado, setEstado] = useState('jogando'); // jogando | feedback
+      const [feedback, setFeedback] = useState(null);
+      const [uciInput, setUciInput] = useState('');
+      const [pendingDrop, setPendingDrop] = useState(null);
+      const [rodando, setRodando] = useState(true);
+      const [seg, resetTimer] = useTimer(rodando);
+
+      const chessRef = useRef(null);
+      const expectedIdxRef = useRef(1);
+      const fenInicialJogadorRef = useRef('');
+      const orientacaoRef = useRef('white');
+      const [fenAtual, setFenAtual] = useState('');
+      const [ultimoLanceErrado, setUltimoLanceErrado] = useState(null);
+
+      const puzzle = puzzles[idx];
+      const total = puzzles.length;
+      const acertos = resultados.filter(r => r.correto).length;
+      const erros = resultados.filter(r => !r.correto).length;
+      const restantes = total - resultados.length;
+      const pct = Math.round((idx / total) * 100);
+
+      // Inicia/recarrega cada puzzle
+      useEffect(() => {
+        if (!puzzle) return;
+        const c = new Chess(puzzle.fen);
+        // Aplica lance do adversário (lances[0])
+        const lances = puzzle.lances || puzzle.moves || [];
+        if (lances[0]) {
+          aplicarLanceSilencioso(c, lances[0]);
+        }
+        chessRef.current = c;
+        expectedIdxRef.current = 1;
+        fenInicialJogadorRef.current = c.fen();
+        orientacaoRef.current = corDoTabuleiro(c.fen());
+        setFenAtual(c.fen());
+        setEstado('jogando');
+        setFeedback(null);
+        setUciInput('');
+        setPendingDrop(null);
+        setUltimoLanceErrado(null);
+        resetTimer();
+        setRodando(true);
+      }, [idx, puzzle && (puzzle.id || puzzle.puzzleId)]);
+
+      // Persiste sessão a cada mudança de progresso
+      useEffect(() => {
+        if (!conjunto || !ciclo) return;
+        const s = {
+          conjunto_id: conjunto.id,
+          ciclo_numero: ciclo.numero,
+          apenas_erros: ciclo.apenas_erros,
+          puzzle_ids_ciclo: puzzles.map(p => p.id || p.puzzleId),
+          index_atual: idx,
+          resultados_parciais: resultados,
+          iniciado_em: ciclo.iniciado_em || Date.now()
+        };
+        onSalvarSessao(s);
+      }, [idx, resultados]);
+
+      function processarLance(from, to, promo) {
+        if (estado !== 'jogando') return false;
+        const c = chessRef.current;
+        if (!c) return false;
+        const fenAntes = c.fen();
+        let m;
+        try {
+          m = c.move({ from, to, promotion: promo || 'q' });
+        } catch (e) { return false; }
+        if (!m) return false;
+
+        const lances = puzzle.lances || puzzle.moves || [];
+        const expectedUci = lances[expectedIdxRef.current];
+        const playedUci = from + to + (m.promotion ? m.promotion : '');
+        const playedNoPromo = from + to;
+        const ok = expectedUci && (
+          expectedUci === playedUci ||
+          expectedUci === playedNoPromo ||
+          expectedUci.slice(0, 4) === playedNoPromo
+        );
+
+        if (!ok) {
+          // Errou
+          const tempo = seg;
+          setRodando(false);
+          // Construir SAN da solução completa
+          const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
+          setFeedback({
+            correto: false,
+            tempo_s: tempo,
+            sans,
+            lance_jogado_san: m.san
+          });
+          setUltimoLanceErrado(m.san);
+          // Desfazer no chess para mostrar a posição original
+          c.undo();
+          setFenAtual(c.fen());
+          setEstado('feedback');
+          setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: false, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [] }]));
+          return true; // O lance foi removido — board.position vai sincronizar
+        }
+
+        // Acertou esse lance
+        expectedIdxRef.current += 1;
+        setFenAtual(c.fen());
+
+        // Aplica resposta do adversário (se existir)
+        const respIdx = expectedIdxRef.current;
+        if (lances[respIdx]) {
+          setTimeout(() => {
+            try { aplicarLanceSilencioso(c, lances[respIdx]); } catch (e) {}
+            expectedIdxRef.current = respIdx + 1;
+            setFenAtual(c.fen());
+            // Verifica se acabou
+            if (expectedIdxRef.current >= lances.length) {
+              concluirCorreto();
+            }
+          }, 500);
+          return true;
+        }
+
+        // Não há resposta — puzzle concluído
+        concluirCorreto();
+        return true;
+      }
+
+      function concluirCorreto() {
+        const tempo = seg;
+        setRodando(false);
+        const lances = puzzle.lances || puzzle.moves || [];
+        const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
+        setFeedback({ correto: true, tempo_s: tempo, sans });
+        setEstado('feedback');
+        setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: true, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [] }]));
+      }
+
+      function pular() {
+        if (estado !== 'jogando') return;
+        const tempo = seg;
+        setRodando(false);
+        const lances = puzzle.lances || puzzle.moves || [];
+        const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
+        setFeedback({ correto: false, tempo_s: tempo, sans, pulado: true });
+        setEstado('feedback');
+        setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: false, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [] }]));
+      }
+
+      function avancar() {
+        const novoResultados = resultados;
+        if (idx + 1 >= total) {
+          // Concluiu o ciclo
+          onConcluir(novoResultados);
+        } else {
+          setIdx(idx + 1);
+        }
+      }
+
+      function confirmarUci() {
+        const v = uciInput.trim().toLowerCase();
+        if (v.length < 4) return;
+        const from = v.slice(0, 2);
+        const to = v.slice(2, 4);
+        const promo = v[4];
+        const r = processarLance(from, to, promo);
+        if (!r) {
+          // Inválido — feedback breve
+          setUciInput('');
+        } else {
+          setUciInput('');
+        }
+      }
+
+      function confirmarPending() {
+        if (!pendingDrop) return;
+        const { from, to } = pendingDrop;
+        processarLance(from, to);
+        setPendingDrop(null);
+      }
+
+      const corTimer = seg < 60 ? 'green' : (seg < 120 ? 'gold' : 'red');
+      const corLabel = determinaCorJogador(fenInicialJogadorRef.current || (puzzle && puzzle.fen) || '');
+
+      const onDrop = useCallback((source, target) => {
+        if (estado !== 'jogando') return false;
+        const r = processarLance(source, target);
+        return r;
+      }, [estado, idx]);
+
+      if (!puzzle) return <div className="card center">Sem puzzles para treinar.</div>;
+
+      const boardId = 'board-' + (puzzle.id || puzzle.puzzleId || idx);
+
+      return (
+        <div className="train-layout">
+          <div>
+            <div className="board-wrap" style={{ margin: '0 auto' }}>
+              <ChessBoardView
+                key={boardId}
+                boardId={boardId}
+                fen={fenAtual}
+                orientation={orientacaoRef.current}
+                onDrop={onDrop}
+                draggable={estado === 'jogando'}
+              />
+            </div>
+            <div className="mt-12 mono fs-12 center" style={{ color: 'var(--primary)' }}>
+              ● {corLabel}
+            </div>
+            <div className="mono fs-9 txt-muted center" style={{ wordBreak: 'break-all' }}>
+              {fenAtual.length > 40 ? fenAtual.slice(0, 40) + '...' : fenAtual}
+            </div>
+          </div>
+
+          <div>
+            <div className={'timer ' + corTimer + ' mb-16'}>
+              <div className="timer-value">{formatarTempo(seg)}</div>
+              <div className="timer-label">TEMPO DESTE PUZZLE</div>
+            </div>
+
+            <div className="card-soft mb-16">
+              <div className="between mb-8">
+                <div className="mono fs-13 txt-muted">{idx + 1} / {total}</div>
+                <button className="btn btn-small ghost" onClick={onSair}>✕ Sair</button>
+              </div>
+              <div className="progress-bar mb-12">
+                <div className="progress-fill" style={{ width: pct + '%' }}></div>
+              </div>
+              <div className="mono fs-12 hstack gap-8 flex-wrap">
+                <span className="txt-green bold">✓ {acertos}</span>
+                <span className="txt-muted">·</span>
+                <span className="txt-red bold">✗ {erros}</span>
+                <span className="txt-muted">·</span>
+                <span className="txt-muted">→ {restantes}</span>
+              </div>
+            </div>
+
+            <div className="mb-16 hstack gap-8 flex-wrap">
+              <span className="badge">Rating {puzzle.rating || '?'}</span>
+              {(puzzle.temas || puzzle.themes || []).slice(0, 3).map(t => (
+                <span key={t} className="badge primary">{traduzirTema(t)}</span>
+              ))}
+              {(puzzle.temas || puzzle.themes || []).length > 3 && (
+                <span className="badge">...</span>
+              )}
+            </div>
+
+            {estado === 'jogando' && (
+              <div className="vstack gap-10">
+                <div>
+                  <div className="input-label">Ou digite o lance:</div>
+                  <input className="input-uci" type="text"
+                    placeholder="ex: e2e4"
+                    value={uciInput}
+                    onChange={e => setUciInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') confirmarUci(); }} />
+                </div>
+                <button className="btn btn-primary btn-block"
+                  disabled={uciInput.trim().length < 4}
+                  onClick={confirmarUci}>
+                  ✓ Confirmar Lance
+                </button>
+                <button className="btn btn-ghost btn-block" onClick={pular}>⏭ Pular</button>
+              </div>
+            )}
+
+            {estado === 'feedback' && feedback && (
+              <div className="vstack gap-10">
+                <div className={'feedback-banner ' + (feedback.correto ? 'green' : 'red')} style={{ marginTop: 0 }}>
+                  <div className="feedback-title">
+                    {feedback.correto
+                      ? '✓ Correto! ' + feedback.tempo_s + 's'
+                      : (feedback.pulado ? '⏭ Pulado — solução:' : '✗ Incorreto — solução:')}
+                  </div>
+                  <div className="hstack gap-6 flex-wrap">
+                    {(feedback.sans || []).map((s, i) => (
+                      <span key={i} className="badge">{s}</span>
+                    ))}
+                  </div>
+                </div>
+                <button className="btn btn-primary btn-block" onClick={avancar}>
+                  {idx + 1 >= total ? '🏁 Finalizar Ciclo' : '→ Próximo Puzzle'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* === TELA CONCLUSÃO === */
+    function TelaConclusao({ conjunto, ciclo, ciclosAnteriores, onProximoCiclo, onApenasErros, onEvolucao }) {
+      const total = ciclo.total;
+      const acertos = ciclo.acertos;
+      const erros = ciclo.erros;
+      const taxaAcerto = total ? Math.round((acertos / total) * 100) : 0;
+      const tempoMedio = ciclo.tempo_medio_s;
+      const tempoTotal = ciclo.tempo_total_s;
+
+      const anterior = ciclosAnteriores.length >= 2 ? ciclosAnteriores[ciclosAnteriores.length - 2] : null;
+
+      const dataLabel = useMemo(() => {
+        const d = new Date(ciclo.data_fim || Date.now());
+        return d.toLocaleString('pt-BR');
+      }, [ciclo.data_fim]);
+
+      const errosTemas = useMemo(() => {
+        const dist = {};
+        for (const r of (ciclo.resultados || [])) {
+          if (!r.correto && r.temas) {
+            for (const t of r.temas) dist[t] = (dist[t] || 0) + 1;
+          }
+        }
+        return Object.entries(dist).sort((a,b)=>b[1]-a[1]).slice(0,3);
+      }, [ciclo]);
+
+      const sugestao = useMemo(() => {
+        if (!anterior) {
+          return {
+            cor: 'var(--primary)',
+            texto: 'Ciclo 1 concluído! Esse é seu tempo de referência. Objetivo: bater esse tempo no Ciclo 2.'
+          };
+        }
+        const dPct = anterior.tempo_medio_s ? ((tempoMedio - anterior.tempo_medio_s) / anterior.tempo_medio_s) * 100 : 0;
+        if (dPct < -20) {
+          return {
+            cor: 'var(--green)',
+            texto: 'Excelente! Seu tempo caiu ' + Math.abs(Math.round(dPct)) + '% — o método está funcionando.'
+          };
+        }
+        if (dPct > 5) {
+          return {
+            cor: 'var(--slate)',
+            texto: 'Descanse antes do próximo ciclo. A fadiga afeta a tática.'
+          };
+        }
+        const errPct = errosTemas.length && total ? (errosTemas[0][1] / total) * 100 : 0;
+        if (errPct > 35) {
+          return {
+            cor: 'var(--amber)',
+            texto: 'Atenção: muitos erros em ' + traduzirTema(errosTemas[0][0]) + '. Crie um conjunto focado.'
+          };
+        }
+        return {
+          cor: 'var(--primary)',
+          texto: 'Ciclo concluído. Continue mantendo o ritmo no próximo ciclo.'
+        };
+      }, [anterior, tempoMedio, errosTemas, total]);
+
+      function delta(antes, depois, formatador) {
+        const d = depois - antes;
+        const pct = antes ? Math.round((d / antes) * 100) : 0;
+        return { d, pct, formatador };
+      }
+
+      return (
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <div className="center serif bold fs-22 mb-4">🎉 Ciclo {ciclo.numero} Concluído!</div>
+          <div className="center mono fs-11 txt-muted mb-20">{conjunto.nome} · {dataLabel}</div>
+
+          <div className="metric-grid mb-16">
+            <div className="metric-card">
+              <div className="metric-label">TOTAL</div>
+              <div className="metric-value">{total} puzzles</div>
+            </div>
+            <div className="metric-card green">
+              <div className="metric-label">ACERTOS</div>
+              <div className="metric-value">{acertos} ({taxaAcerto}%)</div>
+            </div>
+            <div className="metric-card slate">
+              <div className="metric-label">TEMPO TOTAL</div>
+              <div className="metric-value">{formatarTempoLongo(tempoTotal)}</div>
+            </div>
+            <div className="metric-card gold">
+              <div className="metric-label">TEMPO MÉDIO</div>
+              <div className="metric-value">{formatarTempo(tempoMedio)}</div>
+            </div>
+          </div>
+
+          {anterior && (
+            <div className="card-soft mb-16">
+              <div className="vstack gap-8 mono fs-13">
+                {(() => {
+                  const taxaAntes = Math.round((anterior.acertos / anterior.total) * 100);
+                  const taxaDelta = taxaAcerto - taxaAntes;
+                  const taxaCor = taxaDelta >= 0 ? 'var(--green)' : 'var(--red)';
+                  const taxaSeta = taxaDelta >= 0 ? '↑' : '↓';
+                  return (
+                    <div>
+                      Taxa de acerto: {taxaAntes}% → <span className="bold">{taxaAcerto}%</span>
+                      <span style={{color: taxaCor, marginLeft: 8}}>{taxaSeta} {Math.abs(taxaDelta)}%</span>
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  const tDelta = tempoMedio - anterior.tempo_medio_s;
+                  const tPct = anterior.tempo_medio_s ? Math.round((tDelta / anterior.tempo_medio_s) * 100) : 0;
+                  const tCor = tDelta < 0 ? 'var(--green)' : 'var(--red)';
+                  const tSeta = tDelta < 0 ? '↓' : '↑';
+                  return (
+                    <div>
+                      Tempo médio: {formatarTempo(anterior.tempo_medio_s)} → <span className="bold">{formatarTempo(tempoMedio)}</span>
+                      <span style={{color: tCor, marginLeft: 8}}>{tSeta} {Math.abs(tPct)}%</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {errosTemas.length > 0 && (
+            <div className="mb-16">
+              <div className="mono fs-10 txt-muted ls-2 mb-8">TEMAS COM MAIS ERROS</div>
+              <div className="hstack gap-6 flex-wrap">
+                {errosTemas.map(([t, n]) => (
+                  <span key={t} className="badge red">{traduzirTema(t)} ({n})</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="card-soft mb-20" style={{ borderLeft: '4px solid ' + sugestao.cor }}>
+            <div className="serif fs-13" style={{ lineHeight: 1.6 }}>{sugestao.texto}</div>
+          </div>
+
+          <div className="vstack gap-10">
+            <button className="btn btn-primary btn-block" onClick={onProximoCiclo}>
+              ▶ Iniciar Ciclo {ciclo.numero + 1}
+            </button>
+            {erros > 0 && (
+              <button className="btn btn-ghost btn-block" onClick={onApenasErros}>
+                🔁 Repetir só os {erros} erros
+              </button>
+            )}
+            <button className="btn btn-ghost btn-block" onClick={onEvolucao}>
+              📊 Ver Evolução Completa
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    /* === COMPONENTE GRÁFICO (Chart.js) === */
+    function GraficoCanvas({ tipo, data, opcoes, height }) {
+      const ref = useRef(null);
+      const chartRef = useRef(null);
+      useEffect(() => {
+        if (!ref.current) return;
+        chartRef.current = new Chart(ref.current.getContext('2d'), {
+          type: tipo,
+          data,
+          options: opcoes
+        });
+        return () => {
+          if (chartRef.current) chartRef.current.destroy();
+        };
+      }, []);
+      useEffect(() => {
+        if (!chartRef.current) return;
+        chartRef.current.data = data;
+        chartRef.current.options = opcoes;
+        chartRef.current.update();
+      }, [data, opcoes]);
+      return <canvas ref={ref} style={{ width: '100%', maxHeight: (height || 220) + 'px' }} height={height || 220}></canvas>;
+    }
+
+    function corCss(varName) {
+      try {
+        return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+      } catch (e) { return '#888'; }
+    }
+
+    /* === TELA EVOLUÇÃO === */
+    function TelaEvolucao({ conjuntos, ciclos, conjuntoInicial, onVoltar }) {
+      const [conjuntoId, setConjuntoId] = useState(
+        conjuntoInicial ? conjuntoInicial.id : (conjuntos[0] && conjuntos[0].id) || null
+      );
+      const conjunto = conjuntos.find(c => c.id === conjuntoId);
+      const cs = conjuntoId ? ciclosDoConjunto(ciclos, conjuntoId) : [];
+
+      const cpr = corCss('--primary');
+      const cgr = corCss('--green');
+      const cam = corCss('--amber');
+      const cre = corCss('--red');
+      const csu = corCss('--surface');
+      const ctxt = corCss('--txt-mid');
+      const cbdr = corCss('--border');
+
+      const optsBase = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: { ticks: { color: ctxt }, grid: { color: cbdr } },
+          y: { ticks: { color: ctxt }, grid: { color: cbdr }, beginAtZero: true }
+        }
+      };
+
+      const dataTempoMedio = useMemo(() => ({
+        labels: cs.map(c => 'C' + c.numero),
+        datasets: [{
+          data: cs.map(c => c.tempo_medio_s),
+          borderColor: cpr, backgroundColor: cpr,
+          fill: false, tension: 0.2, pointRadius: 4, pointBackgroundColor: cpr
+        }]
+      }), [cs, cpr]);
+
+      const dataTaxa = useMemo(() => ({
+        labels: cs.map(c => 'C' + c.numero),
+        datasets: [{
+          data: cs.map(c => c.total ? Math.round((c.acertos/c.total)*100) : 0),
+          backgroundColor: cgr,
+          borderColor: cgr,
+          borderRadius: 4
+        }]
+      }), [cs, cgr]);
+
+      const errosPorTema = useMemo(() => {
+        const dist = {};
+        for (const c of cs) {
+          for (const r of (c.resultados || [])) {
+            if (!r.correto && r.temas) {
+              for (const t of r.temas) dist[t] = (dist[t] || 0) + 1;
+            }
+          }
+        }
+        return Object.entries(dist).sort((a,b)=>b[1]-a[1]).slice(0,8);
+      }, [cs]);
+
+      const dataErros = useMemo(() => {
+        const max = errosPorTema.length ? errosPorTema[0][1] : 1;
+        return {
+          labels: errosPorTema.map(([t]) => traduzirTema(t)),
+          datasets: [{
+            data: errosPorTema.map(([_, n]) => n),
+            backgroundColor: errosPorTema.map(([_, n]) => n / max > 0.6 ? cre : cam),
+            borderRadius: 4
+          }]
+        };
+      }, [errosPorTema, cre, cam]);
+
+      const dataTempoTotal = useMemo(() => ({
+        labels: cs.map(c => 'C' + c.numero),
+        datasets: [{
+          data: cs.map(c => Math.round(c.tempo_total_s / 60)),
+          backgroundColor: csu,
+          borderColor: cpr,
+          borderWidth: 1.5,
+          borderRadius: 4
+        }]
+      }), [cs, csu, cpr]);
+
+      // Resumo
+      const ultimo = cs.length ? cs[cs.length - 1] : null;
+      const primeiro = cs.length ? cs[0] : null;
+      const melhorTaxa = cs.length ? Math.max(...cs.map(c => c.total ? Math.round((c.acertos/c.total)*100) : 0)) : 0;
+      const reducaoTempo = (primeiro && ultimo && primeiro.tempo_medio_s)
+        ? Math.round(((ultimo.tempo_medio_s - primeiro.tempo_medio_s) / primeiro.tempo_medio_s) * 100)
+        : 0;
+      const minEconomizado = (primeiro && ultimo) ? Math.max(0, Math.round((primeiro.tempo_total_s - ultimo.tempo_total_s) / 60)) : 0;
+      const temaCritico = errosPorTema[0] ? traduzirTema(errosPorTema[0][0]) : '—';
+
+      let status = { label: 'Estável →', klass: 'badge', cor: 'var(--slate)' };
+      if (reducaoTempo < -10) status = { label: 'Em Evolução ↑', klass: 'badge green' };
+      else if (reducaoTempo > 10) status = { label: 'Regressão ↓', klass: 'badge red' };
+
+      return (
+        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+          <div className="between mb-16">
+            <div className="serif bold fs-17">📊 Evolução</div>
+            {onVoltar && <button className="btn btn-small ghost" onClick={onVoltar}>← Voltar</button>}
+          </div>
+
+          {conjuntos.length === 0 ? (
+            <div className="card center">
+              <div className="serif fs-13 txt-muted">Crie um conjunto e complete pelo menos 2 ciclos para visualizar a evolução.</div>
+            </div>
+          ) : (
+            <div>
+              {conjuntos.length > 1 && (
+                <div className="card-soft mb-16">
+                  <div className="input-label">CONJUNTO</div>
+                  <select value={conjuntoId || ''} onChange={e => setConjuntoId(e.target.value)}
+                    style={{
+                      width: '100%', background: 'var(--card)', color: 'var(--txt)',
+                      border: '1px solid var(--border)', borderRadius: 6,
+                      padding: '8px 10px', fontFamily: "'Courier New', monospace", fontSize: 13
+                    }}>
+                    {conjuntos.map(c => (
+                      <option key={c.id} value={c.id}>{c.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {cs.length < 2 ? (
+                <div className="card center">
+                  <div className="serif fs-13 txt-mid">Complete 2 ciclos para ver a evolução.</div>
+                  <div className="mono fs-11 txt-muted mt-8">Ciclos atuais: {cs.length}</div>
+                </div>
+              ) : (
+                <div className="vstack gap-14">
+                  <div className="card">
+                    <div className="serif bold fs-13 mb-8">⏱ Tempo Médio por Puzzle (s)</div>
+                    <div style={{ height: 220 }}>
+                      <GraficoCanvas tipo="line" data={dataTempoMedio} opcoes={optsBase} />
+                    </div>
+                  </div>
+
+                  <div className="card">
+                    <div className="serif bold fs-13 mb-8">🎯 Taxa de Acerto por Ciclo (%)</div>
+                    <div style={{ height: 220 }}>
+                      <GraficoCanvas tipo="bar" data={dataTaxa}
+                        opcoes={{ ...optsBase, scales: { ...optsBase.scales, y: { ...optsBase.scales.y, max: 100 } } }} />
+                    </div>
+                  </div>
+
+                  {errosPorTema.length > 0 && (
+                    <div className="card">
+                      <div className="serif bold fs-13 mb-8">⚠ Erros por Tema (acumulado)</div>
+                      <div style={{ height: Math.max(180, errosPorTema.length * 30) }}>
+                        <GraficoCanvas tipo="bar" data={dataErros}
+                          opcoes={{ ...optsBase, indexAxis: 'y' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="card">
+                    <div className="serif bold fs-13 mb-8">🕐 Tempo Total por Ciclo (min)</div>
+                    <div style={{ height: 220 }}>
+                      <GraficoCanvas tipo="bar" data={dataTempoTotal} opcoes={optsBase} />
+                    </div>
+                    {minEconomizado > 0 && (
+                      <div className="mono fs-11 txt-green mt-8">Você economizou {minEconomizado} min desde o Ciclo 1</div>
+                    )}
+                  </div>
+
+                  <div className="card">
+                    <div className="metric-grid">
+                      <div className="metric-card">
+                        <div className="metric-label">CICLOS</div>
+                        <div className="metric-value">{cs.length}</div>
+                      </div>
+                      <div className="metric-card green">
+                        <div className="metric-label">MELHOR TAXA</div>
+                        <div className="metric-value">{melhorTaxa}%</div>
+                      </div>
+                      <div className="metric-card slate">
+                        <div className="metric-label">REDUÇÃO TEMPO</div>
+                        <div className="metric-value" style={{ color: reducaoTempo < 0 ? 'var(--green)' : 'var(--red)' }}>
+                          {reducaoTempo > 0 ? '+' : ''}{reducaoTempo}%
+                        </div>
+                      </div>
+                      <div className="metric-card gold">
+                        <div className="metric-label">TEMA CRÍTICO</div>
+                        <div className="metric-value" style={{ fontSize: 15 }}>{temaCritico}</div>
+                      </div>
+                    </div>
+                    <div className="center mt-16">
+                      <span className={status.klass}>{status.label}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* === CACHE DE PUZZLES POR CONJUNTO ===
+       Como localStorage não guarda o conjunto inteiro de objetos puzzle (só os IDs),
+       baixamos a faixa novamente quando o conjunto é treinado e filtramos pelos IDs salvos.
+       Para tornar isso instantâneo dentro da mesma sessão de browser usamos um cache em memória.
+    */
+    const memCache = { puzzlesPorConjunto: {} };
+
+    async function carregarPuzzlesDoConjunto(conjunto, onProgress) {
+      const cached = memCache.puzzlesPorConjunto[conjunto.id];
+      if (cached) return cached;
+      onProgress && onProgress("Recuperando puzzles do conjunto...");
+      const chaves = faixasNecessarias(conjunto.rating, conjunto.variacao);
+      const ids = new Set(conjunto.puzzle_ids || []);
+      let todos = [];
+      for (const k of chaves) {
+        const lista = await buscarFaixa(k, onProgress);
+        todos = todos.concat(lista);
+      }
+      const mapa = new Map(todos.map(p => [p.id || p.puzzleId, p]));
+      const ordenados = (conjunto.puzzle_ids || [])
+        .map(id => mapa.get(id))
+        .filter(Boolean);
+      memCache.puzzlesPorConjunto[conjunto.id] = ordenados;
+      return ordenados;
+    }
+
+    /* === COMPONENTE DE LOADING DE PUZZLES === */
+    function LoadingPuzzles({ msg }) {
+      return (
+        <div style={{ maxWidth: 460, margin: '40px auto' }} className="card center">
+          <div className="serif bold fs-15 mb-12">Carregando puzzles...</div>
+          <div className="progress-bar thin mb-12">
+            <div className="progress-fill" style={{ width: '70%' }}></div>
+          </div>
+          <div className="mono fs-12 txt-mid">{msg || 'Aguarde...'}</div>
+        </div>
+      );
+    }
+
+    /* === APP ROOT === */
+    function App() {
+      const [tema, setTema] = useState(() => loadLS('wp_tema', 'escuro'));
+      const [tela, setTela] = useState('inicio');
+      const [conjuntos, setConjuntos] = useState(() => loadLS('wp_conjuntos', []));
+      const [ciclos, setCiclos] = useState(() => loadLS('wp_ciclos', []));
+      const [conjuntoAtivo, setConjuntoAtivo] = useState(null);
+      const [cicloAtual, setCicloAtual] = useState(null);
+      const [puzzlesAtivos, setPuzzlesAtivos] = useState(null);
+      const [carregando, setCarregando] = useState(false);
+      const [carregandoMsg, setCarregandoMsg] = useState('');
+      const [erroCarregar, setErroCarregar] = useState(null);
+      const [sessaoSalva, setSessaoSalva] = useState(() => loadLS('wp_sessao', null));
+      const [showModalRetomar, setShowModalRetomar] = useState(() => !!loadLS('wp_sessao', null));
+      const [evolucaoConjunto, setEvolucaoConjunto] = useState(null);
+
+      // Aplicar tema no <html>
+      useEffect(() => {
+        document.documentElement.setAttribute('data-theme', tema);
+        saveLS('wp_tema', tema);
+      }, [tema]);
+      useEffect(() => { saveLS('wp_conjuntos', conjuntos); }, [conjuntos]);
+      useEffect(() => { saveLS('wp_ciclos', ciclos); }, [ciclos]);
+
+      function navegar(t) {
+        if (tela === 'treinar') {
+          if (!confirm('Sair do treino? Sua sessão será salva para retomada.')) return;
+        }
+        setTela(t);
+      }
+
+      function toggleTema() {
+        setTema(t => t === 'escuro' ? 'claro' : 'escuro');
+      }
+
+      function persistirSessao(s) {
+        setSessaoSalva(s);
+        saveLS('wp_sessao', s);
+      }
+      function limparSessao() {
+        setSessaoSalva(null);
+        clearLS('wp_sessao');
+      }
+
+      // Salvar conjunto novo
+      function aoSalvarConjunto(novo, puzzles, treinar) {
+        setConjuntos(cs => cs.concat([novo]));
+        memCache.puzzlesPorConjunto[novo.id] = puzzles;
+        if (treinar) {
+          iniciarCiclo(novo, puzzles, 1, false);
+        } else {
+          setTela('conjuntos');
+        }
+      }
+
+      // Excluir conjunto
+      function excluirConjunto(id) {
+        setConjuntos(cs => cs.filter(c => c.id !== id));
+        setCiclos(cs => cs.filter(c => c.conjunto_id !== id));
+        delete memCache.puzzlesPorConjunto[id];
+      }
+
+      // Iniciar treino
+      async function iniciarTreino(conjunto) {
+        const cs = ciclosDoConjunto(ciclos, conjunto.id);
+        setConjuntoAtivo(conjunto);
+        if (cs.length === 0) {
+          await carregarEIniciar(conjunto, 1, false);
+        } else {
+          setTela('selecao');
+        }
+      }
+
+      async function carregarEIniciar(conjunto, numero, apenasErros) {
+        setCarregando(true);
+        setErroCarregar(null);
+        setCarregandoMsg('Recuperando puzzles do conjunto...');
+        try {
+          const todos = await carregarPuzzlesDoConjunto(conjunto, setCarregandoMsg);
+          let puzzles = todos;
+          if (apenasErros) {
+            const ult = ultimoCiclo(ciclos, conjunto.id);
+            if (ult) {
+              const idsErr = new Set(ult.resultados.filter(r => !r.correto).map(r => r.puzzle_id));
+              puzzles = todos.filter(p => idsErr.has(p.id || p.puzzleId));
+            }
+          }
+          if (puzzles.length === 0) {
+            setErroCarregar('Nenhum puzzle disponível para esse modo.');
+            setCarregando(false);
+            return;
+          }
+          iniciarCiclo(conjunto, puzzles, numero, apenasErros);
+        } catch (e) {
+          console.error(e);
+          setErroCarregar('Falha ao baixar puzzles: ' + (e.message || e));
+        } finally {
+          setCarregando(false);
+        }
+      }
+
+      function iniciarCiclo(conjunto, puzzles, numero, apenasErros) {
+        const ciclo = {
+          id: gerarId(),
+          conjunto_id: conjunto.id,
+          numero,
+          data_inicio: Date.now(),
+          apenas_erros: apenasErros,
+          iniciado_em: Date.now()
+        };
+        setConjuntoAtivo(conjunto);
+        setCicloAtual(ciclo);
+        setPuzzlesAtivos(puzzles);
+        setTela('treinar');
+      }
+
+      function aoConcluirCiclo(resultados) {
+        const total = resultados.length;
+        const acertos = resultados.filter(r => r.correto).length;
+        const erros = total - acertos;
+        const tempoTotal = resultados.reduce((a, r) => a + (r.tempo_s || 0), 0);
+        const tempoMedio = total ? Math.round(tempoTotal / total) : 0;
+        const cicloFinal = {
+          ...cicloAtual,
+          data_fim: Date.now(),
+          total, acertos, erros,
+          tempo_medio_s: tempoMedio,
+          tempo_total_s: tempoTotal,
+          resultados
+        };
+        setCiclos(cs => cs.concat([cicloFinal]));
+        setCicloAtual(cicloFinal);
+        limparSessao();
+        setTela('conclusao');
+      }
+
+      // Continuar treino (botão da tela inicial)
+      async function continuarTreino() {
+        if (sessaoSalva) {
+          retomarSessao();
+          return;
+        }
+        if (conjuntos.length === 0) { setTela('criar'); return; }
+        // Pega o último conjunto com ciclos, ou o primeiro
+        const comCiclos = conjuntos.filter(c => ciclosDoConjunto(ciclos, c.id).length > 0);
+        const alvo = comCiclos.length ? comCiclos[comCiclos.length - 1] : conjuntos[0];
+        await iniciarTreino(alvo);
+      }
+
+      // Retomar sessão
+      async function retomarSessao() {
+        if (!sessaoSalva) return;
+        const conjunto = conjuntos.find(c => c.id === sessaoSalva.conjunto_id);
+        if (!conjunto) {
+          alert('Conjunto da sessão não foi encontrado. Sessão descartada.');
+          limparSessao();
+          setShowModalRetomar(false);
+          return;
+        }
+        setShowModalRetomar(false);
+        setCarregando(true);
+        setCarregandoMsg('Restaurando sessão...');
+        try {
+          const todos = await carregarPuzzlesDoConjunto(conjunto, setCarregandoMsg);
+          const mapa = new Map(todos.map(p => [p.id || p.puzzleId, p]));
+          const puzzles = sessaoSalva.puzzle_ids_ciclo.map(id => mapa.get(id)).filter(Boolean);
+          const ciclo = {
+            id: gerarId(),
+            conjunto_id: conjunto.id,
+            numero: sessaoSalva.ciclo_numero,
+            data_inicio: sessaoSalva.iniciado_em || Date.now(),
+            apenas_erros: !!sessaoSalva.apenas_erros,
+            iniciado_em: sessaoSalva.iniciado_em || Date.now()
+          };
+          setConjuntoAtivo(conjunto);
+          setCicloAtual(ciclo);
+          setPuzzlesAtivos(puzzles);
+          setTela('treinar');
+        } catch (e) {
+          alert('Falha ao restaurar sessão: ' + (e.message || e));
+          limparSessao();
+        } finally {
+          setCarregando(false);
+        }
+      }
+
+      function descartarSessao() {
+        limparSessao();
+        setShowModalRetomar(false);
+      }
+
+      function sairDoTreino() {
+        if (confirm('Sair do treino? Sua sessão fica salva para retomada.')) {
+          setTela('conjuntos');
+        }
+      }
+
+      // Próximo ciclo a partir da conclusão
+      async function aoProximoCiclo() {
+        if (!conjuntoAtivo || !cicloAtual) return;
+        await carregarEIniciar(conjuntoAtivo, cicloAtual.numero + 1, false);
+      }
+      async function aoApenasErros() {
+        if (!conjuntoAtivo || !cicloAtual) return;
+        await carregarEIniciar(conjuntoAtivo, cicloAtual.numero + 1, true);
+      }
+
+      const ocultarSidebar = tela === 'treinar';
+
+      return (
+        <div className="app-shell">
+          <Header tema={tema} onToggleTema={toggleTema} />
+
+          {showModalRetomar && sessaoSalva && (
+            <ModalRetomada
+              sessao={sessaoSalva}
+              conjunto={conjuntos.find(c => c.id === sessaoSalva.conjunto_id)}
+              onRetomar={retomarSessao}
+              onDescartar={descartarSessao}
+            />
+          )}
+
+          {!ocultarSidebar && (
+            <Sidebar mobile tela={tela} onNav={navegar} />
+          )}
+
+          <div className="main-row">
+            {!ocultarSidebar && <Sidebar tela={tela} onNav={navegar} />}
+
+            <div className={'content-area' + (ocultarSidebar ? ' fullbleed' : '')}>
+              {carregando && <LoadingPuzzles msg={carregandoMsg} />}
+              {erroCarregar && (
+                <div className="feedback-banner red" style={{ maxWidth: 460, margin: '20px auto' }}>
+                  <div className="feedback-title">⚠ {erroCarregar}</div>
+                  <button className="btn btn-small ghost mt-12" onClick={() => setErroCarregar(null)}>Fechar</button>
+                </div>
+              )}
+
+              {!carregando && tela === 'inicio' && (
+                <TelaInicio
+                  conjuntos={conjuntos}
+                  onCriar={() => setTela('criar')}
+                  onContinuar={continuarTreino}
+                />
+              )}
+              {!carregando && tela === 'conjuntos' && (
+                <TelaConjuntos
+                  conjuntos={conjuntos}
+                  ciclos={ciclos}
+                  onTreinar={iniciarTreino}
+                  onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
+                  onExcluir={excluirConjunto}
+                  onCriar={() => setTela('criar')}
+                />
+              )}
+              {!carregando && tela === 'criar' && (
+                <TelaCriar
+                  onSalvarTreinar={(novo, puzzles) => aoSalvarConjunto(novo, puzzles, true)}
+                  onSalvar={(novo, puzzles) => aoSalvarConjunto(novo, puzzles, false)}
+                  onCancelar={() => setTela('inicio')}
+                />
+              )}
+              {!carregando && tela === 'selecao' && conjuntoAtivo && (
+                <TelaSelecao
+                  conjunto={conjuntoAtivo}
+                  ciclos={ciclos}
+                  onIniciar={(apenasErros) => {
+                    const cs = ciclosDoConjunto(ciclos, conjuntoAtivo.id);
+                    carregarEIniciar(conjuntoAtivo, cs.length + 1, apenasErros);
+                  }}
+                  onVoltar={() => setTela('conjuntos')}
+                />
+              )}
+              {!carregando && tela === 'treinar' && conjuntoAtivo && cicloAtual && puzzlesAtivos && (
+                <TelaTreinar
+                  conjunto={conjuntoAtivo}
+                  ciclo={cicloAtual}
+                  puzzles={puzzlesAtivos}
+                  sessao={sessaoSalva && sessaoSalva.conjunto_id === conjuntoAtivo.id ? sessaoSalva : null}
+                  onConcluir={aoConcluirCiclo}
+                  onSalvarSessao={persistirSessao}
+                  onSair={sairDoTreino}
+                />
+              )}
+              {!carregando && tela === 'conclusao' && conjuntoAtivo && cicloAtual && (
+                <TelaConclusao
+                  conjunto={conjuntoAtivo}
+                  ciclo={cicloAtual}
+                  ciclosAnteriores={ciclosDoConjunto(ciclos, conjuntoAtivo.id)}
+                  onProximoCiclo={aoProximoCiclo}
+                  onApenasErros={aoApenasErros}
+                  onEvolucao={() => { setEvolucaoConjunto(conjuntoAtivo); setTela('evolucao'); }}
+                />
+              )}
+              {!carregando && tela === 'evolucao' && (
+                <TelaEvolucao
+                  conjuntos={conjuntos}
+                  ciclos={ciclos}
+                  conjuntoInicial={evolucaoConjunto}
+                  onVoltar={() => setTela('conjuntos')}
+                />
+              )}
+            </div>
+          </div>
+
+          <Footer />
+        </div>
+      );
+    }
+
+    /* === RENDER === */
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+
+    console.log("✓ woodpecker.html pronto\nPuzzles: github.com/felipe-kliente360/woodpecker-puzzles\nRelease: v1.0-puzzles");
+
+
+
+
+
+  </script>
+</body>
+</html>
