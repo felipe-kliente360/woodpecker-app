@@ -440,19 +440,18 @@
     }
 
     /* === HIGHLIGHT ÚLTIMO LANCE ===
-       Sem borda. Casa de ORIGEM com fill suave (peça saiu daqui — referência).
-       Casa de DESTINO com fill mais saturado (peça está aqui agora — foco). */
+       Sem borda. Origem mais discreta, destino um pouco mais visível. */
     .highlight-last-from {
-      background-color: rgba(130, 240, 90, 0.20) !important;
+      background-color: rgba(130, 240, 90, 0.14) !important;
     }
     .highlight-last-to {
-      background-color: rgba(130, 240, 90, 0.55) !important;
+      background-color: rgba(130, 240, 90, 0.30) !important;
     }
     :root[data-theme="claro"] .highlight-last-from {
-      background-color: rgba(70, 200, 70, 0.22) !important;
+      background-color: rgba(70, 200, 70, 0.16) !important;
     }
     :root[data-theme="claro"] .highlight-last-to {
-      background-color: rgba(70, 200, 70, 0.55) !important;
+      background-color: rgba(70, 200, 70, 0.32) !important;
     }
     /* Casa selecionada (tap-to-move) — azul, prevalece sobre highlight de último lance */
     .selected-square {
@@ -2107,10 +2106,11 @@
             try { aplicarLanceSilencioso(c, lances[0]); } catch (e) {
               console.warn("Lance inicial inválido:", lances[0], e);
             }
-            setUltimoLanceAdv({ from: lances[0].slice(0, 2), to: lances[0].slice(2, 4) });
-          } else {
-            setUltimoLanceAdv(null);
           }
+          // Não destaca o lance pré-puzzle do adversário — usuário precisa
+          // analisar a posição limpa. Highlights aparecem só a partir das
+          // respostas do adversário durante a sequência de lances.
+          setUltimoLanceAdv(null);
           chessRef.current = c;
           expectedIdxRef.current = 1;
           fenInicialJogadorRef.current = c.fen();
