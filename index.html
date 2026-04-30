@@ -1992,16 +1992,44 @@
       );
     }
 
-    /* === HOOK TIMER === */
-    function useTimer(rodando) {
+    /* === HOOKS CUSTOMIZADOS === */
+
+    // Timer encapsulado: tickeia a cada 1s quando 'rodando' E NÃO 'pausado'.
+    // Retorna [seg, reset]. Sem stale-closure: o setInterval usa o updater
+    // funcional (s => s + 1), e o useEffect refaz quando rodando/pausado mudam.
+    function useTimerComPausa(rodando, pausado) {
       const [seg, setSeg] = useState(0);
       useEffect(() => {
-        if (!rodando) return;
+        if (!rodando || pausado) return;
         const t = setInterval(() => setSeg(s => s + 1), 1000);
         return () => clearInterval(t);
-      }, [rodando]);
+      }, [rodando, pausado]);
       const reset = useCallback(() => setSeg(0), []);
       return [seg, reset];
+    }
+
+    // Atalhos de teclado globais. handler recebe o KeyboardEvent; o hook
+    // ignora eventos disparados de inputs/textareas pra não competir com
+    // digitação. deps controlam quando o handler é renovado — passe TODAS
+    // as variáveis de estado lidas dentro do handler pra evitar closures
+    // congeladas.
+    function useKeyboardShortcuts(handler, deps) {
+      useEffect(() => {
+        function onKey(e) {
+          if (e.target) {
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          }
+          handler(e);
+        }
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+      }, deps);
+    }
+
+    function useTimer(rodando) {
+      // alias compatível, caso fique algum chamador externo
+      return useTimerComPausa(rodando, false);
     }
 
     /* === TELA TREINAR (EXECUÇÃO DO CICLO) === */
@@ -2014,7 +2042,7 @@
       const [pendingDrop, setPendingDrop] = useState(null);
       const [rodando, setRodando] = useState(true);
       const [pausado, setPausado] = useState(false);
-      const [seg, resetTimer] = useTimer(rodando && !pausado);
+      const [seg, resetTimer] = useTimerComPausa(rodando, pausado);
 
       const chessRef = useRef(null);
       const expectedIdxRef = useRef(1);
@@ -2104,36 +2132,31 @@
         }
       }, [idx, puzzle && (puzzle.id || puzzle.puzzleId)]);
 
-      // Atalhos de teclado
-      useEffect(() => {
-        function onKey(e) {
-          // Ignora atalhos quando o usuário está digitando em algum input
-          if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
-          if (promoPicker) {
-            if (e.key === 'Escape') { e.preventDefault(); cancelarPromocao(); }
-            else if (e.key === 'q' || e.key === 'Q') { e.preventDefault(); escolherPromocao('q'); }
-            else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); escolherPromocao('r'); }
-            else if (e.key === 'b' || e.key === 'B') { e.preventDefault(); escolherPromocao('b'); }
-            else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); escolherPromocao('n'); }
-            return;
-          }
-          if (estado === 'jogando' && lancePendente) {
-            if (e.key === 'Enter') { e.preventDefault(); confirmarPendente(); }
-            else if (e.key === 'Escape') { e.preventDefault(); cancelarPendente(); }
-            return;
-          }
-          if (estado === 'jogando') {
-            if (e.key === ' ') { e.preventDefault(); pular(); }
-            else if (e.key === 'p' || e.key === 'P') { e.preventDefault(); setPausado(p => !p); }
-            return;
-          }
-          if (estado === 'feedback') {
-            if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); avancar(); }
-            return;
-          }
+      // Atalhos de teclado — handler reage ao estado atual; deps incluem
+      // todas as variáveis lidas pra evitar closure congelada.
+      useKeyboardShortcuts((e) => {
+        if (promoPicker) {
+          if (e.key === 'Escape') { e.preventDefault(); cancelarPromocao(); }
+          else if (e.key === 'q' || e.key === 'Q') { e.preventDefault(); escolherPromocao('q'); }
+          else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); escolherPromocao('r'); }
+          else if (e.key === 'b' || e.key === 'B') { e.preventDefault(); escolherPromocao('b'); }
+          else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); escolherPromocao('n'); }
+          return;
         }
-        document.addEventListener('keydown', onKey);
-        return () => document.removeEventListener('keydown', onKey);
+        if (estado === 'jogando' && lancePendente) {
+          if (e.key === 'Enter') { e.preventDefault(); confirmarPendente(); }
+          else if (e.key === 'Escape') { e.preventDefault(); cancelarPendente(); }
+          return;
+        }
+        if (estado === 'jogando') {
+          if (e.key === ' ') { e.preventDefault(); pular(); }
+          else if (e.key === 'p' || e.key === 'P') { e.preventDefault(); setPausado(p => !p); }
+          return;
+        }
+        if (estado === 'feedback') {
+          if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); avancar(); }
+          return;
+        }
       }, [estado, lancePendente, promoPicker, idx, pausado]);
 
       // Limpa seleção (tap-to-move) sempre que sai do estado 'jogando'
