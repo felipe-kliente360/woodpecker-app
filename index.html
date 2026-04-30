@@ -913,7 +913,10 @@
     }
 
     /* === EXPORT / IMPORT === */
-    const CHAVES_LS_BACKUP = ['wp_conjuntos', 'wp_ciclos', 'wp_tema', 'wp_modo_confirmar', 'wp_sessao', 'wp_auto_backup'];
+    const CHAVES_LS_BACKUP = ['wp_conjuntos', 'wp_ciclos', 'wp_tema', 'wp_sessao', 'wp_auto_backup'];
+
+    // Limpa chave legada de modo confirmar (era persistida em versão anterior)
+    try { localStorage.removeItem('wp_modo_confirmar'); } catch (e) {}
 
     function exportarBackup() {
       const dados = { versao: '1.0', gerado_em: new Date().toISOString(), app: 'woodpecker' };
@@ -2058,8 +2061,10 @@
       const [lancePendente, setLancePendente] = useState(null); // {from, to, promo, san} no modo confirmar
       const [promoPicker, setPromoPicker] = useState(null); // {from, to} aguardando escolha de promoção
       const [casaSelecionada, setCasaSelecionada] = useState(null); // tap-to-move: 1ª casa clicada
-      const [modoConfirmar, setModoConfirmar] = useState(() => loadLS('wp_modo_confirmar', false));
-      useEffect(() => { saveLS('wp_modo_confirmar', modoConfirmar); }, [modoConfirmar]);
+      // Modo confirmar começa sempre desligado por padrão a cada novo treino —
+      // o usuário pode ligar durante a sessão se quiser, mas a próxima sessão
+      // volta ao default OFF (decisão de produto).
+      const [modoConfirmar, setModoConfirmar] = useState(false);
 
       const puzzle = puzzles[idx];
       const total = puzzles.length;
