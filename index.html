@@ -439,16 +439,22 @@
       .only-mobile { display: initial !important; }
     }
 
-    /* === HIGHLIGHT ÚLTIMO LANCE === */
-    .highlight-last-move {
-      box-shadow: inset 0 0 0 5px rgba(130, 240, 90, 0.92);
-      background-color: rgba(130, 240, 90, 0.35) !important;
+    /* === HIGHLIGHT ÚLTIMO LANCE ===
+       Sem borda. Casa de ORIGEM com fill suave (peça saiu daqui — referência).
+       Casa de DESTINO com fill mais saturado (peça está aqui agora — foco). */
+    .highlight-last-from {
+      background-color: rgba(130, 240, 90, 0.20) !important;
     }
-    :root[data-theme="claro"] .highlight-last-move {
-      box-shadow: inset 0 0 0 5px rgba(70, 200, 70, 0.95);
-      background-color: rgba(120, 230, 100, 0.45) !important;
+    .highlight-last-to {
+      background-color: rgba(130, 240, 90, 0.55) !important;
     }
-    /* Casa selecionada (tap-to-move) — azul vivo prevalece sobre highlight de último lance */
+    :root[data-theme="claro"] .highlight-last-from {
+      background-color: rgba(70, 200, 70, 0.22) !important;
+    }
+    :root[data-theme="claro"] .highlight-last-to {
+      background-color: rgba(70, 200, 70, 0.55) !important;
+    }
+    /* Casa selecionada (tap-to-move) — azul, prevalece sobre highlight de último lance */
     .selected-square {
       box-shadow: inset 0 0 0 5px rgba(78, 142, 203, 0.95) !important;
       background-color: rgba(78, 142, 203, 0.35) !important;
@@ -1077,7 +1083,7 @@
     }
 
     /* === COMPONENTE ChessBoard (wrapper Chessboard.js) === */
-    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, draggable, highlightSquares, selectedSquare }) {
+    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, draggable, highlightFrom, highlightTo, selectedSquare }) {
       const onDropRef = useRef(onDrop);
       const onSquareClickRef = useRef(onSquareClick);
       const draggableRef = useRef(draggable !== false);
@@ -1086,28 +1092,25 @@
       useEffect(() => { onSquareClickRef.current = onSquareClick; }, [onSquareClick]);
       useEffect(() => { draggableRef.current = draggable !== false; }, [draggable]);
 
-      // Aplica/remove highlight nas casas do último lance do adversário + casa selecionada
+      // Aplica/remove highlights: origem do último lance (sutil), destino (mais
+      // saturado) e a casa selecionada via tap-to-move (azul, sobrepõe).
       useEffect(() => {
         if (!boardRef.current) return;
         const apply = () => {
           try {
             const $root = window.jQuery && window.jQuery('#' + boardId);
             if (!$root || !$root.length) return;
-            $root.find('.highlight-last-move').removeClass('highlight-last-move');
+            $root.find('.highlight-last-from').removeClass('highlight-last-from');
+            $root.find('.highlight-last-to').removeClass('highlight-last-to');
             $root.find('.selected-square').removeClass('selected-square');
-            if (highlightSquares && highlightSquares.length) {
-              for (const sq of highlightSquares) {
-                $root.find('.square-' + sq).addClass('highlight-last-move');
-              }
-            }
-            if (selectedSquare) {
-              $root.find('.square-' + selectedSquare).addClass('selected-square');
-            }
+            if (highlightFrom) $root.find('.square-' + highlightFrom).addClass('highlight-last-from');
+            if (highlightTo)   $root.find('.square-' + highlightTo).addClass('highlight-last-to');
+            if (selectedSquare) $root.find('.square-' + selectedSquare).addClass('selected-square');
           } catch (e) {}
         };
         const t = setTimeout(apply, 60);
         return () => clearTimeout(t);
-      }, [highlightSquares, selectedSquare, fen, boardId]);
+      }, [highlightFrom, highlightTo, selectedSquare, fen, boardId]);
 
       useEffect(() => {
         const cfg = {
@@ -2445,7 +2448,8 @@
                 onDrop={onDrop}
                 onSquareClick={onSquareClick}
                 draggable={estado === 'jogando' && !pausado}
-                highlightSquares={ultimoLanceAdv ? [ultimoLanceAdv.from, ultimoLanceAdv.to] : null}
+                highlightFrom={ultimoLanceAdv ? ultimoLanceAdv.from : null}
+                highlightTo={ultimoLanceAdv ? ultimoLanceAdv.to : null}
                 selectedSquare={casaSelecionada}
               />
             </div>
