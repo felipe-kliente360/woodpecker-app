@@ -962,28 +962,65 @@
     }
 
     /* === CALIBRAÇÃO === */
+    // Sugere rating com base na curva de acerto vs rating observada.
+    // Estratégia: agrupa os puzzles em brackets de 200 pontos, calcula a taxa
+    // de acerto em cada um, e procura o bracket onde a taxa cai pra perto de
+    // 60% — esse é o ponto de "desafio gravando" do método (acerta a maioria
+    // mas com esforço). Fallback: média dos corretos com ajuste por taxa.
     function calcularRatingSugerido(ciclo) {
       const r = (ciclo && ciclo.resultados) || [];
       if (r.length === 0) return null;
-      const corretos = r.filter(x => x.correto);
-      const total = r.length;
-      const taxa = corretos.length / total;
-      if (corretos.length === 0) {
+      const ALVO = 0.60;
+      const W = 200;
+      const corretos = r.filter(x => x.correto && x.rating);
+      const semNenhum = corretos.length === 0;
+
+      if (semNenhum) {
         const ratings = r.filter(x => x.rating).map(x => x.rating);
         if (!ratings.length) return null;
-        return Math.max(600, Math.min(...ratings) - 200);
+        return Math.max(600, Math.round((Math.min(...ratings) - 200) / 50) * 50);
       }
-      const ratings = corretos.filter(x => x.rating).map(x => x.rating);
-      if (!ratings.length) return 1200;
+
+      // Agrupa em brackets de 200 pts. Cada bracket guarda total e corretos.
+      const buckets = {};
+      for (const x of r) {
+        if (!x.rating) continue;
+        const b = Math.floor(x.rating / W) * W;
+        if (!buckets[b]) buckets[b] = { total: 0, ok: 0 };
+        buckets[b].total += 1;
+        if (x.correto) buckets[b].ok += 1;
+      }
+      // Bracket com taxa mais próxima do alvo (e dados suficientes — ≥3)
+      let melhor = null, distMin = Infinity;
+      for (const [bStr, dados] of Object.entries(buckets)) {
+        if (dados.total < 3) continue;
+        const taxa = dados.ok / dados.total;
+        const dist = Math.abs(taxa - ALVO);
+        if (dist < distMin) { distMin = dist; melhor = parseInt(bStr); }
+      }
+
+      if (melhor !== null) {
+        // Centro do bracket. Se o bracket tem taxa muito alta (>80%), aponta
+        // pra cima do bracket; se muito baixa (<40%), pra baixo.
+        const taxa = buckets[melhor].ok / buckets[melhor].total;
+        let centro = melhor + W / 2;
+        if (taxa > 0.80) centro = melhor + W * 0.85;
+        else if (taxa < 0.40) centro = melhor + W * 0.15;
+        const sugerido = Math.round(centro / 50) * 50;
+        return Math.max(600, Math.min(2800, sugerido));
+      }
+
+      // Fallback (poucos puzzles por bracket): usa média dos corretos com ajuste
+      const ratings = corretos.map(x => x.rating);
       const media = ratings.reduce((a, b) => a + b, 0) / ratings.length;
-      // Lichess puzzles ratam pra ~50% de acerto. Ajusta conforme a taxa observada.
+      const taxa = corretos.length / r.length;
       let ajuste;
       if (taxa >= 0.85) ajuste = 150;
       else if (taxa >= 0.70) ajuste = 75;
       else if (taxa >= 0.50) ajuste = 0;
       else if (taxa >= 0.30) ajuste = -75;
       else ajuste = -150;
-      const sugerido = Math.round((media + ajuste) / 50) * 50; // arredonda para múltiplo de 50
+      const sugerido = Math.round((media + ajuste) / 50) * 50;
       return Math.max(600, Math.min(2800, sugerido));
     }
 
@@ -1968,7 +2005,7 @@
     }
 
     /* === TELA TREINAR (EXECUÇÃO DO CICLO) === */
-    function TelaTreinar({ conjunto, ciclo, puzzles, sessao, onConcluir, onSalvarSessao, onSair }) {
+    function TelaTreinar({ conjunto, ciclo, puzzles, sessao, ciclosAnteriores, onConcluir, onSalvarSessao, onSair }) {
       const [idx, setIdx] = useState(sessao ? sessao.index_atual : 0);
       const [resultados, setResultados] = useState(sessao ? (sessao.resultados_parciais || []) : []);
       const [estado, setEstado] = useState('jogando'); // jogando | feedback
@@ -2006,6 +2043,19 @@
       // Em estado 'feedback' o tempo do puzzle atual já foi somado em resultados;
       // em 'jogando' o cronômetro corrente ainda não. Soma só quando jogando.
       const tempoAcumulado = tempoConcluidos + (estado === 'jogando' ? seg : 0);
+
+      // Indicador vs Ciclo 1 em tempo real: compara o tempo gasto até esta posição
+      // com o tempo gasto no Ciclo 1 (baseline) na mesma posição. Sinaliza se o
+      // usuário está adiantado ou atrasado em relação ao próprio PR de referência.
+      const baselineCiclo = (ciclosAnteriores && ciclosAnteriores.length > 0 && ciclo.numero > 1)
+        ? ciclosAnteriores[0]
+        : null;
+      const tempoBaselineAteAqui = (baselineCiclo && baselineCiclo.resultados)
+        ? baselineCiclo.resultados.slice(0, resultados.length).reduce((a, r) => a + (r.tempo_s || 0), 0)
+        : null;
+      const ritmoVsBaseline = tempoBaselineAteAqui !== null
+        ? tempoAcumulado - tempoBaselineAteAqui
+        : null;
 
       // Inicia/recarrega cada puzzle
       const [erroPuzzle, setErroPuzzle] = useState(null);
@@ -2449,6 +2499,17 @@
                 <span className="txt-muted">·</span>
                 <span className="txt-muted">→ {restantes}</span>
               </div>
+              {ritmoVsBaseline !== null && (
+                <div className="mono fs-11 mt-8" style={{
+                  color: ritmoVsBaseline < 0 ? 'var(--green)' : (ritmoVsBaseline > 30 ? 'var(--red)' : 'var(--txt-muted)')
+                }}>
+                  vs Ciclo 1:&nbsp;
+                  {ritmoVsBaseline < 0 ? '↓ ' : '↑ '}
+                  {formatarTempoLongo(Math.abs(ritmoVsBaseline))}
+                  {ritmoVsBaseline < -30 && ' · no rumo do PR'}
+                  {ritmoVsBaseline > 30 && ' · atrás do baseline'}
+                </div>
+              )}
             </div>
 
             <div className="mb-16 hstack gap-8 flex-wrap">
@@ -3412,7 +3473,10 @@
         };
         setConjuntoAtivo(conjunto);
         setCicloAtual(ciclo);
-        setPuzzlesAtivos(puzzles);
+        // Embaralha a ordem a cada ciclo (mantém o conjunto fixo, varia a sequência).
+        // Combate viés de associação posicional — sem isso, o usuário começa a
+        // memorizar "esse puzzle vem depois daquele", em vez do padrão tático em si.
+        setPuzzlesAtivos(embaralhar(puzzles));
         setTela('treinar');
       }
 
@@ -3598,6 +3662,7 @@
                   conjunto={conjuntoAtivo}
                   ciclo={cicloAtual}
                   puzzles={puzzlesAtivos}
+                  ciclosAnteriores={ciclosDoConjunto(ciclos, conjuntoAtivo.id)}
                   sessao={sessaoSalva && sessaoSalva.conjunto_id === conjuntoAtivo.id ? sessaoSalva : null}
                   onConcluir={aoConcluirCiclo}
                   onSalvarSessao={persistirSessao}
