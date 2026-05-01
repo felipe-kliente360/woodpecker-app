@@ -1072,6 +1072,68 @@
       return Math.max(600, Math.min(2800, sugerido));
     }
 
+    /* === RATING UNIFICADO === */
+    // Combina sinais heterogêneos em uma única estimativa:
+    //  · Performance no app (último ciclo concluído + calibração se houver)
+    //  · Análise chess.com (programa salvo em IndexedDB)
+    // Cada fonte traz seu próprio peso baseado em confiança + tamanho da amostra.
+    function ratingUnificado(ciclos, programaAtual) {
+      const fontes = [];
+
+      // 1. Performance no app — última calibração ou ciclo concluído mais recente
+      if (Array.isArray(ciclos) && ciclos.length > 0) {
+        const ord = ciclos.slice().sort((a, b) => (b.data_fim || 0) - (a.data_fim || 0));
+        let calib = null, ult = null;
+        for (const c of ord) {
+          if (c.calibracao && !calib) calib = c;
+          if (!ult) ult = c;
+          if (calib && ult) break;
+        }
+        if (calib) {
+          const r = calcularRatingSugerido(calib);
+          if (r != null) fontes.push({
+            nome: 'Calibração', valor: r, peso: 1.2, conf: 'alta',
+            detalhe: (calib.resultados || []).length + ' puzzles'
+          });
+        }
+        if (ult && (!calib || ult !== calib)) {
+          const r = calcularRatingSugerido(ult);
+          if (r != null) {
+            const total = (ult.resultados || []).length;
+            const peso = Math.min(1.0, total / 30);
+            if (peso >= 0.2) fontes.push({
+              nome: 'Performance recente', valor: r, peso: peso, conf: 'média',
+              detalhe: total + ' puzzles · ciclo ' + (ult.numero || '?')
+            });
+          }
+        }
+      }
+
+      // 2. Análise chess.com
+      if (programaAtual && programaAtual.suggested_rating) {
+        const lvl = (programaAtual.tactical_confidence || {}).level;
+        const peso = lvl === 'alta' ? 1.5
+                   : lvl === 'média' ? 1.0
+                   : lvl === 'baixa' ? 0.5 : 0;
+        if (peso > 0) fontes.push({
+          nome: 'Análise chess.com',
+          valor: programaAtual.suggested_rating,
+          peso: peso, conf: lvl,
+          detalhe: (programaAtual.games_analyzed || '?') + ' partidas',
+        });
+      }
+
+      if (fontes.length === 0) return null;
+      const totalP = fontes.reduce((a, f) => a + f.peso, 0);
+      const rating = Math.round(
+        fontes.reduce((a, f) => a + f.valor * f.peso, 0) / totalP / 50
+      ) * 50;
+      const valores = fontes.map(f => f.valor);
+      const min = Math.max(600, Math.min(...valores) - 50);
+      const max = Math.min(2800, Math.max(...valores) + 50);
+      return { rating: Math.max(600, Math.min(2800, rating)), range: [min, max], fontes: fontes };
+    }
+
     /* === MÉTRICAS DE ATIVIDADE === */
     function metricasAtividade(ciclos) {
       if (!ciclos.length) return { total: 0, diasAtivos: 0, ultimaMs: 0, diasDesde: null };
@@ -1419,6 +1481,24 @@
       const temConjuntos = conjuntos.length > 0;
       const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
 
+      // Programa de análise mais recente (carregado do IndexedDB)
+      const [programaAtual, setProgramaAtual] = useState(null);
+      useEffect(() => {
+        if (!window.ChessAnalysis) return;
+        const u = (loadLS('wp_analise_username', '') || '').trim();
+        if (!u) return;
+        let cancelado = false;
+        (async () => {
+          try {
+            const p = await window.ChessAnalysis.loadProgram(u);
+            if (!cancelado) setProgramaAtual(p);
+          } catch (_) {}
+        })();
+        return () => { cancelado = true; };
+      }, []);
+
+      const unif = useMemo(() => ratingUnificado(ciclos, programaAtual), [ciclos, programaAtual]);
+
       // Ordena conjuntos por última atividade desc — quem foi treinado mais recentemente vem primeiro
       const conjuntosOrdenados = useMemo(() => {
         return conjuntos.slice().sort((a, b) => {
@@ -1435,6 +1515,26 @@
 
       return (
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '32px 4px' }}>
+          {unif && unif.fontes.length > 0 && (
+            <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--primary)' }}>
+              <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div className="mono fs-10 ls-2 txt-muted">SEU RATING ESTIMADO</div>
+                  <div className="serif bold fs-22 txt-primary">{unif.rating}</div>
+                  <div className="mono fs-11 txt-muted">faixa {unif.range[0]}–{unif.range[1]}</div>
+                </div>
+                <div className="vstack gap-2" style={{ textAlign: 'right' }}>
+                  {unif.fontes.map((f, i) => (
+                    <div key={i} className="mono fs-10 txt-muted">
+                      {f.nome}: <span className="bold txt-mid">{f.valor}</span>
+                      <span className="fs-10"> · peso {f.peso.toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {temConjuntos && atividade.total > 0 && (
             <div className="card-soft mb-12">
               <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'space-between' }}>
@@ -3530,8 +3630,19 @@
         setAnalisando(true);
         setProgresso({ stage: 'inicio', message: 'Iniciando...', current: 0, total: 0 });
         await pedirWakeLock();
+        // Throttle progress updates a 200ms (item 5: evita re-render storm em
+        // partidas de muitos plies — análise pulsa info por lance)
+        let lastTick = 0;
+        const onProg = (info) => {
+          const now = Date.now();
+          if (info.stage === 'done' || info.stage === 'aggregate' ||
+              info.stage === 'analyze' || (now - lastTick) > 200) {
+            lastTick = now;
+            setProgresso(info);
+          }
+        };
         try {
-          const p = await window.ChessAnalysis.analyzePlayer(u, (info) => setProgresso(info));
+          const p = await window.ChessAnalysis.analyzePlayer(u, onProg);
           setPrograma(p);
         } catch (e) {
           console.error(e);
@@ -3671,6 +3782,69 @@
       );
     }
 
+    /* === HISTÓRICO DE ANÁLISES (timeline) === */
+    function HistoricoAnalises({ username, currentAnalyzedAt, formatarData }) {
+      const [historico, setHistorico] = useState([]);
+      const [aberto, setAberto] = useState(false);
+
+      useEffect(() => {
+        if (!username || !window.ChessAnalysis || !window.ChessAnalysis.listHistory) return;
+        let cancelado = false;
+        (async () => {
+          try {
+            const arr = await window.ChessAnalysis.listHistory(username);
+            if (!cancelado) setHistorico(arr || []);
+          } catch (_) {}
+        })();
+        return () => { cancelado = true; };
+      }, [username, currentAnalyzedAt]);
+
+      if (historico.length <= 1) return null;
+
+      // Pula a entrada que coincide com a análise atual (1ª) — já está no card de cima.
+      // Mostra deltas vs análise anterior na timeline.
+      return (
+        <div className="card-soft mb-12" style={{ padding: '10px 12px' }}>
+          <div className="between" style={{ cursor: 'pointer' }} onClick={() => setAberto(a => !a)}>
+            <div className="mono fs-11 ls-2 txt-mid">📜 HISTÓRICO ({historico.length} análises)</div>
+            <div className="mono fs-11 txt-muted">{aberto ? '▴' : '▾'}</div>
+          </div>
+          {aberto && (
+            <div className="vstack gap-8 mt-12">
+              {historico.map((h, i) => {
+                const prev = historico[i + 1];
+                const deltaR = prev ? (h.suggested_rating - prev.suggested_rating) : 0;
+                const temasH = (h.themes || []).slice(0, 3).map(t => TEMAS[t.theme] || t.theme).join(', ');
+                return (
+                  <div key={h.id || i} className="vstack gap-4" style={{
+                    borderLeft: i === 0 ? '3px solid var(--primary)' : '3px solid var(--border)',
+                    paddingLeft: 10
+                  }}>
+                    <div className="hstack gap-12 flex-wrap" style={{ alignItems: 'baseline' }}>
+                      <span className="mono fs-11 txt-mid">{formatarData(h.analyzed_at)}</span>
+                      <span className="serif bold fs-13">{h.suggested_rating}</span>
+                      {prev && deltaR !== 0 && (
+                        <span className="mono fs-11" style={{
+                          color: deltaR > 0 ? 'var(--green)' : 'var(--red)'
+                        }}>
+                          {deltaR > 0 ? '+' : ''}{deltaR}
+                        </span>
+                      )}
+                      <span className="mono fs-10 txt-muted">
+                        {h.tactical_confidence && h.tactical_confidence.level}
+                        {h.games_analyzed && ' · ' + h.games_analyzed + 'p'}
+                      </span>
+                    </div>
+                    <div className="mono fs-10 txt-muted">{temasH}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     function ResultadoAnalise({ programa, onReanalisar, onCriarComTemas, onCriarComTema, formatarData }) {
       const conf = programa.tactical_confidence || {};
       const rng  = programa.rating_range || [programa.suggested_rating - 100, programa.suggested_rating + 100];
@@ -3779,6 +3953,11 @@
               </div>
             )}
           </div>
+
+          <HistoricoAnalises
+            username={programa.username}
+            currentAnalyzedAt={programa.analyzed_at}
+            formatarData={formatarData} />
 
           {conf.level === 'insuficiente' ? (
             <div className="feedback-banner red mb-12">
