@@ -79,6 +79,46 @@
     .mono { font-family: 'Courier New', Courier, monospace; }
     .serif { font-family: Georgia, 'Times New Roman', serif; }
 
+    /* Onboarding — choice cards usados na primeira visita */
+    .choice-card {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 16px 18px;
+      background: var(--surface);
+      color: var(--txt);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s ease, transform 0.08s ease, background 0.15s ease;
+    }
+    .choice-card:hover {
+      border-color: var(--primary);
+      background: var(--card);
+    }
+    .choice-card:active { transform: scale(0.995); }
+    .choice-icon {
+      font-size: 28px; line-height: 1;
+      margin-bottom: 8px;
+      color: var(--gold);
+    }
+    .choice-title {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 15px; font-weight: 700; color: var(--txt);
+      margin-bottom: 4px;
+    }
+    .choice-desc {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 13px; color: var(--txt-mid);
+      line-height: 1.55;
+    }
+    .choice-action {
+      display: inline-block; margin-top: 10px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px; color: var(--primary);
+      letter-spacing: 0.18em;
+    }
+
     /* Numerais tabulares — alinha colunas de números (ratings, tempos,
        contagens) e desliga ligaduras. Aplicar via classe .num em
        qualquer elemento que mostre número como dado, não como prosa. */
@@ -1388,68 +1428,92 @@
             </div>
           )}
 
-          <div className="card mb-12">
-            <div className="center" style={{ fontSize: 36, color: 'var(--primary)', marginBottom: 12 }}>♞</div>
-            <div className="center mono fs-10 ls-2 txt-muted mb-12">REPETIÇÃO · VELOCIDADE · PADRÕES</div>
-            <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.8 }}>
-              Monte um conjunto fixo de puzzles e resolva em ciclos repetidos, cada vez mais rápido.
-              O objetivo não é aprender puzzles novos — é gravar padrões táticos na memória de longo prazo.
-            </div>
-          </div>
-
           {!temConjuntos && (
+            <>
+              <div className="card mb-16" style={{ paddingBottom: 14 }}>
+                <div className="center" style={{ fontSize: 36, color: 'var(--gold)', marginBottom: 8 }}>♞</div>
+                <div className="center mono fs-10 ls-2 txt-muted mb-12">REPETIÇÃO · VELOCIDADE · PADRÕES</div>
+                <div className="serif fs-13 txt-mid center" style={{ lineHeight: 1.7 }}>
+                  Não é aprender. É gravar padrões táticos na memória de longo prazo.
+                </div>
+              </div>
+
+              <div className="mb-16">
+                <div className="mono fs-10 ls-2 txt-muted center mb-12">COMECE POR ONDE FAZ SENTIDO</div>
+                <div className="vstack gap-10">
+                  <button className="choice-card" onClick={onCriar}>
+                    <div className="choice-icon">♞</div>
+                    <div className="choice-title">Sei meu rating</div>
+                    <div className="choice-desc">
+                      Monte um conjunto de puzzles na sua faixa. Tamanhos prontos do método (Mini · Standard · Full).
+                    </div>
+                    <div className="choice-action">→ CRIAR CONJUNTO</div>
+                  </button>
+
+                  {onCalibrar && (
+                    <button className="choice-card" onClick={onCalibrar}>
+                      <div className="choice-icon">🎯</div>
+                      <div className="choice-title">Não sei meu rating</div>
+                      <div className="choice-desc">
+                        Calibração rápida: 30 puzzles em faixa ampla. O app sugere o rating onde você rende mais.
+                      </div>
+                      <div className="choice-action">→ CALIBRAR</div>
+                    </button>
+                  )}
+
+                  {onAnalisar && (
+                    <button className="choice-card" onClick={onAnalisar}>
+                      <div className="choice-icon">🔍</div>
+                      <div className="choice-title">Tenho username chess.com</div>
+                      <div className="choice-desc">
+                        Análise das últimas 30 partidas via Stockfish.{' '}
+                        <strong>Seu username</strong> mostra fraquezas para corrigir.{' '}
+                        <strong>Username de um adversário</strong> mostra pontos cegos dele para explorar.
+                      </div>
+                      <div className="choice-action">→ ANALISAR JOGADOR</div>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="card mb-12">
+                <div className="serif bold fs-15 mb-12">Como funciona o método</div>
+                <div className="vstack gap-10">
+                  {[
+                    "Monte seu conjunto com base no seu rating",
+                    "Complete o Ciclo 1 resolvendo todos os puzzles",
+                    "Repita os mesmos puzzles mais rápido a cada ciclo",
+                    "O alvo é o halving: tempo total = 50% do Ciclo 1"
+                  ].map((txt, i) => (
+                    <div key={i} className="hstack gap-10">
+                      <div style={{
+                        width: 24, height: 24, borderRadius: '50%',
+                        background: 'var(--primary)', color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 700, flexShrink: 0,
+                        fontFamily: "'Courier New', monospace"
+                      }}>{i+1}</div>
+                      <div className="serif fs-13">{txt}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {temConjuntos && (
             <div className="card mb-12">
-              <div className="serif bold fs-15 mb-12">Como Funciona</div>
-              <div className="vstack gap-10">
-                {[
-                  "Monte seu conjunto com base no seu rating",
-                  "Complete o Ciclo 1 resolvendo todos os puzzles",
-                  "Repita os mesmos puzzles mais rápido a cada ciclo",
-                  "Acompanhe seu tempo médio caindo a cada ciclo"
-                ].map((txt, i) => (
-                  <div key={i} className="hstack gap-10">
-                    <div style={{
-                      width: 24, height: 24, borderRadius: '50%',
-                      background: 'var(--primary)', color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 700, flexShrink: 0,
-                      fontFamily: "'Courier New', monospace"
-                    }}>{i+1}</div>
-                    <div className="serif fs-13">{txt}</div>
-                  </div>
-                ))}
+              <div className="center" style={{ fontSize: 36, color: 'var(--primary)', marginBottom: 12 }}>♞</div>
+              <div className="center mono fs-10 ls-2 txt-muted mb-12">REPETIÇÃO · VELOCIDADE · PADRÕES</div>
+              <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.8 }}>
+                Monte um conjunto fixo de puzzles e resolva em ciclos repetidos, cada vez mais rápido.
+                O objetivo não é aprender puzzles novos — é gravar padrões táticos na memória de longo prazo.
               </div>
             </div>
           )}
 
-          {!temConjuntos && (
-            <div className="card">
-              <div className="center serif bold fs-22 txt-primary mb-8">⏱ Tempo Médio</div>
-              <div className="serif fs-13 txt-mid center" style={{ lineHeight: 1.7 }}>
-                O indicador do Woodpecker não é quantos você acertou — é quanto tempo você levou.
-                Cada ciclo deve ser mais rápido que o anterior.
-              </div>
-            </div>
-          )}
-
-          <div className="mt-32 center">
-            {!temConjuntos ? (
-              <div className="vstack gap-12" style={{ alignItems: 'center' }}>
-                <button className="btn btn-primary" onClick={onCriar}>
-                  → Criar Meu Primeiro Conjunto
-                </button>
-                {onCalibrar && (
-                  <button className="btn btn-ghost" onClick={onCalibrar}>
-                    🎯 Não sei meu rating — calibrar (30 puzzles)
-                  </button>
-                )}
-                {onAnalisar && (
-                  <button className="btn btn-ghost" onClick={onAnalisar}>
-                    🔍 Analisar partidas no chess.com
-                  </button>
-                )}
-              </div>
-            ) : (
+          {temConjuntos && (
+            <div className="mt-32 center">
               <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'center' }}>
                 <button className="btn btn-primary" onClick={onContinuar}>▶ Continuar Treino</button>
                 <button className="btn btn-ghost" onClick={onCriar}>+ Novo Conjunto</button>
@@ -1460,8 +1524,8 @@
                   <button className="btn btn-ghost" onClick={onCalibrar}>🎯 Calibrar</button>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <SecaoBackup onAposImport={onAposImport} />
         </div>
