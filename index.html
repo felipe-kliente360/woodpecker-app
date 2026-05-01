@@ -2154,8 +2154,10 @@
                 <div className={'feedback-banner ' + (feedback.correto ? 'green' : 'red')} style={{ marginTop: 0 }}>
                   <div className="feedback-title">
                     {feedback.correto
-                      ? '✓ Correto! ' + feedback.tempo_s + 's'
-                      : (feedback.pulado ? '⏭ Pulado — solução:' : '✗ Incorreto — solução:')}
+                      ? (feedback.tempo_s >= 60 && (puzzle.rating || 0) <= 1500
+                          ? '✓ ' + formatarTempoLongo(feedback.tempo_s) + ' · longo'
+                          : '✓ ' + feedback.tempo_s + 's')
+                      : (feedback.pulado ? '⏭ pulado — solução:' : '✗ — solução:')}
                   </div>
                   <div className="hstack gap-6 flex-wrap">
                     {(feedback.sans || []).map((s, i) => (
@@ -2355,7 +2357,7 @@
                     borderColor: halvingAtingido ? 'var(--green-bdr)' : 'var(--border)',
                     color: halvingAtingido ? 'var(--green)' : 'var(--txt-mid)'
                   }}>
-                    {halvingAtingido ? '🎯 Halving atingido' : Math.round(razaoBaseline * 100) + '% do baseline · meta: 50%'}
+                    {halvingAtingido ? 'Halving · 50% do baseline' : Math.round(razaoBaseline * 100) + '% do baseline · meta: 50%'}
                   </span>
                 </div>
               </div>
@@ -2862,7 +2864,7 @@
           <div className="progress-bar thin mb-12">
             <div className="progress-fill" style={{ width: '70%' }}></div>
           </div>
-          <div className="mono fs-12 txt-mid">{msg || 'Aguarde...'}</div>
+          <div className="mono fs-12 txt-mid">{msg || 'Carregando...'}</div>
         </div>
       );
     }
@@ -3053,7 +3055,7 @@
 
       async function reanalisar() {
         if (!programa) return iniciarAnalise();
-        if (!confirm('Reanalisar ' + programa.username + '? Pode levar vários minutos.')) return;
+        if (!confirm('Reanalisar ' + programa.username + '? Leva alguns minutos.')) return;
         try { await window.ChessAnalysis.deleteProgram(programa.username); } catch (_) {}
         setPrograma(null);
         setUsername(programa.username);

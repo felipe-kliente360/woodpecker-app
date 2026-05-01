@@ -61,3 +61,31 @@ Cada feature deve responder **sim** a estas 5 perguntas antes de ir pra `main`:
 
 Quando a resposta for "não", a feature é refatorada antes de mergear, ou o
 débito é registrado como TODO de roadmap — nunca silencioso.
+
+## Tom de voz
+
+5 princípios para qualquer copy nova ou alterada:
+
+1. **Direto, não bajulador.** "✓ 8s" em vez de "Ótimo! Você acertou em 8s 🎉".
+   Deixa o número falar.
+2. **Honesto sobre lentidão.** Acertar em 90s um puzzle 1200 não é vitória —
+   marcar com "longo". Não premiar mediocridade.
+3. **Vocabulário do método é identidade.** "ciclo", "baseline", "halving",
+   "padrão" — manter crus, sem traduzir pra "round", "best time", etc.
+4. **Coach, não amigo.** Frases curtas, factuais, sem emoji decorativo.
+   Emojis só quando carregam significado (✓ ✗ ⏭ ⚠ 🔍 ⚔).
+5. **Não explicar o óbvio.** Se o ícone é ✓ verde, dispensa "Correto!".
+
+### Glossário canônico
+
+| Contexto | Forma a usar |
+|---|---|
+| Acerto rápido | `✓ 8s` |
+| Acerto lento (>60s em puzzle ≤1500) | `✓ 1m45s · longo` |
+| Erro | `✗ — solução:` |
+| Pulado | `⏭ pulado — solução:` |
+| Análise pronta | `Pronto. {N} partidas analisadas.` |
+| Empty state — sem conjuntos | `Sem conjuntos. O método começa com um.` |
+| Halving atingido | `Halving. 50% do baseline.` |
+| Confirmar reanalise | `Reanalisar {usuario}? Leva alguns minutos.` |
+| Loading genérico | `Carregando...` (não "Aguarde", não "...") |
