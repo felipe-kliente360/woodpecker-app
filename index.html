@@ -2525,26 +2525,40 @@
       };
 
       const ehAuto = tipo === 'auto';
-      const titulo = ehAuto ? '🔍 Analisar Jogador' : '⚔ Análise de Adversário';
       const subtitulo = ehAuto
-        ? 'Digite seu username do chess.com. Vamos analisar suas últimas ' + (window.ChessAnalysis ? window.ChessAnalysis.GAMES_TARGET : 30) + ' partidas com Stockfish + classificação tática e gerar um conjunto de treino focado nas suas fraquezas reais.'
-        : 'Digite o username de um oponente. Vamos identificar os padrões táticos que ele expõe quando erra — incluindo os que ninguém costuma punir. Você sai com um conjunto focado nesses pontos cegos.';
-      const placeholder = ehAuto ? 'ex: hikaru (você)' : 'ex: oponente_x';
+        ? 'Análise das suas últimas ' + (window.ChessAnalysis ? window.ChessAnalysis.GAMES_TARGET : 30) + ' partidas. Plano focado nas suas fraquezas reais.'
+        : 'Análise das últimas partidas do oponente. Plano focado nos padrões que ele expõe — incluindo os que ninguém costuma punir.';
+      const placeholder = ehAuto ? 'seu username chess.com' : 'username do adversário';
       const labelInput = ehAuto ? 'Seu username chess.com' : 'Username do adversário';
       const labelBotao = ehAuto ? '⚙ Analisar minhas partidas' : '⚙ Analisar partidas do adversário';
+
+      // Trocar tipo via segmented control. Se já tem programa de outro
+      // tipo, descartá-lo (visualmente) — programa permanece em
+      // IndexedDB e é carregado quando voltamos.
+      function aoTrocarTipo(novoTipo) {
+        if (novoTipo === tipo) return;
+        if (novoTipo === 'adversario') trocarParaAdversario();
+        else voltarParaAuto();
+      }
 
       return (
         <div className="tela-container">
           <div className="mb-16">
-            <div className="serif bold fs-22 mb-4">{titulo}</div>
+            <div className="serif bold fs-22 mb-12">🔍 Analisar Jogador</div>
+            <div className="mono fs-10 ls-2 txt-muted mb-8">PLANO PARA</div>
+            <div className="segmented mb-12">
+              <button className={ehAuto ? 'active' : ''}
+                onClick={() => aoTrocarTipo('auto')}>
+                ♞ EU · MELHORAR
+              </button>
+              <button className={!ehAuto ? 'active' : ''}
+                onClick={() => aoTrocarTipo('adversario')}>
+                ⚔ ADVERSÁRIO · COMBATER
+              </button>
+            </div>
             <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.6 }}>
               {subtitulo}
             </div>
-            {!ehAuto && (
-              <button className="btn btn-small ghost mt-8" onClick={voltarParaAuto}>
-                ← Voltar para minha análise
-              </button>
-            )}
           </div>
 
           {!analisando && (
@@ -2890,11 +2904,6 @@
               <button className="btn btn-primary btn-block" onClick={() => onCriarComTemas(programaView)}>
                 ＋ Criar conjunto com top temas
               </button>
-              {ehAuto && onTrocarParaAdversario && (
-                <button className="btn btn-ghost btn-block" onClick={onTrocarParaAdversario}>
-                  ⚔ Trocar foco para um adversário
-                </button>
-              )}
               <button className="btn btn-ghost btn-block" onClick={onReanalisar}>
                 ↻ Reanalisar
               </button>

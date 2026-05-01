@@ -252,6 +252,40 @@
 .badge.red { background: var(--red-bg); border-color: var(--red-bdr); color: var(--red); }
 .badge.amber { background: var(--gold-bg); border-color: var(--gold); color: var(--amber); }
 
+/* === SEGMENTED CONTROL ===
+   Usado pra escolha mutuamente exclusiva curta (ex: tipo de análise
+   "eu" vs "adversário"). Mais leve que radio nativo, alinha com o
+   resto do design system. */
+.segmented {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+.segmented button {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--txt-muted);
+  border-radius: 6px;
+  letter-spacing: 0.04em;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.segmented button.active {
+  background: var(--primary);
+  color: #fff;
+}
+.segmented button:not(.active):hover {
+  color: var(--txt-mid);
+}
+
 /* === INPUTS === */
 .input-text {
   width: 100%;
