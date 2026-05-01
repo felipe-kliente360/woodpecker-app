@@ -27,6 +27,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="src/hooks/useTimer.js"></script>
   <script src="src/hooks/useKeyboardShortcuts.js"></script>
+  <script src="src/hooks/useJogoPuzzle.js"></script>
 
   <style>
     /* === TEMAS === */
@@ -695,7 +696,7 @@
     const { puzzlesDevidoRevisao } = window.WP.SRS;
 
     /* === HOOKS (src/hooks/) === */
-    const { useTimer, useTimerComPausa, useKeyboardShortcuts } = window.WP.Hooks;
+    const { useTimer, useTimerComPausa, useKeyboardShortcuts, useJogoPuzzle } = window.WP.Hooks;
 
     /* === CONFIG === */
     const CONFIG = {
@@ -1912,385 +1913,33 @@
     // funcional (s => s + 1), e o useEffect refaz quando rodando/pausado mudam.
     /* useTimer, useTimerComPausa, useKeyboardShortcuts: src/hooks/ */
 
-    /* === TELA TREINAR (EXECUÇÃO DO CICLO) === */
+    /* === TELA TREINAR (EXECUÇÃO DO CICLO) ===
+     * Versão pós-Fase 3b: toda a state machine do jogo (chess, drag, tap,
+     * promo, modo confirmar, sessão) vive em src/hooks/useJogoPuzzle.js.
+     * Aqui só temos JSX consumindo o hook + handlers triviais.
+     */
     function TelaTreinar({ conjunto, ciclo, puzzles, sessao, ciclosAnteriores, onConcluir, onSalvarSessao, onSair }) {
-      const [idx, setIdx] = useState(sessao ? sessao.index_atual : 0);
-      const [resultados, setResultados] = useState(sessao ? (sessao.resultados_parciais || []) : []);
-      const [estado, setEstado] = useState('jogando'); // jogando | feedback
-      const [feedback, setFeedback] = useState(null);
-      const [uciInput, setUciInput] = useState('');
-      const [pendingDrop, setPendingDrop] = useState(null);
-      const [rodando, setRodando] = useState(true);
-      const [pausado, setPausado] = useState(false);
-      const [seg, resetTimer] = useTimerComPausa(rodando, pausado);
+      const j = useJogoPuzzle({
+        puzzles: puzzles, sessao: sessao,
+        conjunto: conjunto, ciclo: ciclo,
+        ciclosAnteriores: ciclosAnteriores,
+        onConcluirCiclo: onConcluir,
+        onSalvarSessao: onSalvarSessao,
+      });
 
-      const chessRef = useRef(null);
-      const expectedIdxRef = useRef(1);
-      const fenInicialJogadorRef = useRef('');
-      const orientacaoRef = useRef('white');
-      // Ref sempre atualizado com o seg atual — evita closures antigas (useCallback,
-      // setTimeout do adversário) gravarem tempo_s = 0 no resultado do puzzle.
-      const segRef = useRef(0);
-      useEffect(() => { segRef.current = seg; }, [seg]);
-      const [fenAtual, setFenAtual] = useState('');
-      const [ultimoLanceErrado, setUltimoLanceErrado] = useState(null);
-      const [ultimoLanceAdv, setUltimoLanceAdv] = useState(null); // {from, to} para highlight
-      const [lancePendente, setLancePendente] = useState(null); // {from, to, promo, san} no modo confirmar
-      const [promoPicker, setPromoPicker] = useState(null); // {from, to} aguardando escolha de promoção
-      const [casaSelecionada, setCasaSelecionada] = useState(null); // tap-to-move: 1ª casa clicada
-      // Modo confirmar começa sempre desligado por padrão a cada novo treino —
-      // o usuário pode ligar durante a sessão se quiser, mas a próxima sessão
-      // volta ao default OFF (decisão de produto).
-      const [modoConfirmar, setModoConfirmar] = useState(false);
+      const {
+        idx, total, puzzle, fenAtual, orientacao, fenInicialJogador,
+        resultados, acertos, erros, restantes, tempoAcumulado, ritmoVsBaseline,
+        estado, feedback, lancePendente, promoPicker, casaSelecionada,
+        ultimoLanceAdv, erroPuzzle, seg, pausado, modoConfirmar, uciInput,
+        onDrop, onSquareClick, confirmarPendente, cancelarPendente,
+        escolherPromocao, cancelarPromocao, pular, avancar, confirmarUci,
+        setUciInput, setModoConfirmar, setPausado, pularPuzzleErro,
+      } = j;
 
-      const puzzle = puzzles[idx];
-      const total = puzzles.length;
-      const acertos = resultados.filter(r => r.correto).length;
-      const erros = resultados.filter(r => !r.correto).length;
-      const restantes = total - resultados.length;
-      const pct = Math.round((idx / total) * 100);
-      const tempoConcluidos = resultados.reduce((a, r) => a + (r.tempo_s || 0), 0);
-      // Em estado 'feedback' o tempo do puzzle atual já foi somado em resultados;
-      // em 'jogando' o cronômetro corrente ainda não. Soma só quando jogando.
-      const tempoAcumulado = tempoConcluidos + (estado === 'jogando' ? seg : 0);
-
-      // Indicador vs Ciclo 1 em tempo real: compara o tempo gasto até esta posição
-      // com o tempo gasto no Ciclo 1 (baseline) na mesma posição. Sinaliza se o
-      // usuário está adiantado ou atrasado em relação ao próprio PR de referência.
-      const baselineCiclo = (ciclosAnteriores && ciclosAnteriores.length > 0 && ciclo.numero > 1)
-        ? ciclosAnteriores[0]
-        : null;
-      const tempoBaselineAteAqui = (baselineCiclo && baselineCiclo.resultados)
-        ? baselineCiclo.resultados.slice(0, resultados.length).reduce((a, r) => a + (r.tempo_s || 0), 0)
-        : null;
-      const ritmoVsBaseline = tempoBaselineAteAqui !== null
-        ? tempoAcumulado - tempoBaselineAteAqui
-        : null;
-
-      // Inicia/recarrega cada puzzle
-      const [erroPuzzle, setErroPuzzle] = useState(null);
-      useEffect(() => {
-        if (!puzzle) return;
-        try {
-          if (typeof Chess === 'undefined') {
-            throw new Error("Biblioteca Chess não carregou (CDN bloqueada?)");
-          }
-          const c = new Chess(puzzle.fen);
-          const lances = puzzle.lances || puzzle.moves || [];
-          if (lances[0]) {
-            try { aplicarLanceSilencioso(c, lances[0]); } catch (e) {
-              console.warn("Lance inicial inválido:", lances[0], e);
-            }
-          }
-          // Não destaca o lance pré-puzzle do adversário — usuário precisa
-          // analisar a posição limpa. Highlights aparecem só a partir das
-          // respostas do adversário durante a sequência de lances.
-          setUltimoLanceAdv(null);
-          chessRef.current = c;
-          expectedIdxRef.current = 1;
-          fenInicialJogadorRef.current = c.fen();
-          // Modo espelho: inverte a orientação do tabuleiro pra forçar
-          // re-reconhecimento do padrão em vez de memorização da disposição.
-          const corNatural = corDoTabuleiro(c.fen());
-          orientacaoRef.current = (conjunto && conjunto.espelho)
-            ? (corNatural === 'white' ? 'black' : 'white')
-            : corNatural;
-          setFenAtual(c.fen());
-          setEstado('jogando');
-          setFeedback(null);
-          setUciInput('');
-          setPendingDrop(null);
-          setUltimoLanceErrado(null);
-          setErroPuzzle(null);
-          setLancePendente(null);
-          setPromoPicker(null);
-          setCasaSelecionada(null);
-          setPausado(false);
-          segRef.current = 0;
-          resetTimer();
-          setRodando(true);
-        } catch (e) {
-          console.error("Falha ao inicializar puzzle:", e);
-          setErroPuzzle(e.message || String(e));
-        }
-      }, [idx, puzzle && (puzzle.id || puzzle.puzzleId)]);
-
-      // Atalhos de teclado — handler reage ao estado atual; deps incluem
-      // todas as variáveis lidas pra evitar closure congelada.
-      useKeyboardShortcuts((e) => {
-        if (promoPicker) {
-          if (e.key === 'Escape') { e.preventDefault(); cancelarPromocao(); }
-          else if (e.key === 'q' || e.key === 'Q') { e.preventDefault(); escolherPromocao('q'); }
-          else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); escolherPromocao('r'); }
-          else if (e.key === 'b' || e.key === 'B') { e.preventDefault(); escolherPromocao('b'); }
-          else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); escolherPromocao('n'); }
-          return;
-        }
-        if (estado === 'jogando' && lancePendente) {
-          if (e.key === 'Enter') { e.preventDefault(); confirmarPendente(); }
-          else if (e.key === 'Escape') { e.preventDefault(); cancelarPendente(); }
-          return;
-        }
-        if (estado === 'jogando') {
-          if (e.key === ' ') { e.preventDefault(); pular(); }
-          else if (e.key === 'p' || e.key === 'P') { e.preventDefault(); setPausado(p => !p); }
-          return;
-        }
-        if (estado === 'feedback') {
-          if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); avancar(); }
-          return;
-        }
-      }, [estado, lancePendente, promoPicker, idx, pausado]);
-
-      // Limpa seleção (tap-to-move) sempre que sai do estado 'jogando'
-      useEffect(() => {
-        if (estado !== 'jogando') setCasaSelecionada(null);
-      }, [estado]);
-
-      // Persiste sessão a cada mudança de progresso
-      useEffect(() => {
-        if (!conjunto || !ciclo) return;
-        const s = {
-          conjunto_id: conjunto.id,
-          ciclo_numero: ciclo.numero,
-          apenas_erros: ciclo.apenas_erros,
-          puzzle_ids_ciclo: puzzles.map(p => p.id || p.puzzleId),
-          index_atual: idx,
-          resultados_parciais: resultados,
-          iniciado_em: ciclo.iniciado_em || Date.now()
-        };
-        onSalvarSessao(s);
-      }, [idx, resultados]);
-
-      function ehPromocao(c, from, to) {
-        const piece = c.get(from);
-        if (!piece || piece.type !== 'p') return false;
-        return to[1] === '8' || to[1] === '1';
-      }
-
-      // Etapa 1: receber o lance (drag ou input) — pode disparar picker de promoção
-      // ou guardar como pendente no modo confirmar.
-      function processarLance(from, to, promo) {
-        if (estado !== 'jogando') return false;
-        if (pausado) return false;
-        if (lancePendente) return false; // já há um lance aguardando confirmação
-        const c = chessRef.current;
-        if (!c) return false;
-
-        // Detecta promoção sem peça especificada — abre picker
-        if (!promo && ehPromocao(c, from, to)) {
-          setPromoPicker({ from, to });
-          return false;
-        }
-
-        // Modo confirmar: aplica visualmente e segura para o usuário decidir
-        if (modoConfirmar) {
-          let m;
-          try { m = c.move({ from, to, promotion: promo || 'q' }); }
-          catch (e) { return false; }
-          if (!m) return false;
-          setFenAtual(c.fen());
-          setLancePendente({ from, to, promo: promo || 'q', san: m.san });
-          return true;
-        }
-
-        return avaliarLance(from, to, promo);
-      }
-
-      // Etapa 2: avalia o lance (correto/incorreto) e dispara feedback ou
-      // a sequência adversário+jogador.
-      function avaliarLance(from, to, promo) {
-        const c = chessRef.current;
-        if (!c) return false;
-        let m;
-        try {
-          m = c.move({ from, to, promotion: promo || 'q' });
-        } catch (e) { return false; }
-        if (!m) return false;
-
-        const lances = puzzle.lances || puzzle.moves || [];
-        const expectedUci = lances[expectedIdxRef.current];
-        const playedUci = from + to + (m.promotion ? m.promotion : '');
-        const playedNoPromo = from + to;
-        const ok = expectedUci && (
-          expectedUci === playedUci ||
-          expectedUci === playedNoPromo ||
-          expectedUci.slice(0, 4) === playedNoPromo
-        );
-
-        if (!ok) {
-          // Errou
-          const tempo = segRef.current;
-          setRodando(false);
-          // Construir SAN da solução completa
-          const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
-          setFeedback({
-            correto: false,
-            tempo_s: tempo,
-            sans,
-            lance_jogado_san: m.san
-          });
-          setUltimoLanceErrado(m.san);
-          // Desfazer no chess para mostrar a posição original
-          c.undo();
-          setFenAtual(c.fen());
-          setEstado('feedback');
-          setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: false, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating }]));
-          return true; // O lance foi removido — board.position vai sincronizar
-        }
-
-        // Acertou esse lance
-        expectedIdxRef.current += 1;
-        setFenAtual(c.fen());
-
-        // Limpa highlight enquanto aguarda a resposta do adversário
-        setUltimoLanceAdv(null);
-        // Aplica resposta do adversário (se existir)
-        const respIdx = expectedIdxRef.current;
-        if (lances[respIdx]) {
-          setTimeout(() => {
-            try { aplicarLanceSilencioso(c, lances[respIdx]); } catch (e) {}
-            expectedIdxRef.current = respIdx + 1;
-            setFenAtual(c.fen());
-            setUltimoLanceAdv({ from: lances[respIdx].slice(0, 2), to: lances[respIdx].slice(2, 4) });
-            // Verifica se acabou
-            if (expectedIdxRef.current >= lances.length) {
-              concluirCorreto();
-            }
-          }, 500);
-          return true;
-        }
-
-        // Não há resposta — puzzle concluído
-        concluirCorreto();
-        return true;
-      }
-
-      // Confirma lance que está pendente (modo confirmar). O lance já foi
-      // aplicado em chessRef pelo drop, precisa ser desfeito pra avaliarLance
-      // re-aplicar limpo (assim o caminho de erro consegue undo + feedback).
-      function confirmarPendente() {
-        if (!lancePendente) return;
-        const { from, to, promo } = lancePendente;
-        const c = chessRef.current;
-        try { c.undo(); } catch (e) {}
-        setLancePendente(null);
-        avaliarLance(from, to, promo);
-      }
-
-      function cancelarPendente() {
-        if (!lancePendente) return;
-        const c = chessRef.current;
-        try { c.undo(); } catch (e) {}
-        setFenAtual(c.fen());
-        setLancePendente(null);
-      }
-
-      function escolherPromocao(piece) {
-        if (!promoPicker) return;
-        const { from, to } = promoPicker;
-        setPromoPicker(null);
-        processarLance(from, to, piece);
-      }
-
-      function cancelarPromocao() {
-        setPromoPicker(null);
-      }
-
-      function concluirCorreto() {
-        const tempo = segRef.current;
-        setRodando(false);
-        const lances = puzzle.lances || puzzle.moves || [];
-        const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
-        setFeedback({ correto: true, tempo_s: tempo, sans });
-        setEstado('feedback');
-        setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: true, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating }]));
-      }
-
-      function pular() {
-        if (estado !== 'jogando') return;
-        const tempo = segRef.current;
-        setRodando(false);
-        const lances = puzzle.lances || puzzle.moves || [];
-        const sans = sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
-        setFeedback({ correto: false, tempo_s: tempo, sans, pulado: true });
-        setEstado('feedback');
-        setResultados(rs => rs.concat([{ puzzle_id: puzzle.id || puzzle.puzzleId, correto: false, tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating }]));
-      }
-
-      function avancar() {
-        const novoResultados = resultados;
-        if (idx + 1 >= total) {
-          // Concluiu o ciclo
-          onConcluir(novoResultados);
-        } else {
-          setIdx(idx + 1);
-        }
-      }
-
-      function confirmarUci() {
-        const v = uciInput.trim().toLowerCase();
-        if (v.length < 4) return;
-        const from = v.slice(0, 2);
-        const to = v.slice(2, 4);
-        const promo = v[4];
-        const r = processarLance(from, to, promo);
-        if (!r) {
-          // Inválido — feedback breve
-          setUciInput('');
-        } else {
-          setUciInput('');
-        }
-      }
-
-      function confirmarPending() {
-        if (!pendingDrop) return;
-        const { from, to } = pendingDrop;
-        processarLance(from, to);
-        setPendingDrop(null);
-      }
-
+      const pct = total ? Math.round((idx / total) * 100) : 0;
       const corTimer = seg < 60 ? 'green' : (seg < 120 ? 'gold' : 'red');
-      const corLabel = determinaCorJogador(fenInicialJogadorRef.current || (puzzle && puzzle.fen) || '');
-
-      // Sem useCallback: onDrop precisa ler estado, modoConfirmar e lancePendente
-      // do render corrente (caso contrário a closure fica congelada e mudanças no
-      // toggle só seriam aplicadas no próximo puzzle). ChessBoardView lê via
-      // onDropRef.current, então a recriação a cada render só atualiza o ref.
-      const onDrop = (source, target) => {
-        if (estado !== 'jogando') return false;
-        setCasaSelecionada(null); // qualquer drag limpa a seleção pendente
-        return processarLance(source, target);
-      };
-
-      // Tap-to-move: 1º tap escolhe peça do jogador; 2º tap tenta o lance.
-      // Tocar de novo na mesma casa desseleciona; tocar em outra peça do jogador troca.
-      const onSquareClick = (sq) => {
-        if (estado !== 'jogando' || pausado || lancePendente || promoPicker) return;
-        const c = chessRef.current;
-        if (!c) return;
-
-        if (!casaSelecionada) {
-          const piece = c.get(sq);
-          if (!piece || piece.color !== c.turn()) return;
-          setCasaSelecionada(sq);
-          return;
-        }
-        if (casaSelecionada === sq) {
-          setCasaSelecionada(null);
-          return;
-        }
-        // Tenta movimento da casa selecionada para a nova
-        const r = processarLance(casaSelecionada, sq);
-        if (r === false) {
-          // Movimento inválido: se a nova casa tem peça do jogador, troca seleção;
-          // caso contrário, limpa.
-          const piece = c.get(sq);
-          setCasaSelecionada(piece && piece.color === c.turn() ? sq : null);
-        } else {
-          setCasaSelecionada(null);
-        }
-      };
+      const corLabel = determinaCorJogador(fenInicialJogador || (puzzle && puzzle.fen) || '');
 
       if (!puzzle) return <div className="card center">Sem puzzles para treinar.</div>;
       if (erroPuzzle) {
@@ -2301,7 +1950,7 @@
               <div className="mono fs-12">{erroPuzzle}</div>
             </div>
             <div className="hstack gap-10 mt-16" style={{ justifyContent: 'center' }}>
-              <button className="btn btn-primary" onClick={() => setIdx(idx + 1)}
+              <button className="btn btn-primary" onClick={pularPuzzleErro}
                 disabled={idx + 1 >= total}>→ Pular puzzle</button>
               <button className="btn btn-ghost" onClick={onSair}>Sair</button>
             </div>
@@ -2319,7 +1968,7 @@
                 key={boardId}
                 boardId={boardId}
                 fen={fenAtual}
-                orientation={orientacaoRef.current}
+                orientation={orientacao}
                 onDrop={onDrop}
                 onSquareClick={onSquareClick}
                 draggable={estado === 'jogando' && !pausado}
