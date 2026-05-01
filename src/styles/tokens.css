@@ -16,28 +16,45 @@
    --txt-mid       texto secundário (labels, descrições)
    --txt-muted     texto terciário (timestamps, meta)
    --header-bg     fundo do header (sempre escuro, cor própria)
+
+   Cores foram calibradas pra atingir WCAG AA (4.5:1 para texto de
+   corpo) em ambos os temas. txt-muted bumpado, light gold escurecido,
+   light slate escurecido, dark red bumpado.
 */
+
+/* Font stacks — não dependem de tema. Mantidas como variáveis para
+   single source of truth: components.css e base.css consomem via
+   var(--font-mono) etc. */
+:root {
+  --font-serif:
+    'Iowan Old Style', 'Charter', 'Source Serif Pro',
+    Georgia, 'Times New Roman', serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', Menlo, 'Cascadia Code', Consolas,
+    'Liberation Mono', 'DejaVu Sans Mono', 'Courier New', monospace;
+}
 
 :root[data-theme="escuro"] {
   --bg:#111827; --surface:#1a2535; --card:#1f2d3f;
-  --border:#2e4058; --border-mid:#3a5070;
-  --primary:#4e8ecb; --primary-bg:#1a3050;
-  --green:#4aaa6e; --green-bg:#0e2a1a; --green-bdr:#1e4a30;
-  --red:#e05252; --red-bg:#2a0e0e; --red-bdr:#4a1e1e;
-  --gold:#d4a843; --gold-bg:#2a2010;
-  --amber:#d4843a; --slate:#7090a8;
-  --txt:#dce8f5; --txt-mid:#8faabf; --txt-muted:#4e6880;
+  --border:#324965; --border-mid:#3f5878;
+  --primary:#5a9bd9; --primary-bg:#1a3050;
+  --green:#52b878; --green-bg:#0e2a1a; --green-bdr:#1e4a30;
+  --red:#ea6868; --red-bg:#2a0e0e; --red-bdr:#4a1e1e;
+  --gold:#d8b04a; --gold-bg:#2a2010;
+  --amber:#dc8e44; --slate:#7d96ad;
+  --txt:#e6eef7; --txt-mid:#a3b9cc; --txt-muted:#7c95ac;
   --header-bg:#0d1520;
 }
 
 :root[data-theme="claro"] {
   --bg:#f4f0e8; --surface:#faf7f2; --card:#ffffff;
-  --border:#ddd5c4; --border-mid:#c8bfae;
-  --primary:#1e4a7a; --primary-bg:#e8f0f8;
-  --green:#2a6e42; --green-bg:#edf7f2; --green-bdr:#a8d5bc;
-  --red:#8b2222; --red-bg:#fdf0f0; --red-bdr:#e8b8b8;
-  --gold:#a07030; --gold-bg:#fdf8e8;
-  --amber:#9a5a18; --slate:#607080;
-  --txt:#1a1a1a; --txt-mid:#4a3c2e; --txt-muted:#8a7a68;
+  --border:#cdc3ad; --border-mid:#b8ac8e;
+  --primary:#1e4a7a; --primary-bg:#e3edf7;
+  --green:#1f6038; --green-bg:#edf7f2; --green-bdr:#9bc8b0;
+  --red:#8b2222; --red-bg:#fdf0f0; --red-bdr:#e0a8a8;
+  --gold:#7d521c; --gold-bg:#fcf2dd;
+  --amber:#7d4510; --slate:#506070;
+  --txt:#161616; --txt-mid:#3d3322; --txt-muted:#6b5d48;
   --header-bg:#1e4a7a;
 }
+

@@ -1,25 +1,60 @@
 /* === RESET / BASE ===
    Reset minimalista + tipografia raiz + utilitários globais (.mono,
    .serif, .num, .num-display, helpers de margin/gap/cor/tamanho).
-   Componentes específicos vão em components.css. */
+   Componentes específicos vão em components.css.
+
+   Stacks de fonte:
+   - Serif (corpo): preferimos formas modernas em sistemas que têm
+     (Iowan Old Style no iOS/macOS, Charter no Apple, Source Serif Pro
+     em alguns Linuxes), com Georgia como fallback universal.
+   - Mono (dados): system mono (ui-monospace, SF Mono, Menlo, Cascadia
+     Code, Consolas, Liberation Mono) primeiro — Courier New só como
+     último recurso. Mono moderna tem leitura significativamente melhor
+     em ratings e tempos do que Courier.
+*/
 
 * { box-sizing: border-box; }
 html, body { margin:0; padding:0; height:100%; overflow-x: hidden; }
 body {
   background: var(--bg);
   color: var(--txt);
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family:
+    var(--font-serif);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
 }
 a { color: var(--primary); text-decoration: none; }
 button { font-family: inherit; }
 input, select { font-family: inherit; color: var(--txt); }
 
-.mono { font-family: 'Courier New', Courier, monospace; }
-.serif { font-family: Georgia, 'Times New Roman', serif; }
+.mono {
+  font-family:
+    var(--font-mono);
+}
+.serif {
+  font-family:
+    var(--font-serif);
+}
+
+/* === FOCUS VISIBLE (acessibilidade) ===
+   Anel discreto em foco por teclado para todas interações relevantes.
+   Não aparece em clique (mouse) graças ao :focus-visible. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+.choice-card:focus-visible,
+.tema-pill:focus-visible,
+.nav-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* === NUMERAIS TABULARES ===
    .num — alinha colunas de números (ratings, tempos, contagens) e
@@ -30,12 +65,14 @@ input, select { font-family: inherit; color: var(--txt); }
 .num {
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum", "lnum";
-  font-family: 'Courier New', Courier, monospace;
+  font-family:
+    var(--font-mono);
 }
 .num-display {
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum", "lnum";
-  font-family: 'Courier New', Courier, monospace;
+  font-family:
+    var(--font-mono);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
