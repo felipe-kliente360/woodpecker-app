@@ -13,6 +13,8 @@
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <script src="lib/chart.umd.js"></script>
   <script src="lib/wp-helpers.js"></script>
+  <script src="src/data/chaves.js"></script>
+  <script src="src/data/store.js"></script>
   <script src="lib/tactical-themes.js"></script>
   <script src="lib/tactical-aggregator.js"></script>
   <script src="lib/chess-analysis.js"></script>
@@ -667,6 +669,16 @@
       ciclosDoConjunto, ultimoCiclo, corCss,
     } = window.WP_HELPERS;
 
+    /* === CAMADA DE PERSISTÊNCIA (src/data/) ===
+     * Store é a única forma autorizada de tocar localStorage daqui pra
+     * frente. loadLS/saveLS/clearLS acima continuam funcionando (compat)
+     * mas componentes novos devem usar Store.get/set/remove com chaves
+     * em WP.Chaves — não strings literais.
+     */
+    const Store  = window.WP.Store;
+    const Chaves = window.WP.Chaves;
+    Store.migrar();
+
     /* === CONFIG === */
     const CONFIG = {
       base_url: "puzzles",
@@ -828,7 +840,10 @@
     /* loadLS, saveLS, clearLS, ciclosDoConjunto, ultimoCiclo: lib/wp-helpers.js */
 
     /* === EXPORT / IMPORT === */
-    const CHAVES_LS_BACKUP = ['wp_conjuntos', 'wp_ciclos', 'wp_tema', 'wp_sessao', 'wp_auto_backup'];
+    const CHAVES_LS_BACKUP = [
+      Chaves.CONJUNTOS, Chaves.CICLOS, Chaves.TEMA,
+      Chaves.SESSAO, Chaves.AUTO_BACKUP,
+    ];
 
     // Limpa chave legada de modo confirmar (era persistida em versão anterior)
     try { localStorage.removeItem('wp_modo_confirmar'); } catch (e) {}
@@ -836,7 +851,7 @@
     function exportarBackup() {
       const dados = { versao: '1.0', gerado_em: new Date().toISOString(), app: 'woodpecker' };
       for (const k of CHAVES_LS_BACKUP) {
-        const v = loadLS(k, null);
+        const v = Store.get(k, null);
         if (v !== null) dados[k] = v;
       }
       const json = JSON.stringify(dados, null, 2);
@@ -863,19 +878,19 @@
       }
       if (modo === 'replace') {
         for (const k of CHAVES_LS_BACKUP) {
-          if (dados[k] !== undefined) saveLS(k, dados[k]);
+          if (dados[k] !== undefined) Store.set(k, dados[k]);
         }
         return { adicionados_conjuntos: dados.wp_conjuntos.length, adicionados_ciclos: (dados.wp_ciclos || []).length, modo };
       }
       // merge
-      const conjuntosAtuais = loadLS('wp_conjuntos', []);
-      const ciclosAtuais = loadLS('wp_ciclos', []);
+      const conjuntosAtuais = Store.get(Chaves.CONJUNTOS, []);
+      const ciclosAtuais = Store.get(Chaves.CICLOS, []);
       const idsConj = new Set(conjuntosAtuais.map(c => c.id));
       const idsCic = new Set(ciclosAtuais.map(c => c.id));
       const novosConj = (dados.wp_conjuntos || []).filter(c => !idsConj.has(c.id));
       const novosCic = (dados.wp_ciclos || []).filter(c => !idsCic.has(c.id));
-      saveLS('wp_conjuntos', conjuntosAtuais.concat(novosConj));
-      saveLS('wp_ciclos', ciclosAtuais.concat(novosCic));
+      Store.set(Chaves.CONJUNTOS, conjuntosAtuais.concat(novosConj));
+      Store.set(Chaves.CICLOS, ciclosAtuais.concat(novosCic));
       return { adicionados_conjuntos: novosConj.length, adicionados_ciclos: novosCic.length, modo };
     }
 
@@ -1297,12 +1312,12 @@
     /* === TELA INÍCIO === */
     /* === SEÇÃO BACKUP / IMPORTAÇÃO === */
     function SecaoBackup({ onAposImport }) {
-      const [autoBackup, setAutoBackup] = useState(() => loadLS('wp_auto_backup', false));
+      const [autoBackup, setAutoBackup] = useState(() => Store.get(Chaves.AUTO_BACKUP, false));
       const [erro, setErro] = useState(null);
       const [aviso, setAviso] = useState(null);
       const fileRef = useRef(null);
 
-      useEffect(() => { saveLS('wp_auto_backup', autoBackup); }, [autoBackup]);
+      useEffect(() => { Store.set(Chaves.AUTO_BACKUP, autoBackup); }, [autoBackup]);
 
       function aoExportar() {
         try {
@@ -1319,7 +1334,7 @@
         const r = new FileReader();
         r.onload = (ev) => {
           try {
-            const conjuntosAtuais = loadLS('wp_conjuntos', []);
+            const conjuntosAtuais = Store.get(Chaves.CONJUNTOS, []);
             const modo = conjuntosAtuais.length === 0
               ? 'replace'
               : (confirm('Já existem conjuntos no app. OK para mesclar (mantém os atuais e adiciona novos por id) · Cancelar para sobrescrever tudo.') ? 'merge' : 'replace');
@@ -1395,7 +1410,7 @@
       const [programaAtual, setProgramaAtual] = useState(null);
       useEffect(() => {
         if (!window.ChessAnalysis) return;
-        const u = (loadLS('wp_analise_username', '') || '').trim();
+        const u = (Store.get(Chaves.ANALISE_USERNAME, '') || '').trim();
         if (!u) return;
         let cancelado = false;
         (async () => {
@@ -3518,7 +3533,7 @@
     }
 
     function TelaAnalisarJogador({ onCriarComTemas }) {
-      const [username, setUsername] = useState(() => loadLS('wp_analise_username', ''));
+      const [username, setUsername] = useState(() => Store.get(Chaves.ANALISE_USERNAME, ''));
       const [analisando, setAnalisando] = useState(false);
       const [progresso, setProgresso] = useState({ stage: '', message: '', current: 0, total: 0 });
       const [erro, setErro] = useState(null);
@@ -3530,7 +3545,7 @@
       // Carregar último programa do IndexedDB ao abrir
       useEffect(() => {
         (async () => {
-          const u = (loadLS('wp_analise_username', '') || '').trim();
+          const u = (Store.get(Chaves.ANALISE_USERNAME, '') || '').trim();
           if (!u || !window.ChessAnalysis) return;
           try {
             const p = await window.ChessAnalysis.loadProgram(u);
@@ -3587,7 +3602,7 @@
         if (!username.trim()) { setErro('Informe um username do chess.com'); return; }
         if (!window.ChessAnalysis) { setErro('Módulo de análise não carregou'); return; }
         const u = username.trim();
-        saveLS('wp_analise_username', u);
+        Store.set(Chaves.ANALISE_USERNAME, u);
         setErro(null);
         setAnalisando(true);
         setProgresso({ stage: 'inicio', message: 'Iniciando...', current: 0, total: 0 });
@@ -4001,28 +4016,28 @@
 
     /* === APP ROOT === */
     function App() {
-      const [tema, setTema] = useState(() => loadLS('wp_tema', 'escuro'));
+      const [tema, setTema] = useState(() => Store.get(Chaves.TEMA, 'escuro'));
       const [tela, setTela] = useState('inicio');
-      const [conjuntos, setConjuntos] = useState(() => loadLS('wp_conjuntos', []));
-      const [ciclos, setCiclos] = useState(() => loadLS('wp_ciclos', []));
+      const [conjuntos, setConjuntos] = useState(() => Store.get(Chaves.CONJUNTOS, []));
+      const [ciclos, setCiclos] = useState(() => Store.get(Chaves.CICLOS, []));
       const [conjuntoAtivo, setConjuntoAtivo] = useState(null);
       const [cicloAtual, setCicloAtual] = useState(null);
       const [puzzlesAtivos, setPuzzlesAtivos] = useState(null);
       const [carregando, setCarregando] = useState(false);
       const [carregandoMsg, setCarregandoMsg] = useState('');
       const [erroCarregar, setErroCarregar] = useState(null);
-      const [sessaoSalva, setSessaoSalva] = useState(() => loadLS('wp_sessao', null));
-      const [showModalRetomar, setShowModalRetomar] = useState(() => !!loadLS('wp_sessao', null));
+      const [sessaoSalva, setSessaoSalva] = useState(() => Store.get(Chaves.SESSAO, null));
+      const [showModalRetomar, setShowModalRetomar] = useState(() => !!Store.get(Chaves.SESSAO, null));
       const [evolucaoConjunto, setEvolucaoConjunto] = useState(null);
       const [presetCriar, setPresetCriar] = useState(null);
 
       // Aplicar tema no <html>
       useEffect(() => {
         document.documentElement.setAttribute('data-theme', tema);
-        saveLS('wp_tema', tema);
+        Store.set(Chaves.TEMA, tema);
       }, [tema]);
-      useEffect(() => { saveLS('wp_conjuntos', conjuntos); }, [conjuntos]);
-      useEffect(() => { saveLS('wp_ciclos', ciclos); }, [ciclos]);
+      useEffect(() => { Store.set(Chaves.CONJUNTOS, conjuntos); }, [conjuntos]);
+      useEffect(() => { Store.set(Chaves.CICLOS, ciclos); }, [ciclos]);
 
       function navegar(t) {
         if (tela === 'treinar') {
@@ -4037,11 +4052,11 @@
 
       function persistirSessao(s) {
         setSessaoSalva(s);
-        saveLS('wp_sessao', s);
+        Store.set(Chaves.SESSAO, s);
       }
       function limparSessao() {
         setSessaoSalva(null);
-        clearLS('wp_sessao');
+        Store.remove(Chaves.SESSAO);
       }
 
       // Salvar conjunto novo
@@ -4180,7 +4195,7 @@
         setTela('conclusao');
         // Auto-backup opcional: dispara download do JSON após o ciclo ser persistido.
         // Aguarda o useEffect de setCiclos gravar no localStorage antes de gerar o blob.
-        if (loadLS('wp_auto_backup', false)) {
+        if (Store.get(Chaves.AUTO_BACKUP, false)) {
           setTimeout(() => {
             try { exportarBackup(); } catch (e) { console.warn("auto-backup falhou:", e); }
           }, 200);
@@ -4306,10 +4321,10 @@
                   onCalibrar={iniciarCalibracao}
                   onAnalisar={() => setTela('analisar')}
                   onAposImport={() => {
-                    setConjuntos(loadLS('wp_conjuntos', []));
-                    setCiclos(loadLS('wp_ciclos', []));
-                    setSessaoSalva(loadLS('wp_sessao', null));
-                    setTema(loadLS('wp_tema', tema));
+                    setConjuntos(Store.get(Chaves.CONJUNTOS, []));
+                    setCiclos(Store.get(Chaves.CICLOS, []));
+                    setSessaoSalva(Store.get(Chaves.SESSAO, null));
+                    setTema(Store.get(Chaves.TEMA, tema));
                   }}
                 />
               )}
