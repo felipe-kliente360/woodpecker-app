@@ -12,6 +12,9 @@
   <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <script src="lib/chart.umd.js"></script>
+  <script src="lib/tactical-themes.js"></script>
+  <script src="lib/tactical-aggregator.js"></script>
+  <script src="lib/chess-analysis.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -674,16 +677,41 @@
       pin:              "Cravada",
       skewer:           "Espeto",
       discoveredAttack: "Ataque Descoberto",
+      discoveredCheck:  "Xeque Descoberto",
       doubleCheck:      "Xeque Duplo",
+      mate:             "Mate",
       mateIn1:          "Mate em 1",
       mateIn2:          "Mate em 2",
       mateIn3:          "Mate em 3",
       backRankMate:     "Mate na Última Fileira",
+      smotheredMate:    "Mate Sufocado",
+      epauletteMate:    "Mate de Epaulete",
+      cornerMate:       "Mate no Canto",
+      arabianMate:      "Mate Árabe",
+      hookMate:         "Mate em Gancho",
+      blindSwineMate:   "Mate dos Porcos Cegos",
+      killBoxMate:      "Mate da Caixa",
       hangingPiece:     "Peça Pendurada",
+      trappedPiece:     "Peça Presa",
+      exposedKing:      "Rei Exposto",
       sacrifice:        "Sacrifício",
       deflection:       "Desvio",
       decoy:            "Isca",
+      attraction:       "Atração",
       interference:     "Interferência",
+      clearance:        "Despejo de Linha",
+      capturingDefender:"Remoção do Defensor",
+      overloading:      "Sobrecarga",
+      intermezzo:       "Intermezzo",
+      xRayAttack:       "Raio X",
+      collinearMove:    "Lance Colinear",
+      kingsideAttack:   "Ataque ao Rei",
+      queensideAttack:  "Ataque na Ala da Dama",
+      attackingF2F7:    "Ataque em f2/f7",
+      rookEndgame:      "Final de Torres",
+      pawnEndgame:      "Final de Peões",
+      promotion:        "Promoção",
+      enPassant:        "En Passant",
       zugzwang:         "Zugzwang",
       endgame:          "Final",
       opening:          "Abertura",
@@ -1238,6 +1266,7 @@
         { id: 'inicio',    icon: '🏠', label: 'Início' },
         { id: 'conjuntos', icon: '♟', label: 'Meus Conjuntos' },
         { id: 'criar',     icon: '＋', label: 'Criar Conjunto' },
+        { id: 'analisar',  icon: '🔍', label: 'Analisar Jogador' },
         { id: 'evolucao',  icon: '📊', label: 'Evolução' }
       ];
       return (
@@ -1386,7 +1415,7 @@
       );
     }
 
-    function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onTreinar, onEvolucao, onIrParaConjuntos, onCalibrar, onAposImport }) {
+    function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onTreinar, onEvolucao, onIrParaConjuntos, onCalibrar, onAnalisar, onAposImport }) {
       const temConjuntos = conjuntos.length > 0;
       const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
 
@@ -1500,11 +1529,19 @@
                     🎯 Não sei meu rating — calibrar (30 puzzles)
                   </button>
                 )}
+                {onAnalisar && (
+                  <button className="btn btn-ghost" onClick={onAnalisar}>
+                    🔍 Analisar partidas no chess.com
+                  </button>
+                )}
               </div>
             ) : (
               <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'center' }}>
                 <button className="btn btn-primary" onClick={onContinuar}>▶ Continuar Treino</button>
                 <button className="btn btn-ghost" onClick={onCriar}>+ Novo Conjunto</button>
+                {onAnalisar && (
+                  <button className="btn btn-ghost" onClick={onAnalisar}>🔍 Analisar Jogador</button>
+                )}
                 {onCalibrar && (
                   <button className="btn btn-ghost" onClick={onCalibrar}>🎯 Calibrar</button>
                 )}
@@ -3363,6 +3400,297 @@
       );
     }
 
+    /* === TELA ANALISAR JOGADOR (chess.com username → puzzle_program) === */
+    function BadgeConfianca({ level }) {
+      const map = {
+        alta:         { cor: 'var(--green)',   bg: 'var(--green-bg)',  txt: 'alta' },
+        'média':      { cor: 'var(--gold)',    bg: 'var(--gold-bg)',   txt: 'média' },
+        baixa:        { cor: 'var(--amber)',   bg: 'var(--gold-bg)',   txt: 'baixa' },
+        insuficiente: { cor: 'var(--red)',     bg: 'var(--red-bg)',    txt: 'insuficiente' },
+      };
+      const s = map[level] || map['média'];
+      return (
+        <span className="badge" style={{
+          background: s.bg, color: s.cor, borderColor: s.cor,
+          textTransform: 'uppercase', letterSpacing: 1.5
+        }}>{s.txt}</span>
+      );
+    }
+
+    function TelaAnalisarJogador({ onCriarComTemas }) {
+      const [username, setUsername] = useState(() => loadLS('wp_analise_username', ''));
+      const [analisando, setAnalisando] = useState(false);
+      const [progresso, setProgresso] = useState({ stage: '', message: '', current: 0, total: 0 });
+      const [erro, setErro] = useState(null);
+      const [programa, setPrograma] = useState(null);
+
+      // Carregar último programa do IndexedDB ao abrir
+      useEffect(() => {
+        (async () => {
+          const u = (loadLS('wp_analise_username', '') || '').trim();
+          if (!u || !window.ChessAnalysis) return;
+          try {
+            const p = await window.ChessAnalysis.loadProgram(u);
+            if (p) setPrograma(p);
+          } catch (e) { /* silencioso */ }
+        })();
+      }, []);
+
+      async function iniciarAnalise() {
+        if (!username.trim()) { setErro('Informe um username do chess.com'); return; }
+        if (!window.ChessAnalysis) { setErro('Módulo de análise não carregou'); return; }
+        const u = username.trim();
+        saveLS('wp_analise_username', u);
+        setErro(null);
+        setAnalisando(true);
+        setProgresso({ stage: 'inicio', message: 'Iniciando...', current: 0, total: 0 });
+        try {
+          const p = await window.ChessAnalysis.analyzePlayer(u, (info) => setProgresso(info));
+          setPrograma(p);
+        } catch (e) {
+          console.error(e);
+          setErro(e.message || String(e));
+        } finally {
+          setAnalisando(false);
+        }
+      }
+
+      async function reanalisar() {
+        if (!programa) return iniciarAnalise();
+        if (!confirm('Reanalisar ' + programa.username + '? Pode levar vários minutos.')) return;
+        try { await window.ChessAnalysis.deleteProgram(programa.username); } catch (_) {}
+        setPrograma(null);
+        setUsername(programa.username);
+        setTimeout(iniciarAnalise, 50);
+      }
+
+      function abrirCriarComTemas() {
+        if (!programa) return;
+        const temas = (programa.themes || []).map(t => t.theme).slice(0, 5);
+        if (temas.length === 0) return;
+        onCriarComTemas({
+          rating:   programa.suggested_rating,
+          variacao: 200,
+          temas:    temas,
+          tamanho:  300,
+          nome:     'Análise · ' + programa.username,
+        });
+      }
+
+      function abrirCriarComTema(tema) {
+        if (!programa) return;
+        onCriarComTemas({
+          rating:   programa.suggested_rating,
+          variacao: 200,
+          temas:    [tema],
+          tamanho:  200,
+          nome:     'Foco · ' + (TEMAS[tema] || tema),
+        });
+      }
+
+      const pct = progresso.total > 0
+        ? Math.round((progresso.current / progresso.total) * 100)
+        : (progresso.stage === 'init' || progresso.stage === 'fetch_games' ? 5 :
+           progresso.stage === 'aggregate' ? 95 :
+           progresso.stage === 'done' ? 100 : 0);
+
+      const formatarData = (iso) => {
+        if (!iso) return '—';
+        try {
+          const d = new Date(iso);
+          return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+        } catch (_) { return iso; }
+      };
+
+      return (
+        <div style={{ maxWidth: 640, margin: '0 auto', padding: '24px 4px' }}>
+          <div className="mb-16">
+            <div className="serif bold fs-22 mb-4">🔍 Analisar Jogador</div>
+            <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.6 }}>
+              Digite seu username do chess.com. Vamos analisar suas últimas {window.ChessAnalysis ? window.ChessAnalysis.GAMES_TARGET : 30} partidas
+              com Stockfish + classificação tática e gerar um conjunto de treino focado nas suas fraquezas reais.
+            </div>
+          </div>
+
+          {!analisando && (
+            <div className="card mb-12">
+              <div className="input-label">Username chess.com</div>
+              <input type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="ex: hikaru"
+                disabled={analisando}
+                style={{
+                  width: '100%', padding: '10px 12px', marginBottom: 12,
+                  background: 'var(--surface)', color: 'var(--txt)',
+                  border: '1px solid var(--border)', borderRadius: 6,
+                  fontFamily: 'Courier New, monospace', fontSize: 14, outline: 'none'
+                }} />
+              <button className="btn btn-primary btn-block"
+                onClick={iniciarAnalise}
+                disabled={analisando || !username.trim()}>
+                ⚙ Analisar minhas partidas
+              </button>
+              <div className="mono fs-10 txt-muted mt-12" style={{ lineHeight: 1.7 }}>
+                Stockfish roda no seu navegador (WASM). Análise leva 3–6 min para 30 partidas.
+                Resultado fica salvo localmente.
+              </div>
+            </div>
+          )}
+
+          {analisando && (
+            <div className="card mb-12">
+              <div className="serif bold fs-15 mb-12">Analisando {username}...</div>
+              <div className="progress-bar thin mb-12">
+                <div className="progress-fill" style={{ width: pct + '%' }}></div>
+              </div>
+              <div className="mono fs-12 txt-mid mb-8">{progresso.message || '...'}</div>
+              <div className="mono fs-10 txt-muted">
+                {progresso.stage === 'analyze' && progresso.total
+                  ? 'Partida ' + (progresso.current + 1) + '/' + progresso.total + ' — ' + pct + '%'
+                  : progresso.stage}
+              </div>
+            </div>
+          )}
+
+          {erro && (
+            <div className="feedback-banner red mb-12">
+              <div className="feedback-title">⚠ {erro}</div>
+              <button className="btn btn-small ghost mt-12" onClick={() => setErro(null)}>Fechar</button>
+            </div>
+          )}
+
+          {programa && !analisando && (
+            <ResultadoAnalise
+              programa={programa}
+              onReanalisar={reanalisar}
+              onCriarComTemas={abrirCriarComTemas}
+              onCriarComTema={abrirCriarComTema}
+              formatarData={formatarData} />
+          )}
+        </div>
+      );
+    }
+
+    function ResultadoAnalise({ programa, onReanalisar, onCriarComTemas, onCriarComTema, formatarData }) {
+      const conf = programa.tactical_confidence || {};
+      const rng  = programa.rating_range || [programa.suggested_rating - 100, programa.suggested_rating + 100];
+
+      // Ordenar: detected → heuristic → rating
+      const ordemFonte = { detected: 0, heuristic: 1, rating: 2 };
+      const temasOrdenados = (programa.themes || []).slice().sort((a, b) => {
+        const fa = ordemFonte[a.source] != null ? ordemFonte[a.source] : 9;
+        const fb = ordemFonte[b.source] != null ? ordemFonte[b.source] : 9;
+        if (fa !== fb) return fa - fb;
+        const pa = a.priority === 'alta' ? 0 : 1;
+        const pb = b.priority === 'alta' ? 0 : 1;
+        return pa - pb;
+      });
+
+      const fonteLabel = (s) => s === 'detected' ? '🎯 detectado nas suas partidas'
+                              : s === 'heuristic' ? '🧠 sugerido pela fase de erros'
+                              : s === 'rating'    ? '📚 fundamento da faixa'
+                              : s;
+
+      return (
+        <div>
+          <div className="card mb-12">
+            <div className="between mb-8" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div className="mono fs-10 ls-2 txt-muted">JOGADOR</div>
+                <div className="serif bold fs-17">{programa.username}</div>
+              </div>
+              <div className="vstack gap-4" style={{ alignItems: 'flex-end' }}>
+                <BadgeConfianca level={conf.level} />
+                <div className="mono fs-10 txt-muted">{formatarData(programa.analyzed_at)}</div>
+              </div>
+            </div>
+            <div className="hstack gap-12 flex-wrap mb-8">
+              <div>
+                <div className="mono fs-10 ls-2 txt-muted">RATING SUGERIDO</div>
+                <div className="serif bold fs-15">{programa.suggested_rating}</div>
+              </div>
+              <div>
+                <div className="mono fs-10 ls-2 txt-muted">FAIXA</div>
+                <div className="serif fs-13">{rng[0]} – {rng[1]}</div>
+              </div>
+              {programa.games_analyzed && (
+                <div>
+                  <div className="mono fs-10 ls-2 txt-muted">PARTIDAS</div>
+                  <div className="serif fs-13">
+                    {programa.games_analyzed}
+                    {programa.games_breakdown && (
+                      <span className="mono fs-11 txt-muted">
+                        {' '}({Object.entries(programa.games_breakdown).map(([k,v]) => v + k[0]).join(' · ')})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            {conf.note && (
+              <div className="mono fs-11 txt-mid" style={{
+                padding: '8px 10px', background: 'var(--surface)',
+                borderLeft: '3px solid var(--gold)', borderRadius: 4, lineHeight: 1.5
+              }}>
+                {conf.note}
+              </div>
+            )}
+          </div>
+
+          {conf.level === 'insuficiente' ? (
+            <div className="feedback-banner red mb-12">
+              <div className="feedback-title">⚠ Amostra insuficiente</div>
+              <div className="serif fs-13 mt-8">
+                Jogue partidas rapid ou blitz no chess.com para uma análise tática confiável.
+              </div>
+            </div>
+          ) : (
+            <div className="card mb-12">
+              <div className="serif bold fs-15 mb-12">Temas recomendados</div>
+              <div className="vstack gap-10">
+                {temasOrdenados.map((t, i) => (
+                  <div key={t.theme + '-' + i} className="card-soft" style={{ padding: '10px 12px' }}>
+                    <div className="between mb-4" style={{ flexWrap: 'wrap', gap: 8 }}>
+                      <div>
+                        <span className="serif bold fs-13">{TEMAS[t.theme] || t.label || t.theme}</span>
+                        {' '}
+                        <span className="badge" style={{
+                          background: t.priority === 'alta' ? 'var(--red-bg)' : 'var(--gold-bg)',
+                          color:      t.priority === 'alta' ? 'var(--red)'    : 'var(--gold)',
+                          borderColor: t.priority === 'alta' ? 'var(--red)'    : 'var(--gold)',
+                          marginLeft: 6, textTransform: 'uppercase', letterSpacing: 1
+                        }}>{t.priority}</span>
+                      </div>
+                      <button className="btn btn-small" onClick={() => onCriarComTema(t.theme)}>▶ Treinar</button>
+                    </div>
+                    <div className="mono fs-10 txt-muted">{fonteLabel(t.source)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {conf.level !== 'insuficiente' && (programa.themes || []).length > 0 && (
+            <div className="vstack gap-8">
+              <button className="btn btn-primary btn-block" onClick={onCriarComTemas}>
+                ＋ Criar conjunto com top temas
+              </button>
+              <button className="btn btn-ghost btn-block" onClick={onReanalisar}>
+                ↻ Reanalisar
+              </button>
+            </div>
+          )}
+
+          {conf.level === 'insuficiente' && (
+            <button className="btn btn-ghost btn-block" onClick={onReanalisar}>
+              ↻ Reanalisar
+            </button>
+          )}
+        </div>
+      );
+    }
+
     /* === APP ROOT === */
     function App() {
       const [tema, setTema] = useState(() => loadLS('wp_tema', 'escuro'));
@@ -3663,6 +3991,7 @@
                   onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
                   onIrParaConjuntos={() => setTela('conjuntos')}
                   onCalibrar={iniciarCalibracao}
+                  onAnalisar={() => setTela('analisar')}
                   onAposImport={() => {
                     setConjuntos(loadLS('wp_conjuntos', []));
                     setCiclos(loadLS('wp_ciclos', []));
@@ -3741,6 +4070,14 @@
                       tamanho: 200,
                       nome: 'Foco · ' + traduzirTema(tema)
                     });
+                    setTela('criar');
+                  }}
+                />
+              )}
+              {!carregando && tela === 'analisar' && (
+                <TelaAnalisarJogador
+                  onCriarComTemas={(preset) => {
+                    setPresetCriar(preset);
                     setTela('criar');
                   }}
                 />
