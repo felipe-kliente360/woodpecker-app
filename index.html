@@ -15,6 +15,10 @@
   <script src="lib/wp-helpers.js"></script>
   <script src="src/data/chaves.js"></script>
   <script src="src/data/store.js"></script>
+  <script src="src/domain/puzzle.js"></script>
+  <script src="src/domain/ciclo.js"></script>
+  <script src="src/domain/rating.js"></script>
+  <script src="src/domain/srs.js"></script>
   <script src="lib/tactical-themes.js"></script>
   <script src="lib/tactical-aggregator.js"></script>
   <script src="lib/chess-analysis.js"></script>
@@ -679,6 +683,15 @@
     const Chaves = window.WP.Chaves;
     Store.migrar();
 
+    /* === DOMAIN (src/domain/) === */
+    const {
+      embaralhar, determinaCorJogador, corDoTabuleiro,
+      lanceUciParaSan, aplicarLanceSilencioso, sequenciaSan,
+    } = window.WP.Puzzle;
+    const { metricasAtividade, nivelDoRating } = window.WP.Ciclo;
+    const { calcularRatingSugerido, ratingUnificado } = window.WP.Rating;
+    const { puzzlesDevidoRevisao } = window.WP.SRS;
+
     /* === CONFIG === */
     const CONFIG = {
       base_url: "puzzles",
@@ -698,24 +711,7 @@
     /* === CACHE GLOBAL === */
     const cacheFaixas = {};
 
-    function embaralhar(arr) {
-      const out = arr.slice();
-      for (let i = out.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [out[i], out[j]] = [out[j], out[i]];
-      }
-      return out;
-    }
-
-    function determinaCorJogador(fen) {
-      const turno = fen.split(' ')[1];
-      return turno === 'w' ? "Brancas jogam" : "Pretas jogam";
-    }
-
-    function corDoTabuleiro(fen) {
-      const turno = fen.split(' ')[1];
-      return turno === 'w' ? 'white' : 'black';
-    }
+    /* embaralhar, determinaCorJogador, corDoTabuleiro: src/domain/puzzle.js */
 
     async function buscarFaixa(chave, onProgress) {
       if (cacheFaixas[chave]) return cacheFaixas[chave];
@@ -828,14 +824,7 @@
       };
     }
 
-    function nivelDoRating(r) {
-      if (r < 1000) return "Iniciante";
-      if (r < 1200) return "Básico";
-      if (r < 1400) return "Intermediário";
-      if (r < 1600) return "Avançado";
-      if (r < 1800) return "Expert";
-      return "Mestre";
-    }
+    /* nivelDoRating: src/domain/ciclo.js */
 
     /* loadLS, saveLS, clearLS, ciclosDoConjunto, ultimoCiclo: lib/wp-helpers.js */
 
@@ -900,213 +889,13 @@
     // de acerto em cada um, e procura o bracket onde a taxa cai pra perto de
     // 60% — esse é o ponto de "desafio gravando" do método (acerta a maioria
     // mas com esforço). Fallback: média dos corretos com ajuste por taxa.
-    function calcularRatingSugerido(ciclo) {
-      const r = (ciclo && ciclo.resultados) || [];
-      if (r.length === 0) return null;
-      const ALVO = 0.60;
-      const W = 200;
-      const corretos = r.filter(x => x.correto && x.rating);
-      const semNenhum = corretos.length === 0;
+    /* calcularRatingSugerido: src/domain/rating.js */
 
-      if (semNenhum) {
-        const ratings = r.filter(x => x.rating).map(x => x.rating);
-        if (!ratings.length) return null;
-        return Math.max(600, Math.round((Math.min(...ratings) - 200) / 50) * 50);
-      }
+    /* puzzlesDevidoRevisao: src/domain/srs.js */
 
-      // Agrupa em brackets de 200 pts. Cada bracket guarda total e corretos.
-      const buckets = {};
-      for (const x of r) {
-        if (!x.rating) continue;
-        const b = Math.floor(x.rating / W) * W;
-        if (!buckets[b]) buckets[b] = { total: 0, ok: 0 };
-        buckets[b].total += 1;
-        if (x.correto) buckets[b].ok += 1;
-      }
-      // Bracket com taxa mais próxima do alvo (e dados suficientes — ≥3)
-      let melhor = null, distMin = Infinity;
-      for (const [bStr, dados] of Object.entries(buckets)) {
-        if (dados.total < 3) continue;
-        const taxa = dados.ok / dados.total;
-        const dist = Math.abs(taxa - ALVO);
-        if (dist < distMin) { distMin = dist; melhor = parseInt(bStr); }
-      }
-
-      if (melhor !== null) {
-        // Centro do bracket. Se o bracket tem taxa muito alta (>80%), aponta
-        // pra cima do bracket; se muito baixa (<40%), pra baixo.
-        const taxa = buckets[melhor].ok / buckets[melhor].total;
-        let centro = melhor + W / 2;
-        if (taxa > 0.80) centro = melhor + W * 0.85;
-        else if (taxa < 0.40) centro = melhor + W * 0.15;
-        const sugerido = Math.round(centro / 50) * 50;
-        return Math.max(600, Math.min(2800, sugerido));
-      }
-
-      // Fallback (poucos puzzles por bracket): usa média dos corretos com ajuste
-      const ratings = corretos.map(x => x.rating);
-      const media = ratings.reduce((a, b) => a + b, 0) / ratings.length;
-      const taxa = corretos.length / r.length;
-      let ajuste;
-      if (taxa >= 0.85) ajuste = 150;
-      else if (taxa >= 0.70) ajuste = 75;
-      else if (taxa >= 0.50) ajuste = 0;
-      else if (taxa >= 0.30) ajuste = -75;
-      else ajuste = -150;
-      const sugerido = Math.round((media + ajuste) / 50) * 50;
-      return Math.max(600, Math.min(2800, sugerido));
-    }
-
-    /* === REVISÃO SRS LEVE ===
-     * Identifica puzzles teimosos (errados em ≥ 2 ciclos) cujo último
-     * encontro foi há mais de DIAS_REVISAO dias — agrupa por conjunto
-     * para a UI sugerir uma sessão de "apenas erros". Não é SRS clássico
-     * (sem intervalo crescente por puzzle), mas elimina o atrito de
-     * lembrar onde estão os erros recorrentes.
-     * SRS_DIAS_REVISAO e SRS_MIN_ERROS vêm de lib/wp-helpers.js
-     */
-    function puzzlesDevidoRevisao(ciclos, conjuntos) {
-      const agora = Date.now();
-      const horizonteMs = SRS_DIAS_REVISAO * 24 * 3600 * 1000;
-      const porConjunto = {};
-      for (const conj of conjuntos) {
-        const cs = ciclosDoConjunto(ciclos, conj.id);
-        if (cs.length < 2) continue; // precisa de pelo menos 2 ciclos
-        const porPuzzle = {};
-        for (const ciclo of cs) {
-          for (const r of (ciclo.resultados || [])) {
-            const p = porPuzzle[r.puzzle_id] || (porPuzzle[r.puzzle_id] = {
-              erros: 0, ultimoEncontro: 0
-            });
-            if (!r.correto) p.erros += 1;
-            if (ciclo.data_fim && ciclo.data_fim > p.ultimoEncontro) {
-              p.ultimoEncontro = ciclo.data_fim;
-            }
-          }
-        }
-        let devidos = 0;
-        for (const id in porPuzzle) {
-          const p = porPuzzle[id];
-          if (p.erros < SRS_MIN_ERROS) continue;
-          if (!p.ultimoEncontro) continue;
-          if ((agora - p.ultimoEncontro) < horizonteMs) continue;
-          devidos += 1;
-        }
-        if (devidos > 0) porConjunto[conj.id] = { devidos: devidos, conjunto: conj };
-      }
-      return porConjunto;
-    }
-
-    /* === RATING UNIFICADO === */
-    // Combina sinais heterogêneos em uma única estimativa:
-    //  · Performance no app (último ciclo concluído + calibração se houver)
-    //  · Análise chess.com (programa salvo em IndexedDB)
-    // Cada fonte traz seu próprio peso baseado em confiança + tamanho da amostra.
-    function ratingUnificado(ciclos, programaAtual) {
-      const fontes = [];
-
-      // 1. Performance no app — última calibração ou ciclo concluído mais recente
-      if (Array.isArray(ciclos) && ciclos.length > 0) {
-        const ord = ciclos.slice().sort((a, b) => (b.data_fim || 0) - (a.data_fim || 0));
-        let calib = null, ult = null;
-        for (const c of ord) {
-          if (c.calibracao && !calib) calib = c;
-          if (!ult) ult = c;
-          if (calib && ult) break;
-        }
-        if (calib) {
-          const r = calcularRatingSugerido(calib);
-          if (r != null) fontes.push({
-            nome: 'Calibração', valor: r, peso: 1.2, conf: 'alta',
-            detalhe: (calib.resultados || []).length + ' puzzles'
-          });
-        }
-        if (ult && (!calib || ult !== calib)) {
-          const r = calcularRatingSugerido(ult);
-          if (r != null) {
-            const total = (ult.resultados || []).length;
-            const peso = Math.min(1.0, total / 30);
-            if (peso >= 0.2) fontes.push({
-              nome: 'Performance recente', valor: r, peso: peso, conf: 'média',
-              detalhe: total + ' puzzles · ciclo ' + (ult.numero || '?')
-            });
-          }
-        }
-      }
-
-      // 2. Análise chess.com
-      if (programaAtual && programaAtual.suggested_rating) {
-        const lvl = (programaAtual.tactical_confidence || {}).level;
-        const peso = lvl === 'alta' ? 1.5
-                   : lvl === 'média' ? 1.0
-                   : lvl === 'baixa' ? 0.5 : 0;
-        if (peso > 0) fontes.push({
-          nome: 'Análise chess.com',
-          valor: programaAtual.suggested_rating,
-          peso: peso, conf: lvl,
-          detalhe: (programaAtual.games_analyzed || '?') + ' partidas',
-        });
-      }
-
-      if (fontes.length === 0) return null;
-      const totalP = fontes.reduce((a, f) => a + f.peso, 0);
-      const rating = Math.round(
-        fontes.reduce((a, f) => a + f.valor * f.peso, 0) / totalP / 50
-      ) * 50;
-      const valores = fontes.map(f => f.valor);
-      const min = Math.max(600, Math.min(...valores) - 50);
-      const max = Math.min(2800, Math.max(...valores) + 50);
-      return { rating: Math.max(600, Math.min(2800, rating)), range: [min, max], fontes: fontes };
-    }
-
-    /* === MÉTRICAS DE ATIVIDADE === */
-    function metricasAtividade(ciclos) {
-      if (!ciclos.length) return { total: 0, diasAtivos: 0, ultimaMs: 0, diasDesde: null };
-      const sorted = ciclos.slice().sort((a, b) => (a.data_fim || 0) - (b.data_fim || 0));
-      const dias = new Set();
-      for (const c of sorted) {
-        if (c.data_fim) dias.add(new Date(c.data_fim).toISOString().slice(0, 10));
-      }
-      const ultima = sorted[sorted.length - 1];
-      const ultimaMs = ultima ? (ultima.data_fim || 0) : 0;
-      const diasDesde = ultimaMs ? (Date.now() - ultimaMs) / 86400000 : null;
-      return { total: sorted.length, diasAtivos: dias.size, ultimaMs, diasDesde };
-    }
-
-    function lanceUciParaSan(uci, fenAntes) {
-      try {
-        const c = new Chess(fenAntes);
-        const m = c.move({
-          from: uci.slice(0, 2),
-          to: uci.slice(2, 4),
-          promotion: uci[4] || 'q'
-        });
-        return m ? m.san : uci;
-      } catch (e) { return uci; }
-    }
-    function aplicarLanceSilencioso(chess, uci) {
-      return chess.move({
-        from: uci.slice(0, 2),
-        to: uci.slice(2, 4),
-        promotion: uci[4] || 'q'
-      });
-    }
-
-    function sequenciaSan(fenInicial, lances) {
-      const c = new Chess(fenInicial);
-      const sans = [];
-      for (const uci of lances) {
-        try {
-          const m = c.move({
-            from: uci.slice(0, 2),
-            to: uci.slice(2, 4),
-            promotion: uci[4] || 'q'
-          });
-          sans.push(m ? m.san : uci);
-        } catch (e) { sans.push(uci); }
-      }
-      return sans;
-    }
+    /* ratingUnificado: src/domain/rating.js */
+    /* metricasAtividade: src/domain/ciclo.js */
+    /* lanceUciParaSan, aplicarLanceSilencioso, sequenciaSan: src/domain/puzzle.js */
 
     /* === COMPONENTE ChessBoard (wrapper Chessboard.js) === */
     function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, draggable, highlightFrom, highlightTo, selectedSquare }) {
