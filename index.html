@@ -2879,6 +2879,9 @@
     }
 
     function TelaAnalisarJogador({ onCriarComTemas }) {
+      // tipo='auto' → username do próprio jogador (Mode 3 default + toggle Mode 1)
+      // tipo='adversario' → username de um oponente específico (Mode 2)
+      const [tipo, setTipo] = useState('auto');
       const [username, setUsername] = useState(() => Store.get(Chaves.ANALISE_USERNAME, ''));
       const [analisando, setAnalisando] = useState(false);
       const [progresso, setProgresso] = useState({ stage: '', message: '', current: 0, total: 0 });
@@ -2888,7 +2891,7 @@
       const [verificandoCob, setVerificandoCob] = useState(false);
       const wakeLockRef = useRef(null);
 
-      // Carregar último programa do IndexedDB ao abrir
+      // Carregar último programa do IndexedDB ao abrir (sempre o auto)
       useEffect(() => {
         (async () => {
           const u = (Store.get(Chaves.ANALISE_USERNAME, '') || '').trim();
@@ -2899,6 +2902,32 @@
           } catch (e) { /* silencioso */ }
         })();
       }, []);
+
+      // Trocar entre tipo auto / adversario reseta programa e cobertura.
+      // Se voltar pra auto, recarrega username e programa salvos.
+      function trocarParaAdversario() {
+        setTipo('adversario');
+        setUsername('');
+        setPrograma(null);
+        setCobertura(null);
+        setErro(null);
+      }
+
+      async function voltarParaAuto() {
+        setTipo('auto');
+        setCobertura(null);
+        setErro(null);
+        const u = (Store.get(Chaves.ANALISE_USERNAME, '') || '').trim();
+        setUsername(u);
+        if (u && window.ChessAnalysis) {
+          try {
+            const p = await window.ChessAnalysis.loadProgram(u);
+            setPrograma(p || null);
+          } catch (_) { setPrograma(null); }
+        } else {
+          setPrograma(null);
+        }
+      }
 
       // Liberar wake lock ao desmontar
       useEffect(() => {
@@ -2948,7 +2977,9 @@
         if (!username.trim()) { setErro('Informe um username do chess.com'); return; }
         if (!window.ChessAnalysis) { setErro('Módulo de análise não carregou'); return; }
         const u = username.trim();
-        Store.set(Chaves.ANALISE_USERNAME, u);
+        // Só persiste username em Chaves.ANALISE_USERNAME quando é o próprio
+        // jogador (tipo=auto). Username de adversário fica efêmero.
+        if (tipo === 'auto') Store.set(Chaves.ANALISE_USERNAME, u);
         setErro(null);
         setAnalisando(true);
         setProgresso({ stage: 'inicio', message: 'Iniciando...', current: 0, total: 0 });
@@ -2985,27 +3016,37 @@
         setTimeout(iniciarAnalise, 50);
       }
 
-      function abrirCriarComTemas() {
-        if (!programa) return;
-        const temas = (programa.themes || []).map(t => t.theme).slice(0, 5);
+      // Recebe o programa com os temas do modo ATUAL exibido (programaView).
+      // Em modo 'adversario' nomeia como "Vs <username>"; em chances-perdidas
+      // como "Foco erros · ..."; em completo, "Análise · ...".
+      function abrirCriarComTemas(programaExibido) {
+        const p = programaExibido || programa;
+        if (!p) return;
+        const temas = (p.themes || []).map(t => t.theme).slice(0, 5);
         if (temas.length === 0) return;
+        const prefix = p.modo === 'adversario'   ? 'Vs ' + p.username + ' · pontos cegos'
+                     : p.modo === 'chances-perdidas' ? 'Erros · ' + p.username
+                     : 'Análise · ' + p.username;
         onCriarComTemas({
-          rating:   programa.suggested_rating,
+          rating:   p.suggested_rating,
           variacao: 200,
           temas:    temas,
           tamanho:  300,
-          nome:     'Análise · ' + programa.username,
+          nome:     prefix,
         });
       }
 
-      function abrirCriarComTema(tema) {
-        if (!programa) return;
+      function abrirCriarComTema(tema, programaExibido) {
+        const p = programaExibido || programa;
+        if (!p) return;
+        const prefix = p.modo === 'adversario' ? 'Vs ' + p.username + ' · '
+                     : 'Foco · ';
         onCriarComTemas({
-          rating:   programa.suggested_rating,
+          rating:   p.suggested_rating,
           variacao: 200,
           temas:    [tema],
           tamanho:  200,
-          nome:     'Foco · ' + (TEMAS[tema] || tema),
+          nome:     prefix + (TEMAS[tema] || tema),
         });
       }
 
@@ -3023,23 +3064,36 @@
         } catch (_) { return iso; }
       };
 
+      const ehAuto = tipo === 'auto';
+      const titulo = ehAuto ? '🔍 Analisar Jogador' : '⚔ Análise de Adversário';
+      const subtitulo = ehAuto
+        ? 'Digite seu username do chess.com. Vamos analisar suas últimas ' + (window.ChessAnalysis ? window.ChessAnalysis.GAMES_TARGET : 30) + ' partidas com Stockfish + classificação tática e gerar um conjunto de treino focado nas suas fraquezas reais.'
+        : 'Digite o username de um oponente. Vamos identificar os padrões táticos que ele expõe quando erra — incluindo os que ninguém costuma punir. Você sai com um conjunto focado nesses pontos cegos.';
+      const placeholder = ehAuto ? 'ex: hikaru (você)' : 'ex: oponente_x';
+      const labelInput = ehAuto ? 'Seu username chess.com' : 'Username do adversário';
+      const labelBotao = ehAuto ? '⚙ Analisar minhas partidas' : '⚙ Analisar partidas do adversário';
+
       return (
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '24px 4px' }}>
           <div className="mb-16">
-            <div className="serif bold fs-22 mb-4">🔍 Analisar Jogador</div>
+            <div className="serif bold fs-22 mb-4">{titulo}</div>
             <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.6 }}>
-              Digite seu username do chess.com. Vamos analisar suas últimas {window.ChessAnalysis ? window.ChessAnalysis.GAMES_TARGET : 30} partidas
-              com Stockfish + classificação tática e gerar um conjunto de treino focado nas suas fraquezas reais.
+              {subtitulo}
             </div>
+            {!ehAuto && (
+              <button className="btn btn-small ghost mt-8" onClick={voltarParaAuto}>
+                ← Voltar para minha análise
+              </button>
+            )}
           </div>
 
           {!analisando && (
             <div className="card mb-12">
-              <div className="input-label">Username chess.com</div>
+              <div className="input-label">{labelInput}</div>
               <input type="text"
                 value={username}
                 onChange={e => { setUsername(e.target.value); setCobertura(null); }}
-                placeholder="ex: hikaru"
+                placeholder={placeholder}
                 disabled={analisando}
                 style={{
                   width: '100%', padding: '10px 12px', marginBottom: 12,
@@ -3052,7 +3106,7 @@
                   onClick={iniciarAnalise}
                   disabled={analisando || !username.trim()}
                   style={{ flex: '1 1 220px' }}>
-                  ⚙ Analisar minhas partidas
+                  {labelBotao}
                 </button>
                 <button className="btn btn-ghost btn-small"
                   onClick={verificarCobertura}
@@ -3096,9 +3150,11 @@
           {programa && !analisando && (
             <ResultadoAnalise
               programa={programa}
+              tipo={tipo}
               onReanalisar={reanalisar}
               onCriarComTemas={abrirCriarComTemas}
               onCriarComTema={abrirCriarComTema}
+              onTrocarParaAdversario={trocarParaAdversario}
               formatarData={formatarData} />
           )}
         </div>
@@ -3108,13 +3164,39 @@
     /* === HISTÓRICO DE ANÁLISES (timeline) === */
     /* HistoricoAnalises: src/ui/HistoricoAnalises.jsx */
 
-    function ResultadoAnalise({ programa, onReanalisar, onCriarComTemas, onCriarComTema, formatarData }) {
-      const conf = programa.tactical_confidence || {};
-      const rng  = programa.rating_range || [programa.suggested_rating - 100, programa.suggested_rating + 100];
+    function ResultadoAnalise({ programa, tipo, onReanalisar, onCriarComTemas, onCriarComTema, onTrocarParaAdversario, formatarData }) {
+      // tipo: 'auto' (default) ou 'adversario'.
+      // modoView: para tipo=auto, alterna entre 'completo' (Mode 3 default —
+      // o programa salvo) e 'chances-perdidas' (re-derivado via Modo 1).
+      // Para tipo=adversario, sempre Mode 2 (modoView ignorado).
+      const ehAuto = tipo !== 'adversario';
+      const [modoView, setModoView] = useState('completo');
 
-      // Ordenar: detected → heuristic → rating
-      const ordemFonte = { detected: 0, heuristic: 1, rating: 2 };
-      const temasOrdenados = (programa.themes || []).slice().sort((a, b) => {
+      // Re-deriva o programa visível a partir de programa.profile quando
+      // muda modoView ou tipo. Programas legados (sem profile) caem no
+      // próprio programa.themes (Mode 3) sem possibilidade de Mode 1.
+      const programaView = useMemo(() => {
+        const Agg = window.TacticalAggregator;
+        const profile = programa && programa.profile;
+        const avg = (programa && programa.avg_rating) || programa.suggested_rating;
+        if (!ehAuto && profile && Agg && Agg.derivePuzzleProgramModo2) {
+          const p2 = Agg.derivePuzzleProgramModo2(profile, avg);
+          return Object.assign({}, programa, p2);
+        }
+        if (ehAuto && modoView === 'chances-perdidas' && profile && Agg && Agg.derivePuzzleProgramModo1) {
+          const p1 = Agg.derivePuzzleProgramModo1(profile, avg);
+          return Object.assign({}, programa, p1);
+        }
+        return programa;
+      }, [programa, tipo, modoView, ehAuto]);
+
+      const conf = programaView.tactical_confidence || {};
+      const rng  = programaView.rating_range || [programaView.suggested_rating - 100, programaView.suggested_rating + 100];
+
+      // Ordenar: detected → heuristic → rating; em adversário todas as fontes
+      // são "detected-adversario" então a ordem fica por priority/score.
+      const ordemFonte = { detected: 0, 'detected-adversario': 0, heuristic: 1, rating: 2 };
+      const temasOrdenados = (programaView.themes || []).slice().sort((a, b) => {
         const fa = ordemFonte[a.source] != null ? ordemFonte[a.source] : 9;
         const fb = ordemFonte[b.source] != null ? ordemFonte[b.source] : 9;
         if (fa !== fb) return fa - fb;
@@ -3124,29 +3206,30 @@
       });
 
       const fonteLabel = (s) => s === 'detected' ? '🎯 detectado nas suas partidas'
+                              : s === 'detected-adversario' ? '⚔ ponto cego do adversário'
                               : s === 'heuristic' ? '🧠 sugerido pela fase de erros'
                               : s === 'rating'    ? '📚 fundamento da faixa'
                               : s;
+      const profileAusente = !programa || !programa.profile;
 
-      // Item 3: contar puzzles disponíveis por tema dentro do range sugerido
+      // Contar puzzles disponíveis por tema dentro do range sugerido
       // (rating ± 200). Ajuda a validar se a recomendação tem material no
       // banco; também avisa quando um tema vai vir com conjunto vazio.
+      // Re-roda quando programaView muda de modo (temas podem ser diferentes).
       const [contagens, setContagens] = useState({});
       const [contando, setContando] = useState(false);
       useEffect(() => {
         let cancelado = false;
         (async () => {
-          if (!programa || !programa.themes) return;
+          if (!programaView || !programaView.themes) return;
           setContando(true);
           try {
-            const r = programa.suggested_rating;
+            const r = programaView.suggested_rating;
             const variacao = 200;
             const min = r - variacao, max = r + variacao;
             const faixas = faixasNoIntervalo(min, max);
-            // Carrega faixas necessárias uma vez (cacheFaixas é global)
             const todos = [];
             for (const k of faixas) {
-              const cacheK = 'wp_count_' + k;
               let lista = cacheFaixas[k];
               if (!lista) {
                 lista = await buscarFaixa(k);
@@ -3155,7 +3238,7 @@
               if (cancelado) return;
             }
             const out = {};
-            for (const t of programa.themes) {
+            for (const t of programaView.themes) {
               if (out[t.theme] != null) continue;
               const n = todos.reduce((acc, p) => {
                 if ((p.rating || 0) < min || (p.rating || 0) > max) return acc;
@@ -3169,14 +3252,23 @@
           finally { if (!cancelado) setContando(false); }
         })();
         return () => { cancelado = true; };
-      }, [programa && programa.username, programa && programa.analyzed_at]);
+      }, [programaView && programaView.username, programaView && programaView.analyzed_at, programaView && programaView.modo]);
+
+      const modoLabel = !ehAuto ? 'Modo: análise de adversário'
+                      : modoView === 'chances-perdidas' ? 'Modo: chances perdidas'
+                      : 'Modo: plano completo';
+      const modoDescricao = !ehAuto
+        ? 'Padrões que ' + programa.username + ' expõe quando erra. C-dominantes (não-punidos) ranqueados primeiro — pontos cegos que ninguém costuma explorar.'
+        : modoView === 'chances-perdidas'
+          ? 'Apenas temas onde você teve a tática na frente e não viu (Role A dominante). Sem heurísticas nem fundamentos por rating.'
+          : 'Suas fraquezas detectadas + heurísticas por fase de erro + fundamentos da faixa de rating.';
 
       return (
         <div>
           <div className="card mb-12">
             <div className="between mb-8" style={{ flexWrap: 'wrap', gap: 8 }}>
               <div>
-                <div className="mono fs-10 ls-2 txt-muted">JOGADOR</div>
+                <div className="mono fs-10 ls-2 txt-muted">{ehAuto ? 'JOGADOR' : 'ADVERSÁRIO'}</div>
                 <div className="serif bold fs-17">{programa.username}</div>
               </div>
               <div className="vstack gap-4" style={{ alignItems: 'flex-end' }}>
@@ -3187,7 +3279,7 @@
             <div className="hstack gap-12 flex-wrap mb-8">
               <div>
                 <div className="mono fs-10 ls-2 txt-muted">RATING SUGERIDO</div>
-                <div className="serif bold fs-15">{programa.suggested_rating}</div>
+                <div className="serif bold fs-15">{programaView.suggested_rating}</div>
               </div>
               <div>
                 <div className="mono fs-10 ls-2 txt-muted">FAIXA</div>
@@ -3217,6 +3309,39 @@
             )}
           </div>
 
+          {/* Toggle de modo (só faz sentido em tipo=auto e quando profile salvo) */}
+          {ehAuto && !profileAusente && (
+            <div className="card-soft mb-12" style={{ padding: '8px 12px' }}>
+              <div className="hstack gap-8 flex-wrap" style={{ alignItems: 'baseline' }}>
+                <div className="mono fs-10 ls-2 txt-muted" style={{ flex: '1 1 auto' }}>
+                  {modoLabel.toUpperCase()}
+                </div>
+                <button className="btn btn-small ghost"
+                  onClick={() => setModoView(modoView === 'completo' ? 'chances-perdidas' : 'completo')}>
+                  {modoView === 'completo' ? '🎯 Ver só chances perdidas' : '📚 Ver plano completo'}
+                </button>
+              </div>
+              <div className="mono fs-10 txt-muted mt-4" style={{ lineHeight: 1.5 }}>
+                {modoDescricao}
+              </div>
+            </div>
+          )}
+          {!ehAuto && (
+            <div className="card-soft mb-12" style={{ padding: '8px 12px', borderLeft: '3px solid var(--red)' }}>
+              <div className="mono fs-10 ls-2 txt-muted mb-4">{modoLabel.toUpperCase()}</div>
+              <div className="mono fs-10 txt-muted" style={{ lineHeight: 1.5 }}>
+                {modoDescricao}
+              </div>
+            </div>
+          )}
+          {profileAusente && ehAuto && (
+            <div className="card-soft mb-12" style={{ padding: '8px 12px' }}>
+              <div className="mono fs-10 txt-muted" style={{ lineHeight: 1.5 }}>
+                Análise antiga (sem profile salvo). Reanalise pra desbloquear o modo "chances perdidas".
+              </div>
+            </div>
+          )}
+
           <HistoricoAnalises
             username={programa.username}
             currentAnalyzedAt={programa.analyzed_at}
@@ -3229,10 +3354,30 @@
                 Jogue partidas rapid ou blitz no chess.com para uma análise tática confiável.
               </div>
             </div>
+          ) : temasOrdenados.length === 0 ? (
+            <div className="feedback-banner mb-12" style={{
+              background: 'var(--surface)', borderColor: 'var(--border)',
+              borderLeft: '3px solid var(--gold)'
+            }}>
+              <div className="feedback-title">
+                {!ehAuto ? '✅ Sem pontos cegos detectados'
+                 : modoView === 'chances-perdidas' ? '✅ Nenhuma chance perdida nesse padrão'
+                 : 'Sem temas recomendados'}
+              </div>
+              <div className="serif fs-13 mt-8">
+                {!ehAuto
+                  ? 'O adversário não expôs padrões táticos exploráveis na amostra analisada — ou expôs muito pouco. Pode ser jogador sólido ou amostra pequena.'
+                  : modoView === 'chances-perdidas'
+                    ? 'Você não deixou táticas óbvias passarem. Volte para "Plano completo" pra ver fundamentos por rating + heurísticas.'
+                    : 'Reanalise ou troque de modo.'}
+              </div>
+            </div>
           ) : (
             <div className="card mb-12">
               <div className="between mb-12">
-                <div className="serif bold fs-15">Temas recomendados</div>
+                <div className="serif bold fs-15">
+                  {!ehAuto ? 'Pontos cegos para explorar' : 'Temas recomendados'}
+                </div>
                 {contando && <div className="mono fs-10 txt-muted">contando puzzles...</div>}
               </div>
               <div className="vstack gap-10">
@@ -3266,7 +3411,7 @@
                         )}
                       </div>
                       <button className="btn btn-small"
-                        onClick={() => onCriarComTema(t.theme)}
+                        onClick={() => onCriarComTema(t.theme, programaView)}
                         disabled={semPuzzles}
                         title={semPuzzles ? 'Sem puzzles disponíveis na faixa' : ''}>
                         ▶ Treinar
@@ -3280,11 +3425,16 @@
             </div>
           )}
 
-          {conf.level !== 'insuficiente' && (programa.themes || []).length > 0 && (
+          {conf.level !== 'insuficiente' && temasOrdenados.length > 0 && (
             <div className="vstack gap-8">
-              <button className="btn btn-primary btn-block" onClick={onCriarComTemas}>
+              <button className="btn btn-primary btn-block" onClick={() => onCriarComTemas(programaView)}>
                 ＋ Criar conjunto com top temas
               </button>
+              {ehAuto && onTrocarParaAdversario && (
+                <button className="btn btn-ghost btn-block" onClick={onTrocarParaAdversario}>
+                  ⚔ Trocar foco para um adversário
+                </button>
+              )}
               <button className="btn btn-ghost btn-block" onClick={onReanalisar}>
                 ↻ Reanalisar
               </button>
