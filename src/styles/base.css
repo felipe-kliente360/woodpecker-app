@@ -1,0 +1,108 @@
+/* === RESET / BASE ===
+   Reset minimalista + tipografia raiz + utilitários globais (.mono,
+   .serif, .num, .num-display, helpers de margin/gap/cor/tamanho).
+   Componentes específicos vão em components.css. */
+
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; height:100%; overflow-x: hidden; }
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+a { color: var(--primary); text-decoration: none; }
+button { font-family: inherit; }
+input, select { font-family: inherit; color: var(--txt); }
+
+.mono { font-family: 'Courier New', Courier, monospace; }
+.serif { font-family: Georgia, 'Times New Roman', serif; }
+
+/* === NUMERAIS TABULARES ===
+   .num — alinha colunas de números (ratings, tempos, contagens) e
+   desliga ligaduras. Aplicar via classe em qualquer elemento que
+   mostre número como dado, não como prosa.
+   .num-display — display em destaque (rating estimado, timer).
+   Aumenta peso, anti-serifa, reduz tracking. */
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum", "lnum";
+  font-family: 'Courier New', Courier, monospace;
+}
+.num-display {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum", "lnum";
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.num-xl  { font-size: 32px; }
+.num-lg  { font-size: 24px; }
+.num-md  { font-size: 18px; }
+.num-sm  { font-size: 14px; }
+
+/* === HELPERS DE LAYOUT === */
+.hstack { display: flex; align-items: center; gap: 8px; }
+.vstack { display: flex; flex-direction: column; gap: 8px; }
+.between { display: flex; align-items: center; justify-content: space-between; }
+.center { text-align: center; }
+.flex-wrap { flex-wrap: wrap; }
+
+/* === MARGINS === */
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mt-20 { margin-top: 20px; }
+.mt-24 { margin-top: 24px; }
+.mt-32 { margin-top: 32px; }
+.mb-4 { margin-bottom: 4px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-20 { margin-bottom: 20px; }
+
+/* === GAPS (para hstack/vstack) === */
+.gap-6 { gap: 6px; }
+.gap-8 { gap: 8px; }
+.gap-10 { gap: 10px; }
+.gap-12 { gap: 12px; }
+.gap-14 { gap: 14px; }
+
+/* === CORES DE TEXTO === */
+.txt-muted { color: var(--txt-muted); }
+.txt-mid { color: var(--txt-mid); }
+.txt-primary { color: var(--primary); }
+.txt-green { color: var(--green); }
+.txt-red { color: var(--red); }
+.txt-amber { color: var(--amber); }
+
+/* === TAMANHOS DE FONTE === */
+.fs-9 { font-size: 9px; } .fs-10 { font-size: 10px; } .fs-11 { font-size: 11px; }
+.fs-12 { font-size: 12px; } .fs-13 { font-size: 13px; } .fs-15 { font-size: 15px; }
+.fs-17 { font-size: 17px; } .fs-22 { font-size: 22px; } .fs-26 { font-size: 26px; } .fs-36 { font-size: 36px; }
+@media (max-width: 640px) {
+  .fs-22 { font-size: 18px; }
+  .fs-26 { font-size: 22px; }
+  .fs-36 { font-size: 28px; }
+}
+
+/* === MODIFICADORES DE TIPO === */
+.bold { font-weight: 700; }
+.italic { font-style: italic; }
+.upper { text-transform: uppercase; }
+.ls-1 { letter-spacing: 0.1em; }
+.ls-2 { letter-spacing: 0.18em; }
+.ls-3 { letter-spacing: 0.3em; }
+
+/* === UTILITÁRIOS RESPONSIVOS === */
+.hide-mobile { display: initial; }
+.only-mobile { display: none; }
+@media (max-width: 640px) {
+  .hide-mobile { display: none !important; }
+  .only-mobile { display: initial !important; }
+}
