@@ -12,6 +12,7 @@
   <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <script src="lib/chart.umd.js"></script>
+  <script src="lib/wp-helpers.js"></script>
   <script src="lib/tactical-themes.js"></script>
   <script src="lib/tactical-aggregator.js"></script>
   <script src="lib/chess-analysis.js"></script>
@@ -656,6 +657,16 @@
   <script type="text/babel" data-presets="env,react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
+    /* === HELPERS / CONSTANTES (de lib/wp-helpers.js) === */
+    const {
+      TEMAS, TEMAS_INSTRUTIVOS, FAIXAS_ORDER,
+      SRS_DIAS_REVISAO, SRS_MIN_ERROS,
+      gerarId, pad, formatarTempo, formatarTempoLongo, formatarNumero,
+      traduzirTema, faixaDeRating, faixasNoIntervalo, faixasNecessarias,
+      loadLS, saveLS, clearLS,
+      ciclosDoConjunto, ultimoCiclo, corCss,
+    } = window.WP_HELPERS;
+
     /* === CONFIG === */
     const CONFIG = {
       base_url: "puzzles",
@@ -672,99 +683,8 @@
       }
     };
 
-    const TEMAS = {
-      fork:             "Garfo",
-      pin:              "Cravada",
-      skewer:           "Espeto",
-      discoveredAttack: "Ataque Descoberto",
-      discoveredCheck:  "Xeque Descoberto",
-      doubleCheck:      "Xeque Duplo",
-      mate:             "Mate",
-      mateIn1:          "Mate em 1",
-      mateIn2:          "Mate em 2",
-      mateIn3:          "Mate em 3",
-      backRankMate:     "Mate na Última Fileira",
-      smotheredMate:    "Mate Sufocado",
-      epauletteMate:    "Mate de Epaulete",
-      cornerMate:       "Mate no Canto",
-      arabianMate:      "Mate Árabe",
-      hookMate:         "Mate em Gancho",
-      blindSwineMate:   "Mate dos Porcos Cegos",
-      killBoxMate:      "Mate da Caixa",
-      hangingPiece:     "Peça Pendurada",
-      trappedPiece:     "Peça Presa",
-      exposedKing:      "Rei Exposto",
-      sacrifice:        "Sacrifício",
-      deflection:       "Desvio",
-      decoy:            "Isca",
-      attraction:       "Atração",
-      interference:     "Interferência",
-      clearance:        "Despejo de Linha",
-      capturingDefender:"Remoção do Defensor",
-      overloading:      "Sobrecarga",
-      intermezzo:       "Intermezzo",
-      xRayAttack:       "Raio X",
-      collinearMove:    "Lance Colinear",
-      kingsideAttack:   "Ataque ao Rei",
-      queensideAttack:  "Ataque na Ala da Dama",
-      attackingF2F7:    "Ataque em f2/f7",
-      rookEndgame:      "Final de Torres",
-      pawnEndgame:      "Final de Peões",
-      promotion:        "Promoção",
-      enPassant:        "En Passant",
-      zugzwang:         "Zugzwang",
-      endgame:          "Final",
-      opening:          "Abertura",
-      middlegame:       "Meio-jogo",
-      long:             "Sequência Longa",
-      short:            "Sequência Curta"
-    };
-
-    const FAIXAS_ORDER = [
-      ["600_800", 600, 800],
-      ["800_1000", 800, 1000],
-      ["1000_1200", 1000, 1200],
-      ["1200_1400", 1200, 1400],
-      ["1400_1600", 1400, 1600],
-      ["1600_1800", 1600, 1800],
-      ["1800_2000", 1800, 2000],
-      ["2000_2800", 2000, 2800]
-    ];
-
     /* === CACHE GLOBAL === */
     const cacheFaixas = {};
-
-    /* === UTILS === */
-    function gerarId() {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2);
-    }
-
-    function pad(n) { return String(n).padStart(2, '0'); }
-
-    function formatarTempo(s) {
-      s = Math.max(0, Math.floor(s));
-      if (s < 60) return "0:" + pad(s);
-      if (s < 3600) {
-        const m = Math.floor(s / 60); const sec = s % 60;
-        return pad(m) + ":" + pad(sec);
-      }
-      const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60);
-      return h + ":" + pad(m) + ":" + pad(s % 60);
-    }
-
-    function formatarTempoLongo(s) {
-      s = Math.max(0, Math.floor(s));
-      if (s < 60) return s + "s";
-      const m = Math.floor(s / 60);
-      if (m < 60) return m + "min";
-      const h = Math.floor(m / 60);
-      const rm = m % 60;
-      return rm === 0 ? (h + "h") : (h + "h " + rm + "min");
-    }
-
-    function formatarNumero(n) {
-      return n.toLocaleString('pt-BR');
-    }
 
     function embaralhar(arr) {
       const out = arr.slice();
@@ -783,33 +703,6 @@
     function corDoTabuleiro(fen) {
       const turno = fen.split(' ')[1];
       return turno === 'w' ? 'white' : 'black';
-    }
-
-    function traduzirTema(chave) {
-      return TEMAS[chave] || chave;
-    }
-
-    function faixaDeRating(rating) {
-      if (rating < 800)  return "600_800";
-      if (rating < 1000) return "800_1000";
-      if (rating < 1200) return "1000_1200";
-      if (rating < 1400) return "1200_1400";
-      if (rating < 1600) return "1400_1600";
-      if (rating < 1800) return "1600_1800";
-      if (rating < 2000) return "1800_2000";
-      return "2000_2800";
-    }
-
-    function faixasNoIntervalo(min, max) {
-      const out = [];
-      for (const [chave, lo, hi] of FAIXAS_ORDER) {
-        if (hi > min && lo <= max) out.push(chave);
-      }
-      return out.length ? out : [faixaDeRating(Math.round((min + max) / 2))];
-    }
-
-    function faixasNecessarias(rating, variacao) {
-      return faixasNoIntervalo(rating - variacao, rating + variacao);
     }
 
     async function buscarFaixa(chave, onProgress) {
@@ -932,30 +825,7 @@
       return "Mestre";
     }
 
-    /* === PERSISTÊNCIA === */
-    function loadLS(key, fallback) {
-      try {
-        const raw = localStorage.getItem(key);
-        if (raw == null) return fallback;
-        return JSON.parse(raw);
-      } catch (e) { return fallback; }
-    }
-    function saveLS(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)); }
-      catch (e) { console.warn("Falha ao salvar", key, e); }
-    }
-    function clearLS(key) {
-      try { localStorage.removeItem(key); } catch (e) {}
-    }
-
-    function ciclosDoConjunto(ciclos, conjuntoId) {
-      return ciclos.filter(c => c.conjunto_id === conjuntoId)
-        .sort((a, b) => a.numero - b.numero);
-    }
-    function ultimoCiclo(ciclos, conjuntoId) {
-      const c = ciclosDoConjunto(ciclos, conjuntoId);
-      return c.length ? c[c.length - 1] : null;
-    }
+    /* loadLS, saveLS, clearLS, ciclosDoConjunto, ultimoCiclo: lib/wp-helpers.js */
 
     /* === EXPORT / IMPORT === */
     const CHAVES_LS_BACKUP = ['wp_conjuntos', 'wp_ciclos', 'wp_tema', 'wp_sessao', 'wp_auto_backup'];
@@ -1070,6 +940,46 @@
       else ajuste = -150;
       const sugerido = Math.round((media + ajuste) / 50) * 50;
       return Math.max(600, Math.min(2800, sugerido));
+    }
+
+    /* === REVISÃO SRS LEVE ===
+     * Identifica puzzles teimosos (errados em ≥ 2 ciclos) cujo último
+     * encontro foi há mais de DIAS_REVISAO dias — agrupa por conjunto
+     * para a UI sugerir uma sessão de "apenas erros". Não é SRS clássico
+     * (sem intervalo crescente por puzzle), mas elimina o atrito de
+     * lembrar onde estão os erros recorrentes.
+     * SRS_DIAS_REVISAO e SRS_MIN_ERROS vêm de lib/wp-helpers.js
+     */
+    function puzzlesDevidoRevisao(ciclos, conjuntos) {
+      const agora = Date.now();
+      const horizonteMs = SRS_DIAS_REVISAO * 24 * 3600 * 1000;
+      const porConjunto = {};
+      for (const conj of conjuntos) {
+        const cs = ciclosDoConjunto(ciclos, conj.id);
+        if (cs.length < 2) continue; // precisa de pelo menos 2 ciclos
+        const porPuzzle = {};
+        for (const ciclo of cs) {
+          for (const r of (ciclo.resultados || [])) {
+            const p = porPuzzle[r.puzzle_id] || (porPuzzle[r.puzzle_id] = {
+              erros: 0, ultimoEncontro: 0
+            });
+            if (!r.correto) p.erros += 1;
+            if (ciclo.data_fim && ciclo.data_fim > p.ultimoEncontro) {
+              p.ultimoEncontro = ciclo.data_fim;
+            }
+          }
+        }
+        let devidos = 0;
+        for (const id in porPuzzle) {
+          const p = porPuzzle[id];
+          if (p.erros < SRS_MIN_ERROS) continue;
+          if (!p.ultimoEncontro) continue;
+          if ((agora - p.ultimoEncontro) < horizonteMs) continue;
+          devidos += 1;
+        }
+        if (devidos > 0) porConjunto[conj.id] = { devidos: devidos, conjunto: conj };
+      }
+      return porConjunto;
     }
 
     /* === RATING UNIFICADO === */
@@ -1477,7 +1387,7 @@
       );
     }
 
-    function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onTreinar, onEvolucao, onIrParaConjuntos, onCalibrar, onAnalisar, onAposImport }) {
+    function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onTreinar, onEvolucao, onTreinarApenasErros, onIrParaConjuntos, onCalibrar, onAnalisar, onAposImport }) {
       const temConjuntos = conjuntos.length > 0;
       const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
 
@@ -1498,6 +1408,9 @@
       }, []);
 
       const unif = useMemo(() => ratingUnificado(ciclos, programaAtual), [ciclos, programaAtual]);
+      const revisao = useMemo(() => puzzlesDevidoRevisao(ciclos, conjuntos), [ciclos, conjuntos]);
+      const revisaoEntries = Object.values(revisao);
+      const totalRevisao = revisaoEntries.reduce((a, e) => a + e.devidos, 0);
 
       // Ordena conjuntos por última atividade desc — quem foi treinado mais recentemente vem primeiro
       const conjuntosOrdenados = useMemo(() => {
@@ -1531,6 +1444,43 @@
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {totalRevisao > 0 && (
+            <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--gold)' }}>
+              <div className="between mb-8" style={{ flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <div className="mono fs-10 ls-2 txt-muted">REVISÃO DEVIDA</div>
+                  <div className="serif bold fs-15">
+                    {totalRevisao} puzzle{totalRevisao > 1 ? 's' : ''} teimoso{totalRevisao > 1 ? 's' : ''} aguardando
+                  </div>
+                </div>
+                <span className="mono fs-10 txt-muted">
+                  errados em {SRS_MIN_ERROS}+ ciclos · {SRS_DIAS_REVISAO}+ dias parado
+                </span>
+              </div>
+              <div className="vstack gap-6">
+                {revisaoEntries.slice(0, 3).map(e => (
+                  <div key={e.conjunto.id} className="hstack gap-8 between flex-wrap">
+                    <span className="serif fs-13">
+                      {e.conjunto.nome}
+                      <span className="mono fs-11 txt-muted"> ({e.devidos})</span>
+                    </span>
+                    {onTreinarApenasErros && (
+                      <button className="btn btn-small ghost"
+                        onClick={() => onTreinarApenasErros(e.conjunto)}>
+                        ▶ Revisar erros
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {revisaoEntries.length > 3 && (
+                  <div className="mono fs-11 txt-muted">
+                    + {revisaoEntries.length - 3} outros conjuntos com erros teimosos
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2771,6 +2721,22 @@
                     ))}
                   </div>
                 </div>
+                {!feedback.correto && (() => {
+                  const temas = puzzle.temas || puzzle.themes || [];
+                  const tInstrutivo = temas.find(t => TEMAS_INSTRUTIVOS.has(t));
+                  if (!tInstrutivo) return null;
+                  const dica = (window.TacticalAggregator && window.TacticalAggregator.CANONICAL_THEMES &&
+                                window.TacticalAggregator.CANONICAL_THEMES[tInstrutivo]) || (TEMAS[tInstrutivo] || tInstrutivo);
+                  return (
+                    <div className="card-soft" style={{
+                      padding: '8px 10px', borderLeft: '3px solid var(--gold)',
+                      lineHeight: 1.5
+                    }}>
+                      <div className="mono fs-10 txt-muted ls-2 mb-4">PADRÃO TÁTICO</div>
+                      <div className="serif fs-13 txt-mid">{dica}</div>
+                    </div>
+                  );
+                })()}
                 <button className="btn btn-primary btn-block hide-mobile" onClick={avancar}>
                   {idx + 1 >= total ? '🏁 Finalizar Ciclo' : '→ Próximo Puzzle'}
                 </button>
@@ -3095,11 +3061,7 @@
       return <canvas ref={ref} style={{ width: '100%', maxHeight: (height || 220) + 'px' }} height={height || 220}></canvas>;
     }
 
-    function corCss(varName) {
-      try {
-        return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-      } catch (e) { return '#888'; }
-    }
+    /* corCss: lib/wp-helpers.js */
 
     /* === TELA EVOLUÇÃO === */
     function LinhaTeimoso({ t }) {
@@ -4335,6 +4297,11 @@
                   onContinuar={continuarTreino}
                   onTreinar={iniciarTreino}
                   onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
+                  onTreinarApenasErros={(conjunto) => {
+                    const cs = ciclosDoConjunto(ciclos, conjunto.id);
+                    setConjuntoAtivo(conjunto);
+                    carregarEIniciar(conjunto, cs.length + 1, true);
+                  }}
                   onIrParaConjuntos={() => setTela('conjuntos')}
                   onCalibrar={iniciarCalibracao}
                   onAnalisar={() => setTela('analisar')}
