@@ -6,6 +6,10 @@
   <meta name="theme-color" content="#0d1520" />
   <title>Woodpecker · Método Tático</title>
 
+  <!-- Favicon SVG inline: cavalo dourado com marca de strike vermelha
+       (peck do pica-pau). Funciona em todos os browsers modernos. -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='5' fill='%230d1520'/><text x='16' y='25' text-anchor='middle' font-family='Georgia, serif' font-size='24' fill='%23d4a843'>%E2%99%9E</text><circle cx='25' cy='8' r='2.5' fill='%23e05252'/></svg>" />
+
   <script src="https://unpkg.com/jquery@3.7.1/dist/jquery.min.js"></script>
   <script src="lib/chess.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
@@ -86,7 +90,12 @@
       position: sticky; top: 0; z-index: 50;
     }
     .header-left { display: flex; align-items: center; gap: 12px; color: #fff; }
-    .header-knight { font-size: 22px; line-height: 1; }
+    .header-logo {
+      width: 30px; height: 30px;
+      display: block; flex-shrink: 0;
+    }
+    .header-logo .glyph { fill: var(--gold); }
+    .header-logo .strike { fill: var(--red); }
     .header-title {
       font-family: 'Courier New', Courier, monospace;
       font-size: 13px; font-weight: 700; color: #fff;
@@ -1040,7 +1049,12 @@
       return (
         <div className="header">
           <div className="header-left">
-            <span className="header-knight">♞</span>
+            <svg className="header-logo" viewBox="0 0 32 32" aria-hidden="true">
+              <text className="glyph" x="16" y="26" textAnchor="middle"
+                    fontFamily="Georgia, 'Times New Roman', serif"
+                    fontSize="28" fontWeight="400">♞</text>
+              <circle className="strike" cx="25" cy="7" r="2.8" />
+            </svg>
             <span className="header-title">WOODPECKER</span>
             <span className="header-sub">MÉTODO TÁTICO</span>
           </div>
