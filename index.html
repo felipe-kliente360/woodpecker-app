@@ -1684,12 +1684,21 @@
     function TelaCriar({ onSalvarTreinar, onSalvar, onCancelar, preset }) {
       const wz = useCriarConjunto({ preset: preset, montarFn: montarConjunto });
       const {
-        passo, setPasso, rating, setRating, variacao, setVariacao,
+        rating, setRating, variacao, setVariacao,
         temas, setTemas, toggleTema,
         tamanho, setTamanho, nome, setNome, nomeDefault, nomeFinal,
         montando, progresso, progPct, pieceLit, resultado, erro, setErro,
         montar,
       } = wz;
+
+      // Disclosure de personalização. Aberto se veio com preset não-padrão
+      // (ex: análise chess.com escolheu temas e tamanho específicos) ou se
+      // o usuário tem temas selecionados.
+      const presetEhCustom = preset && (
+        (preset.temas && preset.temas.length > 0) ||
+        (preset.variacao && preset.variacao !== 200)
+      );
+      const [personalizarAberto, setPersonalizarAberto] = useState(!!presetEhCustom);
 
       function aceitarESalvar(treinar) {
         const novo = {
@@ -1707,16 +1716,25 @@
         else onSalvar(novo, resultado.puzzles);
       }
 
-      const tamanhos = [
-        { v: 100,  nome: '⚡ Mini',       tempo: '~2h por ciclo · pré-treino' },
-        { v: 300,  nome: '♟ Reduzido',   tempo: '~6h por ciclo · mínimo útil' },
-        { v: 500,  nome: '♞ Intermediário', tempo: '~10h por ciclo' },
-        { v: 1000, nome: '♜ Woodpecker', tempo: '~20h por ciclo · método original', rec: true }
+      // Smith/Tikkanen presets — protocolos consagrados do método.
+      // Cada um define tamanho + ciclos esperados + descrição. Variação e
+      // temas continuam controlados pelo bloco "Personalizar".
+      const presetsST = [
+        { v: 100,  nome: 'Mini',     ciclos: '6 ciclos', tempo: '~2h por ciclo', desc: 'Pré-treino. Conjunto de aquecimento.' },
+        { v: 300,  nome: 'Reduzido', ciclos: '7 ciclos', tempo: '~6h por ciclo', desc: 'Mínimo útil pra ver o efeito do método.' },
+        { v: 500,  nome: 'Standard', ciclos: '7 ciclos', tempo: '~10h por ciclo', desc: 'Recomendado para profissionais.', rec: true },
+        { v: 1000, nome: 'Full',     ciclos: '8 ciclos', tempo: '~20h por ciclo', desc: 'Protocolo do livro Woodpecker Method.' },
       ];
 
       return (
-        <div style={{ maxWidth: 520, margin: '0 auto' }}>
-          <StepBar passo={passo} />
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <div className="between mb-16">
+            <div className="serif bold fs-17">Novo conjunto</div>
+            {onCancelar && (
+              <button className="btn btn-small ghost" onClick={onCancelar}>← Voltar</button>
+            )}
+          </div>
+
           <div className="card" style={{ borderRadius: 18 }}>
             {erro && (
               <div className="feedback-banner red mb-16">
@@ -1725,77 +1743,88 @@
               </div>
             )}
 
-            {!resultado && passo === 1 && (
+            {!resultado && !montando && (
               <div>
-                <div className="center" style={{ fontSize: 36, marginBottom: 12 }}>♔</div>
-                <div className="center serif bold fs-17 mb-8">Qual é o seu rating atual?</div>
-                <div className="center mono fs-11 txt-muted mb-20">Os puzzles serão selecionados próximos ao seu nível</div>
-
-                <div className="center mb-8">
+                {/* Rating sempre visível — é a entrada essencial */}
+                <div className="mono fs-10 ls-2 txt-muted mb-8">SEU RATING</div>
+                <div className="hstack gap-12 mb-12" style={{ alignItems: 'baseline' }}>
                   <div className="num-display num-xl txt-primary">{formatarNumero(rating)}</div>
                   <div className="mono fs-12 txt-mid">{nivelDoRating(rating)}</div>
                 </div>
-                <input className="slider mb-20" type="range" min="600" max="2800" step="50"
+                <input className="slider" type="range" min="600" max="2800" step="50"
                   value={rating} onChange={e => setRating(parseInt(e.target.value))} />
+                <div className="mono fs-11 txt-muted mt-4 mb-20">
+                  Puzzles de {formatarNumero(rating - variacao)} a {formatarNumero(rating + variacao)}
+                </div>
 
-                <div className="mt-16">
-                  <div className="input-label">Variação ±{variacao}</div>
-                  <input className="slider" type="range" min="50" max="400" step="50"
-                    value={variacao} onChange={e => setVariacao(parseInt(e.target.value))} />
-                  <div className="mono fs-11 txt-muted mt-4">
-                    Puzzles de {formatarNumero(rating - variacao)} a {formatarNumero(rating + variacao)}
+                {/* Smith/Tikkanen presets */}
+                <div className="mono fs-10 ls-2 txt-muted mb-8">PROTOCOLO</div>
+                <div className="vstack gap-8 mb-20">
+                  {presetsST.map(p => {
+                    const ativo = tamanho === p.v;
+                    return (
+                      <button key={p.v}
+                        className={'choice-card' + (ativo ? ' active' : '')}
+                        onClick={() => setTamanho(p.v)}
+                        style={ativo ? { borderColor: 'var(--primary)', background: 'var(--primary-bg)' } : null}>
+                        <div className="hstack gap-12 between" style={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+                          <div>
+                            <span className="serif bold fs-15">{p.nome}</span>
+                            {' '}
+                            <span className="num fs-13 txt-mid">{p.v}×{p.ciclos.split(' ')[0]}</span>
+                            {p.rec && (
+                              <span className="badge primary" style={{ marginLeft: 8 }}>recomendado</span>
+                            )}
+                          </div>
+                          <span className="mono fs-10 txt-muted">{p.tempo}</span>
+                        </div>
+                        <div className="serif fs-13 txt-mid mt-4">{p.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Personalização avançada (colapsável) */}
+                <div className="mono fs-10 ls-2 txt-muted mb-8">
+                  <button onClick={() => setPersonalizarAberto(a => !a)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                      color: 'var(--txt-muted)', font: 'inherit', letterSpacing: 'inherit'
+                    }}>
+                    {personalizarAberto ? '▾' : '▸'} PERSONALIZAR
+                  </button>
+                </div>
+                {personalizarAberto && (
+                  <div className="card-soft mb-16" style={{ padding: '14px 16px' }}>
+                    <div className="input-label">Variação ±{variacao}</div>
+                    <input className="slider mb-4" type="range" min="50" max="400" step="50"
+                      value={variacao} onChange={e => setVariacao(parseInt(e.target.value))} />
+                    <div className="mono fs-11 txt-muted mb-16">
+                      Faixa: {formatarNumero(rating - variacao)} a {formatarNumero(rating + variacao)}
+                    </div>
+
+                    <div className="input-label">
+                      Temas táticos {temas.length > 0 ? '(' + temas.length + ' selecionados)' : '· vazio = todos'}
+                    </div>
+                    <div className="tema-grid mb-16">
+                      {Object.keys(TEMAS).map(k => (
+                        <div key={k}
+                          className={'tema-pill' + (temas.includes(k) ? ' active' : '')}
+                          onClick={() => toggleTema(k)}>
+                          {TEMAS[k]}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="input-label">Nome do conjunto</div>
+                    <input className="input-text" type="text"
+                      value={nome} placeholder={nomeDefault}
+                      onChange={e => setNome(e.target.value)} />
                   </div>
-                </div>
-              </div>
-            )}
+                )}
 
-            {!resultado && passo === 2 && (
-              <div>
-                <div className="center" style={{ fontSize: 36, marginBottom: 12 }}>♟</div>
-                <div className="center serif bold fs-17 mb-8">Quais temas quer treinar?</div>
-                <div className="center mono fs-11 txt-muted mb-20">Deixe vazio para incluir todos</div>
-
-                <div className="tema-grid">
-                  {Object.keys(TEMAS).map(k => (
-                    <div key={k}
-                      className={'tema-pill' + (temas.includes(k) ? ' active' : '')}
-                      onClick={() => toggleTema(k)}>
-                      {TEMAS[k]}
-                    </div>
-                  ))}
-                </div>
-                <div className="center mono fs-12 txt-muted mt-12">
-                  {temas.length === 0 ? 'Todos os temas incluídos' : (temas.length + ' temas selecionados')}
-                </div>
-              </div>
-            )}
-
-            {!resultado && passo === 3 && !montando && (
-              <div>
-                <div className="center" style={{ fontSize: 36, marginBottom: 12 }}>⚡</div>
-                <div className="center serif bold fs-17 mb-20">Configure seu conjunto</div>
-
-                <div className="tile-grid">
-                  {tamanhos.map(t => (
-                    <div key={t.v}
-                      className={'tile' + (tamanho === t.v ? ' active' : '') + (t.rec ? ' recommended' : '')}
-                      onClick={() => setTamanho(t.v)}>
-                      <div className="tile-num">{t.v}</div>
-                      <div className="tile-name">{t.nome}</div>
-                      <div className="tile-time mono">{t.tempo}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-20">
-                  <div className="input-label">Nome do conjunto</div>
-                  <input className="input-text" type="text"
-                    value={nome} placeholder={nomeDefault}
-                    onChange={e => setNome(e.target.value)} />
-                </div>
-
-                <button className="btn btn-primary btn-block mt-32" onClick={montar}>
-                  ♞ Montar Conjunto
+                <button className="btn btn-primary btn-block" onClick={montar}>
+                  ♞ Montar conjunto
                 </button>
               </div>
             )}
@@ -1855,15 +1884,6 @@
             )}
           </div>
 
-          {!resultado && !montando && (
-            <div className="between mt-16">
-              <button className="btn btn-ghost" onClick={() => passo === 1 ? onCancelar() : setPasso(passo - 1)}
-                style={{ visibility: passo === 1 ? 'hidden' : 'visible' }}>← Voltar</button>
-              {passo < 3 && (
-                <button className="btn btn-primary" onClick={() => setPasso(passo + 1)}>Próximo →</button>
-              )}
-            </div>
-          )}
         </div>
       );
     }
