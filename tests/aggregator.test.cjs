@@ -173,3 +173,48 @@ test("Modo 2: C-dominante recebe priority alta, B-dominante média", () => {
   assert.equal(pin.priority, "alta");
   assert.equal(fork.priority, "média");
 });
+
+// === Clamp de rating no teto/piso do banco de puzzles ====================
+
+test("Clamp: rating > 2800 (GM topo) é clampado pra 2800", () => {
+  const ag = loadAggregator();
+  const profile = ag.aggregateTactical([]);
+  // Hikaru / Magnus tier
+  const p = ag.derivePuzzleProgram(profile, 3200);
+  assert.equal(p.suggested_rating, 2800);
+  assert.deepEqual(p.rating_range, [2700, 2800]);
+  assert.equal(p.original_rating, 3200, "original_rating preserva valor real");
+});
+
+test("Clamp: rating < 600 é clampado pra 600", () => {
+  const ag = loadAggregator();
+  const profile = ag.aggregateTactical([]);
+  const p = ag.derivePuzzleProgram(profile, 400);
+  assert.equal(p.suggested_rating, 600);
+  assert.deepEqual(p.rating_range, [600, 700]);
+  assert.equal(p.original_rating, 400);
+});
+
+test("Clamp: rating dentro da faixa não tem original_rating", () => {
+  const ag = loadAggregator();
+  const profile = ag.aggregateTactical([]);
+  const p = ag.derivePuzzleProgram(profile, 1500);
+  assert.equal(p.suggested_rating, 1500);
+  assert.deepEqual(p.rating_range, [1400, 1600]);
+  assert.equal(p.original_rating, null);
+});
+
+test("Clamp: aplica em Modo 1 e Modo 2 também", () => {
+  const ag = loadAggregator();
+  const profile = ag.aggregateTactical([
+    { game_index: 0, time_class: "rapid", loss_cp: 200, tactical_role: "C",
+      tactical_theme: "pin", tactical_themes: [{ theme: "pin", confidence: 0.9 }] },
+  ]);
+  const p1 = ag.derivePuzzleProgramModo1(profile, 3200);
+  assert.equal(p1.suggested_rating, 2800);
+  assert.equal(p1.original_rating, 3200);
+
+  const p2 = ag.derivePuzzleProgramModo2(profile, 3200);
+  assert.equal(p2.suggested_rating, 2800);
+  assert.equal(p2.original_rating, 3200);
+});

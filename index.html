@@ -2754,6 +2754,12 @@
               <div>
                 <div className="mono fs-10 ls-2 txt-muted">RATING SUGERIDO</div>
                 <div className="num-display num-lg">{programaView.suggested_rating}</div>
+                {programaView.original_rating && (
+                  <div className="mono fs-10 txt-muted mt-4">
+                    rating real {programaView.original_rating} ·{' '}
+                    {programaView.original_rating > programaView.suggested_rating ? 'topo' : 'piso'} do banco
+                  </div>
+                )}
               </div>
               <div>
                 <div className="mono fs-10 ls-2 txt-muted">FAIXA</div>
