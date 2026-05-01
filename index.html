@@ -3401,6 +3401,44 @@
     }
 
     /* === TELA ANALISAR JOGADOR (chess.com username → puzzle_program) === */
+    function CoberturaInline({ cobertura }) {
+      const c = cobertura.counts || {};
+      const nRB = (c.rapid || 0) + (c.blitz || 0);
+      const min = window.ChessAnalysis ? window.ChessAnalysis.MIN_RB_OK : 8;
+      const ideal = window.ChessAnalysis ? window.ChessAnalysis.MIN_RB_GOOD : 15;
+      let nivel, msg, cor;
+      if (nRB >= ideal) {
+        nivel = 'alta'; cor = 'var(--green)';
+        msg = 'Cobertura ideal — análise tática terá confiança alta.';
+      } else if (nRB >= min) {
+        nivel = 'média'; cor = 'var(--gold)';
+        msg = 'Cobertura suficiente — confiança média na detecção de fraquezas.';
+      } else if (nRB > 0 || (c.bullet || 0) > 0) {
+        nivel = 'baixa'; cor = 'var(--amber)';
+        msg = 'Pouca rapid/blitz nos últimos meses — resultado será indicativo.';
+      } else {
+        nivel = 'insuficiente'; cor = 'var(--red)';
+        msg = 'Sem partidas rapid/blitz/bullet nos últimos ' + cobertura.scanned + ' meses.';
+      }
+      const partes = ['rapid', 'blitz', 'bullet', 'daily']
+        .filter(k => (c[k] || 0) > 0)
+        .map(k => (c[k] || 0) + ' ' + k);
+      return (
+        <div className="card-soft" style={{
+          padding: '8px 10px', marginBottom: 12,
+          borderLeft: '3px solid ' + cor, lineHeight: 1.5
+        }}>
+          <div className="mono fs-11 txt-mid mb-4">
+            Últimos {cobertura.scanned} meses: <span className="bold" style={{ color: cor }}>
+              {cobertura.total} partidas elegíveis
+            </span>
+          </div>
+          <div className="mono fs-10 txt-muted mb-4">{partes.join(' · ') || '—'}</div>
+          <div className="mono fs-10" style={{ color: cor }}>{msg}</div>
+        </div>
+      );
+    }
+
     function BadgeConfianca({ level }) {
       const map = {
         alta:         { cor: 'var(--green)',   bg: 'var(--green-bg)',  txt: 'alta' },
@@ -3423,6 +3461,9 @@
       const [progresso, setProgresso] = useState({ stage: '', message: '', current: 0, total: 0 });
       const [erro, setErro] = useState(null);
       const [programa, setPrograma] = useState(null);
+      const [cobertura, setCobertura] = useState(null);
+      const [verificandoCob, setVerificandoCob] = useState(false);
+      const wakeLockRef = useRef(null);
 
       // Carregar último programa do IndexedDB ao abrir
       useEffect(() => {
@@ -3436,6 +3477,50 @@
         })();
       }, []);
 
+      // Liberar wake lock ao desmontar
+      useEffect(() => {
+        return () => {
+          if (wakeLockRef.current) {
+            try { wakeLockRef.current.release(); } catch (_) {}
+            wakeLockRef.current = null;
+          }
+        };
+      }, []);
+
+      async function pedirWakeLock() {
+        try {
+          if ('wakeLock' in navigator && !wakeLockRef.current) {
+            wakeLockRef.current = await navigator.wakeLock.request('screen');
+            wakeLockRef.current.addEventListener('release', () => {
+              wakeLockRef.current = null;
+            });
+          }
+        } catch (_) { /* sem permissão é ok */ }
+      }
+
+      async function liberarWakeLock() {
+        if (wakeLockRef.current) {
+          try { await wakeLockRef.current.release(); } catch (_) {}
+          wakeLockRef.current = null;
+        }
+      }
+
+      async function verificarCobertura() {
+        if (!username.trim()) { setErro('Informe um username'); return; }
+        if (!window.ChessAnalysis) return;
+        setErro(null);
+        setVerificandoCob(true);
+        setCobertura(null);
+        try {
+          const c = await window.ChessAnalysis.peekCoverage(username.trim(), 4);
+          setCobertura(c);
+        } catch (e) {
+          setErro(e.message || String(e));
+        } finally {
+          setVerificandoCob(false);
+        }
+      }
+
       async function iniciarAnalise() {
         if (!username.trim()) { setErro('Informe um username do chess.com'); return; }
         if (!window.ChessAnalysis) { setErro('Módulo de análise não carregou'); return; }
@@ -3444,6 +3529,7 @@
         setErro(null);
         setAnalisando(true);
         setProgresso({ stage: 'inicio', message: 'Iniciando...', current: 0, total: 0 });
+        await pedirWakeLock();
         try {
           const p = await window.ChessAnalysis.analyzePlayer(u, (info) => setProgresso(info));
           setPrograma(p);
@@ -3452,6 +3538,7 @@
           setErro(e.message || String(e));
         } finally {
           setAnalisando(false);
+          await liberarWakeLock();
         }
       }
 
@@ -3517,7 +3604,7 @@
               <div className="input-label">Username chess.com</div>
               <input type="text"
                 value={username}
-                onChange={e => setUsername(e.target.value)}
+                onChange={e => { setUsername(e.target.value); setCobertura(null); }}
                 placeholder="ex: hikaru"
                 disabled={analisando}
                 style={{
@@ -3526,14 +3613,26 @@
                   border: '1px solid var(--border)', borderRadius: 6,
                   fontFamily: 'Courier New, monospace', fontSize: 14, outline: 'none'
                 }} />
-              <button className="btn btn-primary btn-block"
-                onClick={iniciarAnalise}
-                disabled={analisando || !username.trim()}>
-                ⚙ Analisar minhas partidas
-              </button>
+              <div className="hstack gap-8 mb-12 flex-wrap">
+                <button className="btn btn-primary"
+                  onClick={iniciarAnalise}
+                  disabled={analisando || !username.trim()}
+                  style={{ flex: '1 1 220px' }}>
+                  ⚙ Analisar minhas partidas
+                </button>
+                <button className="btn btn-ghost btn-small"
+                  onClick={verificarCobertura}
+                  disabled={analisando || verificandoCob || !username.trim()}>
+                  {verificandoCob ? 'Verificando...' : '🔎 Ver cobertura'}
+                </button>
+              </div>
+              {cobertura && <CoberturaInline cobertura={cobertura} />}
               <div className="mono fs-10 txt-muted mt-12" style={{ lineHeight: 1.7 }}>
                 Stockfish roda no seu navegador (WASM). Análise leva 3–6 min para 30 partidas.
                 Resultado fica salvo localmente.
+                {('wakeLock' in (typeof navigator !== 'undefined' ? navigator : {}))
+                  ? ' Vamos manter a tela acesa enquanto durar.'
+                  : ' No mobile, mantenha a tela acesa.'}
               </div>
             </div>
           )}
@@ -3592,6 +3691,49 @@
                               : s === 'rating'    ? '📚 fundamento da faixa'
                               : s;
 
+      // Item 3: contar puzzles disponíveis por tema dentro do range sugerido
+      // (rating ± 200). Ajuda a validar se a recomendação tem material no
+      // banco; também avisa quando um tema vai vir com conjunto vazio.
+      const [contagens, setContagens] = useState({});
+      const [contando, setContando] = useState(false);
+      useEffect(() => {
+        let cancelado = false;
+        (async () => {
+          if (!programa || !programa.themes) return;
+          setContando(true);
+          try {
+            const r = programa.suggested_rating;
+            const variacao = 200;
+            const min = r - variacao, max = r + variacao;
+            const faixas = faixasNoIntervalo(min, max);
+            // Carrega faixas necessárias uma vez (cacheFaixas é global)
+            const todos = [];
+            for (const k of faixas) {
+              const cacheK = 'wp_count_' + k;
+              let lista = cacheFaixas[k];
+              if (!lista) {
+                lista = await buscarFaixa(k);
+              }
+              todos.push(...lista);
+              if (cancelado) return;
+            }
+            const out = {};
+            for (const t of programa.themes) {
+              if (out[t.theme] != null) continue;
+              const n = todos.reduce((acc, p) => {
+                if ((p.rating || 0) < min || (p.rating || 0) > max) return acc;
+                const ts = p.themes || p.temas || [];
+                return ts.includes(t.theme) ? acc + 1 : acc;
+              }, 0);
+              out[t.theme] = n;
+            }
+            if (!cancelado) setContagens(out);
+          } catch (_) { /* silencioso */ }
+          finally { if (!cancelado) setContando(false); }
+        })();
+        return () => { cancelado = true; };
+      }, [programa && programa.username, programa && programa.analyzed_at]);
+
       return (
         <div>
           <div className="card mb-12">
@@ -3647,10 +3789,19 @@
             </div>
           ) : (
             <div className="card mb-12">
-              <div className="serif bold fs-15 mb-12">Temas recomendados</div>
+              <div className="between mb-12">
+                <div className="serif bold fs-15">Temas recomendados</div>
+                {contando && <div className="mono fs-10 txt-muted">contando puzzles...</div>}
+              </div>
               <div className="vstack gap-10">
-                {temasOrdenados.map((t, i) => (
-                  <div key={t.theme + '-' + i} className="card-soft" style={{ padding: '10px 12px' }}>
+                {temasOrdenados.map((t, i) => {
+                  const n = contagens[t.theme];
+                  const semPuzzles = n != null && n === 0;
+                  return (
+                  <div key={t.theme + '-' + i} className="card-soft" style={{
+                    padding: '10px 12px',
+                    opacity: semPuzzles ? 0.55 : 1,
+                  }}>
                     <div className="between mb-4" style={{ flexWrap: 'wrap', gap: 8 }}>
                       <div>
                         <span className="serif bold fs-13">{TEMAS[t.theme] || t.label || t.theme}</span>
@@ -3661,12 +3812,28 @@
                           borderColor: t.priority === 'alta' ? 'var(--red)'    : 'var(--gold)',
                           marginLeft: 6, textTransform: 'uppercase', letterSpacing: 1
                         }}>{t.priority}</span>
+                        {n != null && (
+                          <span className="badge" style={{
+                            marginLeft: 6,
+                            background: semPuzzles ? 'var(--red-bg)' : 'var(--surface)',
+                            color:      semPuzzles ? 'var(--red)'    : 'var(--txt-mid)',
+                            borderColor: semPuzzles ? 'var(--red)'   : 'var(--border)',
+                          }}>
+                            {semPuzzles ? '⚠ 0 puzzles' : (n + ' puzzles')}
+                          </span>
+                        )}
                       </div>
-                      <button className="btn btn-small" onClick={() => onCriarComTema(t.theme)}>▶ Treinar</button>
+                      <button className="btn btn-small"
+                        onClick={() => onCriarComTema(t.theme)}
+                        disabled={semPuzzles}
+                        title={semPuzzles ? 'Sem puzzles disponíveis na faixa' : ''}>
+                        ▶ Treinar
+                      </button>
                     </div>
                     <div className="mono fs-10 txt-muted">{fonteLabel(t.source)}</div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
