@@ -79,6 +79,29 @@
     .mono { font-family: 'Courier New', Courier, monospace; }
     .serif { font-family: Georgia, 'Times New Roman', serif; }
 
+    /* Numerais tabulares — alinha colunas de números (ratings, tempos,
+       contagens) e desliga ligaduras. Aplicar via classe .num em
+       qualquer elemento que mostre número como dado, não como prosa. */
+    .num {
+      font-variant-numeric: tabular-nums lining-nums;
+      font-feature-settings: "tnum", "lnum";
+      font-family: 'Courier New', Courier, monospace;
+    }
+    /* Display de número em destaque (rating estimado, tempo do timer).
+       Aumenta peso, anti-serifa, reduz tracking — número vira protagonista. */
+    .num-display {
+      font-variant-numeric: tabular-nums lining-nums;
+      font-feature-settings: "tnum", "lnum";
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .num-xl  { font-size: 32px; }
+    .num-lg  { font-size: 24px; }
+    .num-md  { font-size: 18px; }
+    .num-sm  { font-size: 14px; }
+
     /* === LAYOUT === */
     .app-shell { display: flex; flex-direction: column; min-height: 100vh; }
     .header {
@@ -423,7 +446,10 @@
     .timer.red   { background: var(--red-bg);  border-color: var(--red-bdr); }
     .timer-value {
       font-family: 'Courier New', Courier, monospace;
+      font-variant-numeric: tabular-nums lining-nums;
+      font-feature-settings: "tnum", "lnum";
       font-size: 36px; font-weight: 700;
+      letter-spacing: -0.02em;
       color: var(--txt);
       line-height: 1;
     }
@@ -441,8 +467,12 @@
       margin: 14px 0 8px;
     }
     .timer-total {
+      font-family: 'Courier New', Courier, monospace;
+      font-variant-numeric: tabular-nums lining-nums;
+      font-feature-settings: "tnum", "lnum";
       font-size: 20px;
       font-weight: 700;
+      letter-spacing: -0.02em;
       color: var(--txt-mid);
       line-height: 1;
     }
@@ -1267,8 +1297,8 @@
               <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div className="mono fs-10 ls-2 txt-muted">SEU RATING ESTIMADO</div>
-                  <div className="serif bold fs-22 txt-primary">{unif.rating}</div>
-                  <div className="mono fs-11 txt-muted">faixa {unif.range[0]}–{unif.range[1]}</div>
+                  <div className="num-display num-xl txt-primary">{unif.rating}</div>
+                  <div className="num fs-11 txt-muted">faixa {unif.range[0]}–{unif.range[1]}</div>
                 </div>
                 <div className="vstack gap-2" style={{ textAlign: 'right' }}>
                   {unif.fontes.map((f, i) => (
@@ -1638,7 +1668,7 @@
                 <div className="center mono fs-11 txt-muted mb-20">Os puzzles serão selecionados próximos ao seu nível</div>
 
                 <div className="center mb-8">
-                  <div className="serif bold fs-26 txt-primary">{formatarNumero(rating)}</div>
+                  <div className="num-display num-xl txt-primary">{formatarNumero(rating)}</div>
                   <div className="mono fs-12 txt-mid">{nivelDoRating(rating)}</div>
                 </div>
                 <input className="slider mb-20" type="range" min="600" max="2800" step="50"
@@ -2255,7 +2285,7 @@
           {ehCalibracao && ratingSugerido !== null && (
             <div className="card mb-16" style={{ borderTop: '4px solid var(--primary)' }}>
               <div className="mono fs-10 ls-2 txt-muted mb-4">RATING SUGERIDO</div>
-              <div className="serif bold fs-26 txt-primary">{formatarNumero(ratingSugerido)}</div>
+              <div className="num-display num-xl txt-primary">{formatarNumero(ratingSugerido)}</div>
               <div className="mono fs-11 txt-mid mt-4">
                 Nível: {nivelDoRating(ratingSugerido)}
               </div>
@@ -3293,11 +3323,11 @@
             <div className="hstack gap-12 flex-wrap mb-8">
               <div>
                 <div className="mono fs-10 ls-2 txt-muted">RATING SUGERIDO</div>
-                <div className="serif bold fs-15">{programaView.suggested_rating}</div>
+                <div className="num-display num-lg">{programaView.suggested_rating}</div>
               </div>
               <div>
                 <div className="mono fs-10 ls-2 txt-muted">FAIXA</div>
-                <div className="serif fs-13">{rng[0]} – {rng[1]}</div>
+                <div className="num fs-13">{rng[0]} – {rng[1]}</div>
               </div>
               {programa.games_analyzed && (
                 <div>
