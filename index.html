@@ -25,6 +25,8 @@
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="src/hooks/useTimer.js"></script>
+  <script src="src/hooks/useKeyboardShortcuts.js"></script>
 
   <style>
     /* === TEMAS === */
@@ -691,6 +693,9 @@
     const { metricasAtividade, nivelDoRating } = window.WP.Ciclo;
     const { calcularRatingSugerido, ratingUnificado } = window.WP.Rating;
     const { puzzlesDevidoRevisao } = window.WP.SRS;
+
+    /* === HOOKS (src/hooks/) === */
+    const { useTimer, useTimerComPausa, useKeyboardShortcuts } = window.WP.Hooks;
 
     /* === CONFIG === */
     const CONFIG = {
@@ -1905,40 +1910,7 @@
     // Timer encapsulado: tickeia a cada 1s quando 'rodando' E NÃO 'pausado'.
     // Retorna [seg, reset]. Sem stale-closure: o setInterval usa o updater
     // funcional (s => s + 1), e o useEffect refaz quando rodando/pausado mudam.
-    function useTimerComPausa(rodando, pausado) {
-      const [seg, setSeg] = useState(0);
-      useEffect(() => {
-        if (!rodando || pausado) return;
-        const t = setInterval(() => setSeg(s => s + 1), 1000);
-        return () => clearInterval(t);
-      }, [rodando, pausado]);
-      const reset = useCallback(() => setSeg(0), []);
-      return [seg, reset];
-    }
-
-    // Atalhos de teclado globais. handler recebe o KeyboardEvent; o hook
-    // ignora eventos disparados de inputs/textareas pra não competir com
-    // digitação. deps controlam quando o handler é renovado — passe TODAS
-    // as variáveis de estado lidas dentro do handler pra evitar closures
-    // congeladas.
-    function useKeyboardShortcuts(handler, deps) {
-      useEffect(() => {
-        function onKey(e) {
-          if (e.target) {
-            const tag = e.target.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-          }
-          handler(e);
-        }
-        document.addEventListener('keydown', onKey);
-        return () => document.removeEventListener('keydown', onKey);
-      }, deps);
-    }
-
-    function useTimer(rodando) {
-      // alias compatível, caso fique algum chamador externo
-      return useTimerComPausa(rodando, false);
-    }
+    /* useTimer, useTimerComPausa, useKeyboardShortcuts: src/hooks/ */
 
     /* === TELA TREINAR (EXECUÇÃO DO CICLO) === */
     function TelaTreinar({ conjunto, ciclo, puzzles, sessao, ciclosAnteriores, onConcluir, onSalvarSessao, onSair }) {
