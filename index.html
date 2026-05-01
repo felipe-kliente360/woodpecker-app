@@ -258,6 +258,22 @@
       letter-spacing: 0.22em;
     }
 
+    /* === GRID DE TELA ===
+       Container central padronizado. Default 600px (TelaInicio, TelaCriar,
+       TelaAnalisarJogador, TelaConclusao, TelaSelecao). Variante .wide
+       720px para telas com mais conteúdo (TelaConjuntos, TelaEvolucao
+       com gráficos). Variante .narrow 460px para modais e error states. */
+    .tela-container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px 4px;
+    }
+    .tela-container.wide   { max-width: 720px; }
+    .tela-container.narrow { max-width: 460px; }
+    @media (max-width: 640px) {
+      .tela-container { padding: 16px 4px; }
+    }
+
     /* === COMPONENTES === */
     .card {
       background: var(--card);
@@ -1331,7 +1347,7 @@
       const sobrando = conjuntosOrdenados.length - conjuntosVisiveis.length;
 
       return (
-        <div style={{ maxWidth: 560, margin: '0 auto', padding: '32px 4px' }}>
+        <div className="tela-container">
           {unif && unif.fontes.length > 0 && (
             <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--primary)' }}>
               <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1632,7 +1648,7 @@
 
     function TelaConjuntos({ conjuntos, ciclos, onTreinar, onEvolucao, onExcluir, onAtualizar, onCriar }) {
       return (
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+        <div className="tela-container wide">
           <div className="between mb-16">
             <div className="serif bold fs-17">Meus Conjuntos</div>
             <button className="btn btn-small" onClick={onCriar}>+ Novo</button>
@@ -1727,7 +1743,7 @@
       ];
 
       return (
-        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+        <div className="tela-container">
           <div className="between mb-16">
             <div className="serif bold fs-17">Novo conjunto</div>
             {onCancelar && (
@@ -1941,7 +1957,7 @@
       }, [ult, cs]);
 
       return (
-        <div style={{ maxWidth: 520, margin: '0 auto' }}>
+        <div className="tela-container">
           <div className="card mb-12">
             <div className="serif bold fs-15 mb-4">{conjunto.nome}</div>
             <div className="mono fs-11 txt-muted">{cs.length} ciclos completados</div>
@@ -2045,7 +2061,7 @@
       if (!puzzle) return <div className="card center">Sem puzzles para treinar.</div>;
       if (erroPuzzle) {
         return (
-          <div className="card" style={{ maxWidth: 520, margin: '0 auto' }}>
+          <div className="tela-container card" style={{ padding: 22 }}>
             <div className="feedback-banner red" style={{ marginTop: 0 }}>
               <div className="feedback-title">⚠ Falha ao carregar puzzle</div>
               <div className="mono fs-12">{erroPuzzle}</div>
@@ -2362,7 +2378,7 @@
       const ratingSugerido = ehCalibracao ? calcularRatingSugerido(ciclo) : null;
 
       return (
-        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+        <div className="tela-container">
           <div className="center serif bold fs-22 mb-4">
             {ehCalibracao ? '🎯 Calibração Concluída!' : '🎉 Ciclo ' + ciclo.numero + ' Concluído!'}
           </div>
@@ -2767,7 +2783,7 @@
       else if (reducaoTempo > 10) status = { label: 'Regressão ↓', klass: 'badge red' };
 
       return (
-        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        <div className="tela-container wide">
           <div className="between mb-16">
             <div className="serif bold fs-17">📊 Evolução</div>
             {onVoltar && <button className="btn btn-small ghost" onClick={onVoltar}>← Voltar</button>}
@@ -2943,7 +2959,7 @@
     /* === COMPONENTE DE LOADING DE PUZZLES === */
     function LoadingPuzzles({ msg }) {
       return (
-        <div style={{ maxWidth: 460, margin: '40px auto' }} className="card center">
+        <div className="tela-container narrow card center" style={{ marginTop: 40 }}>
           <div className="serif bold fs-15 mb-12">Carregando puzzles...</div>
           <div className="progress-bar thin mb-12">
             <div className="progress-fill" style={{ width: '70%' }}></div>
@@ -3204,7 +3220,7 @@
       const labelBotao = ehAuto ? '⚙ Analisar minhas partidas' : '⚙ Analisar partidas do adversário';
 
       return (
-        <div style={{ maxWidth: 640, margin: '0 auto', padding: '24px 4px' }}>
+        <div className="tela-container">
           <div className="mb-16">
             <div className="serif bold fs-22 mb-4">{titulo}</div>
             <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.6 }}>
@@ -3864,7 +3880,7 @@
             <div className={'content-area' + (ocultarSidebar ? ' fullbleed' : '')}>
               {carregando && <LoadingPuzzles msg={carregandoMsg} />}
               {erroCarregar && (
-                <div className="feedback-banner red" style={{ maxWidth: 460, margin: '20px auto' }}>
+                <div className="feedback-banner red tela-container narrow" style={{ marginTop: 20, marginBottom: 20 }}>
                   <div className="feedback-title">⚠ {erroCarregar}</div>
                   <button className="btn btn-small ghost mt-12" onClick={() => setErroCarregar(null)}>Fechar</button>
                 </div>
