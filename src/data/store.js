@@ -22,9 +22,13 @@
   const SCHEMA_ATUAL = 1;
   const watchers = new Map();   // chave → Set<fn>
 
+  // Resolve localStorage via global (window em browser, sandbox em testes).
+  // Lazy: a chamada usa o global no momento, permitindo mock por teste.
+  function _ls() { return global.localStorage; }
+
   function _ler(chave) {
     try {
-      const raw = localStorage.getItem(chave);
+      const raw = _ls().getItem(chave);
       if (raw == null) return undefined;
       return JSON.parse(raw);
     } catch (_) { return undefined; }
@@ -32,7 +36,7 @@
 
   function _gravar(chave, valor) {
     try {
-      localStorage.setItem(chave, JSON.stringify(valor));
+      _ls().setItem(chave, JSON.stringify(valor));
       _notificar(chave, valor);
       return true;
     } catch (e) {
@@ -43,7 +47,7 @@
 
   function _remover(chave) {
     try {
-      localStorage.removeItem(chave);
+      _ls().removeItem(chave);
       _notificar(chave, undefined);
       return true;
     } catch (_) { return false; }
