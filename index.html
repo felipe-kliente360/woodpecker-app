@@ -28,6 +28,7 @@
   <script src="src/hooks/useTimer.js"></script>
   <script src="src/hooks/useKeyboardShortcuts.js"></script>
   <script src="src/hooks/useJogoPuzzle.js"></script>
+  <script type="text/babel" data-presets="env,react" src="src/ui/Promocao.jsx"></script>
 
   <style>
     /* === TEMAS === */
@@ -697,6 +698,9 @@
 
     /* === HOOKS (src/hooks/) === */
     const { useTimer, useTimerComPausa, useKeyboardShortcuts, useJogoPuzzle } = window.WP.Hooks;
+
+    /* === UI COMPONENTS extraídos (src/ui/*.jsx) === */
+    const Promocao = window.WP.UI.Promocao;
 
     /* === CONFIG === */
     const CONFIG = {
@@ -2172,48 +2176,11 @@
             )}
           </div>
 
-          {/* Overlay de promoção */}
-          {promoPicker && (
-            <div className="modal-overlay" onClick={cancelarPromocao}>
-              <div className="modal-card" onClick={e => e.stopPropagation()}
-                style={{ maxWidth: 320, padding: 24 }}>
-                <div className="serif bold fs-15 mb-4 center">Escolha a peça de promoção</div>
-                <div className="mono fs-11 txt-muted center mb-16">
-                  {promoPicker.from} → {promoPicker.to}
-                </div>
-                <div className="hstack gap-10" style={{ justifyContent: 'center' }}>
-                  {(() => {
-                    const branca = promoPicker.to[1] === '8';
-                    const pieces = [
-                      { ch: branca ? '♕' : '♛', code: 'q', nome: 'Dama' },
-                      { ch: branca ? '♖' : '♜', code: 'r', nome: 'Torre' },
-                      { ch: branca ? '♗' : '♝', code: 'b', nome: 'Bispo' },
-                      { ch: branca ? '♘' : '♞', code: 'n', nome: 'Cavalo' }
-                    ];
-                    return pieces.map(p => (
-                      <button key={p.code}
-                        onClick={() => escolherPromocao(p.code)}
-                        title={p.nome}
-                        style={{
-                          width: 56, height: 56,
-                          fontSize: 36, lineHeight: 1,
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 10,
-                          cursor: 'pointer',
-                          color: 'var(--txt)'
-                        }}>
-                        {p.ch}
-                      </button>
-                    ));
-                  })()}
-                </div>
-                <div className="center mt-16">
-                  <button className="btn btn-ghost" onClick={cancelarPromocao}>Cancelar</button>
-                </div>
-              </div>
-            </div>
-          )}
+          <Promocao
+            promoPicker={promoPicker}
+            onEscolher={escolherPromocao}
+            onCancelar={cancelarPromocao}
+          />
         </div>
       );
     }
