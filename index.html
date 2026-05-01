@@ -28,7 +28,9 @@
   <script src="src/hooks/useTimer.js"></script>
   <script src="src/hooks/useKeyboardShortcuts.js"></script>
   <script src="src/hooks/useJogoPuzzle.js"></script>
+  <script src="src/hooks/useCriarConjunto.js"></script>
   <script type="text/babel" data-presets="env,react" src="src/ui/Promocao.jsx"></script>
+  <script type="text/babel" data-presets="env,react" src="src/ui/HistoricoAnalises.jsx"></script>
 
   <style>
     /* === TEMAS === */
@@ -697,10 +699,14 @@
     const { puzzlesDevidoRevisao } = window.WP.SRS;
 
     /* === HOOKS (src/hooks/) === */
-    const { useTimer, useTimerComPausa, useKeyboardShortcuts, useJogoPuzzle } = window.WP.Hooks;
+    const {
+      useTimer, useTimerComPausa, useKeyboardShortcuts,
+      useJogoPuzzle, useCriarConjunto,
+    } = window.WP.Hooks;
 
     /* === UI COMPONENTS extraídos (src/ui/*.jsx) === */
     const Promocao = window.WP.UI.Promocao;
+    const HistoricoAnalises = window.WP.UI.HistoricoAnalises;
 
     /* === CONFIG === */
     const CONFIG = {
@@ -1568,51 +1574,14 @@
     }
 
     function TelaCriar({ onSalvarTreinar, onSalvar, onCancelar, preset }) {
-      const [passo, setPasso] = useState(preset ? 3 : 1); // se há preset, pula direto pro tamanho/nome
-      const [rating, setRating] = useState(preset && preset.rating ? preset.rating : 1200);
-      const [variacao, setVariacao] = useState(preset && preset.variacao ? preset.variacao : 200);
-      const [temas, setTemas] = useState(preset && preset.temas ? preset.temas : []);
-      const [tamanho, setTamanho] = useState(preset && preset.tamanho ? preset.tamanho : 1000);
-      const [nome, setNome] = useState(preset && preset.nome ? preset.nome : '');
-      const [montando, setMontando] = useState(false);
-      const [progresso, setProgresso] = useState('');
-      const [progPct, setProgPct] = useState(0);
-      const [pieceLit, setPieceLit] = useState(0);
-      const [resultado, setResultado] = useState(null);
-      const [erro, setErro] = useState(null);
-
-      const nomeDefault = useMemo(() => {
-        const lbl = temas.length === 0 ? 'Geral'
-          : (temas.length <= 2 ? temas.map(traduzirTema).join('+') : (temas.length + ' temas'));
-        return 'Conjunto ' + rating + ' · ' + lbl;
-      }, [rating, temas]);
-      const nomeFinal = nome.trim() || nomeDefault;
-
-      const toggleTema = (t) => {
-        setTemas(prev => prev.includes(t) ? prev.filter(x => x !== t) : prev.concat(t));
-      };
-
-      async function montar() {
-        setMontando(true);
-        setErro(null);
-        setProgPct(8);
-        setPieceLit(0);
-        const pieceTimer = setInterval(() => setPieceLit(p => Math.min(6, p + 1)), 600);
-        try {
-          const r = await montarConjunto(rating, variacao, temas, tamanho, (msg) => {
-            setProgresso(msg);
-            setProgPct(p => Math.min(95, p + 12));
-          });
-          setProgPct(100);
-          setResultado(r);
-        } catch (e) {
-          console.error(e);
-          setErro(e.message || String(e));
-        } finally {
-          clearInterval(pieceTimer);
-          setMontando(false);
-        }
-      }
+      const wz = useCriarConjunto({ preset: preset, montarFn: montarConjunto });
+      const {
+        passo, setPasso, rating, setRating, variacao, setVariacao,
+        temas, setTemas, toggleTema,
+        tamanho, setTamanho, nome, setNome, nomeDefault, nomeFinal,
+        montando, progresso, progPct, pieceLit, resultado, erro, setErro,
+        montar,
+      } = wz;
 
       function aceitarESalvar(treinar) {
         const novo = {
@@ -3137,67 +3106,7 @@
     }
 
     /* === HISTÓRICO DE ANÁLISES (timeline) === */
-    function HistoricoAnalises({ username, currentAnalyzedAt, formatarData }) {
-      const [historico, setHistorico] = useState([]);
-      const [aberto, setAberto] = useState(false);
-
-      useEffect(() => {
-        if (!username || !window.ChessAnalysis || !window.ChessAnalysis.listHistory) return;
-        let cancelado = false;
-        (async () => {
-          try {
-            const arr = await window.ChessAnalysis.listHistory(username);
-            if (!cancelado) setHistorico(arr || []);
-          } catch (_) {}
-        })();
-        return () => { cancelado = true; };
-      }, [username, currentAnalyzedAt]);
-
-      if (historico.length <= 1) return null;
-
-      // Pula a entrada que coincide com a análise atual (1ª) — já está no card de cima.
-      // Mostra deltas vs análise anterior na timeline.
-      return (
-        <div className="card-soft mb-12" style={{ padding: '10px 12px' }}>
-          <div className="between" style={{ cursor: 'pointer' }} onClick={() => setAberto(a => !a)}>
-            <div className="mono fs-11 ls-2 txt-mid">📜 HISTÓRICO ({historico.length} análises)</div>
-            <div className="mono fs-11 txt-muted">{aberto ? '▴' : '▾'}</div>
-          </div>
-          {aberto && (
-            <div className="vstack gap-8 mt-12">
-              {historico.map((h, i) => {
-                const prev = historico[i + 1];
-                const deltaR = prev ? (h.suggested_rating - prev.suggested_rating) : 0;
-                const temasH = (h.themes || []).slice(0, 3).map(t => TEMAS[t.theme] || t.theme).join(', ');
-                return (
-                  <div key={h.id || i} className="vstack gap-4" style={{
-                    borderLeft: i === 0 ? '3px solid var(--primary)' : '3px solid var(--border)',
-                    paddingLeft: 10
-                  }}>
-                    <div className="hstack gap-12 flex-wrap" style={{ alignItems: 'baseline' }}>
-                      <span className="mono fs-11 txt-mid">{formatarData(h.analyzed_at)}</span>
-                      <span className="serif bold fs-13">{h.suggested_rating}</span>
-                      {prev && deltaR !== 0 && (
-                        <span className="mono fs-11" style={{
-                          color: deltaR > 0 ? 'var(--green)' : 'var(--red)'
-                        }}>
-                          {deltaR > 0 ? '+' : ''}{deltaR}
-                        </span>
-                      )}
-                      <span className="mono fs-10 txt-muted">
-                        {h.tactical_confidence && h.tactical_confidence.level}
-                        {h.games_analyzed && ' · ' + h.games_analyzed + 'p'}
-                      </span>
-                    </div>
-                    <div className="mono fs-10 txt-muted">{temasH}</div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      );
-    }
+    /* HistoricoAnalises: src/ui/HistoricoAnalises.jsx */
 
     function ResultadoAnalise({ programa, onReanalisar, onCriarComTemas, onCriarComTema, formatarData }) {
       const conf = programa.tactical_confidence || {};
