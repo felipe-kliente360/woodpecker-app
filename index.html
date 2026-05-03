@@ -1229,6 +1229,8 @@
           rating, variacao,
           temas: temas.slice(),
           tamanho,
+          tipo: (preset && preset.tipo) || 'padrao',
+          username_referencia: (preset && preset.username_referencia) || null,
           puzzle_ids: resultado.puzzles.map(p => p.id || p.puzzleId),
           faixas_usadas: resultado.stats.faixas_usadas,
           range_efetivo: resultado.stats.range_efetivo
@@ -2039,7 +2041,12 @@
     }
 
     /* === TELA CONCLUSÃO === */
-    function TelaConclusao({ conjunto, ciclo, ciclosAnteriores, onProximoCiclo, onApenasErros, onEvolucao, onCriarComRating }) {
+    function TelaConclusao({ conjunto, ciclo, ciclosAnteriores, onProximoCiclo, onApenasErros, onEvolucao, onCriarComRating, onConcluirConjunto }) {
+      const Conjunto = window.WP.Conjunto;
+      // Verifica se o conjunto está pronto pra concluir DEPOIS deste
+      // ciclo (passa ciclo final junto, simulando lista atual).
+      const ciclosComEsse = ciclosAnteriores.concat([ciclo]);
+      const statusConcluir = Conjunto.prontoPraConcluir(conjunto, ciclosComEsse);
       const total = ciclo.total;
       const acertos = ciclo.acertos;
       const erros = ciclo.erros;
@@ -2264,6 +2271,32 @@
           <div className="card-soft mb-20" style={{ borderLeft: '4px solid ' + sugestao.cor }}>
             <div className="serif fs-13" style={{ lineHeight: 1.6 }}>{sugestao.texto}</div>
           </div>
+
+          {/* Banner de conclusão automática: aparece quando atingiu meta
+              de ciclos OU halving. Só pra tipo pessoal/adversario. */}
+          {statusConcluir.pronto && onConcluirConjunto && (
+            <div className="card mb-16" style={{
+              borderTop: '3px solid var(--green)',
+              background: 'var(--green-bg)',
+              borderColor: 'var(--green-bdr)',
+            }}>
+              <div className="mono fs-10 ls-2 txt-green mb-4">
+                {statusConcluir.motivo === 'halving' ? 'HALVING ATINGIDO' : 'META DE CICLOS ATINGIDA'}
+              </div>
+              <div className="serif bold fs-15 mb-8">
+                Pronto pra concluir este conjunto
+              </div>
+              <div className="serif fs-13 txt-mid mb-12" style={{ lineHeight: 1.55 }}>
+                {statusConcluir.motivo === 'halving'
+                  ? 'Tempo total caiu pra 50% ou menos do baseline. Conjunto cumpriu seu papel — você pode concluir agora ou continuar até o ciclo ' + (Conjunto.META_CICLOS[Conjunto.tipoDe(conjunto)] || '?') + '.'
+                  : 'Você completou ' + ciclosComEsse.length + ' ciclos deste conjunto. Marque como concluído e libere vaga pra um novo treino.'}
+              </div>
+              <button className="btn btn-primary btn-block"
+                onClick={() => onConcluirConjunto(conjunto.id)}>
+                ✓ Concluir conjunto
+              </button>
+            </div>
+          )}
 
           <div className="vstack gap-10">
             <button className="btn btn-primary btn-block" onClick={onProximoCiclo}>
@@ -3118,10 +3151,10 @@
       );
     }
 
-    function TelaAnalisarJogador({ onCriarComTemas, onRatingDescoberto }) {
+    function TelaAnalisarJogador({ onCriarComTemas, onRatingDescoberto, tipoInicial }) {
       // tipo='auto' → username do próprio jogador (Mode 3 default + toggle Mode 1)
       // tipo='adversario' → username de um oponente específico (Mode 2)
-      const [tipo, setTipo] = useState('auto');
+      const [tipo, setTipo] = useState(tipoInicial || 'auto');
       const [username, setUsername] = useState(() => Store.get(Chaves.ANALISE_USERNAME, ''));
       const [analisando, setAnalisando] = useState(false);
       const [progresso, setProgresso] = useState({ stage: '', message: '', current: 0, total: 0 });
@@ -3269,14 +3302,17 @@
         if (!p) return;
         const temas = (p.themes || []).map(t => t.theme).slice(0, 5);
         if (temas.length === 0) return;
-        const prefix = p.modo === 'adversario'   ? 'Vs ' + p.username + ' · pontos cegos'
+        const ehAdv = p.modo === 'adversario';
+        const prefix = ehAdv ? 'Vs ' + p.username + ' · pontos cegos'
                      : p.modo === 'chances-perdidas' ? 'Erros · ' + p.username
                      : 'Análise · ' + p.username;
         onCriarComTemas({
+          tipo:     ehAdv ? 'adversario' : 'pessoal',
+          username_referencia: p.username,
           rating:   p.suggested_rating,
           variacao: 200,
           temas:    temas,
-          tamanho:  300,
+          tamanho:  ehAdv ? 200 : 300,
           nome:     prefix,
         });
       }
@@ -3284,13 +3320,15 @@
       function abrirCriarComTema(tema, programaExibido) {
         const p = programaExibido || programa;
         if (!p) return;
-        const prefix = p.modo === 'adversario' ? 'Vs ' + p.username + ' · '
-                     : 'Foco · ';
+        const ehAdv = p.modo === 'adversario';
+        const prefix = ehAdv ? 'Vs ' + p.username + ' · ' : 'Foco · ';
         onCriarComTemas({
+          tipo:     ehAdv ? 'adversario' : 'pessoal',
+          username_referencia: p.username,
           rating:   p.suggested_rating,
           variacao: 200,
           temas:    [tema],
-          tamanho:  200,
+          tamanho:  ehAdv ? 100 : 200,
           nome:     prefix + (TEMAS[tema] || tema),
         });
       }
@@ -4083,6 +4121,9 @@
       const [showModalRetomar, setShowModalRetomar] = useState(() => !!Store.get(Chaves.SESSAO, null));
       const [evolucaoConjunto, setEvolucaoConjunto] = useState(null);
       const [presetCriar, setPresetCriar] = useState(null);
+      // Estado de qual tipo abrir TelaAnalisarJogador. Definido pelos
+      // CTAs da TelaInicio (Pessoal → 'auto', Adversário → 'adversario').
+      const [tipoAnalise, setTipoAnalise] = useState('auto');
 
       // Aplicar tema no <html>
       useEffect(() => {
@@ -4437,12 +4478,15 @@
                     setTela('criar');
                   }}
                   onCriarPessoal={() => {
-                    setPresetCriar({ tipo: 'pessoal', rating: ratingUsuario.valor });
-                    setTela('criar');
+                    // Pessoal usa o pipeline de análise — abre TelaAnalisar
+                    // em modo auto. O conjunto é gerado lá via 'Criar
+                    // conjunto com top temas' e marcado tipo='pessoal'.
+                    setTipoAnalise('auto');
+                    setTela('analisar');
                   }}
                   onCriarAdversario={() => {
-                    setPresetCriar({ tipo: 'adversario', rating: ratingUsuario.valor });
-                    setTela('criar');
+                    setTipoAnalise('adversario');
+                    setTela('analisar');
                   }}
                   onAposImport={() => {
                     setConjuntos(Store.get(Chaves.CONJUNTOS, []));
@@ -4506,6 +4550,10 @@
                     setPresetCriar({ rating, variacao: 200, temas: [], tamanho: 1000, nome: '' });
                     setTela('criar');
                   }}
+                  onConcluirConjunto={(id) => {
+                    concluirConjunto(id);
+                    setTela('conjuntos');
+                  }}
                 />
               )}
               {!carregando && tela === 'evolucao' && (
@@ -4528,6 +4576,7 @@
               )}
               {!carregando && tela === 'analisar' && (
                 <TelaAnalisarJogador
+                  tipoInicial={tipoAnalise}
                   onCriarComTemas={(preset) => {
                     setPresetCriar(preset);
                     setTela('criar');
