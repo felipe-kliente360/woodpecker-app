@@ -9,6 +9,18 @@ estimativa). Não é compromisso de entrega — é mapa estratégico.
 
 ## Anterior — entregue
 
+### Reestruturação: tipos de conjunto + rating como entidade
+
+| Item | Descrição | Commit |
+|---|---|---|
+| Domain `WP.Conjunto` | Tipos canônicos (padrão/pessoal/adversário), meta de ciclos por tipo, limite de 3 ativos, `prontoPraConcluir`, `concluir` | `011e6d7` |
+| Rating como entidade própria | `wp_rating_usuario` + fonte (calibragem/chesscom/manual) + data + chesscom username; sai do conjunto | `011e6d7` |
+| TelaInicio reorganizada | Sempre mostra 3 cards de criar (padrão/pessoal/adversário); status do rating no topo; modal de limite | `33b96ff` |
+| Roteamento por tipo | Pessoal → Modo 3 análise; Adversário → Modo 2; Padrão → criar direto | `0420ce7` |
+| Banner "pronto pra concluir" | TelaConclusao detecta meta ou halving e oferece concluir o conjunto | `0420ce7` |
+| TelaEvolucao 3 abas | Total · Por tipo · Individual (responde "qual tipo rendeu mais?") | `0f56c26` |
+| Tests `tests/conjunto.test.cjs` | 10 casos cobrindo tipoDe, conjuntosAtivos, podeCriarNovo, prontoPraConcluir (meta + halving), concluir imutável | `011e6d7` |
+
 ### Núcleo do método
 
 | Item | Descrição | Commit |
