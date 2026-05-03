@@ -31,6 +31,7 @@
   <script src="src/domain/ciclo.js"></script>
   <script src="src/domain/rating.js"></script>
   <script src="src/domain/srs.js"></script>
+  <script src="src/domain/resumoImagem.js"></script>
   <script src="lib/tactical-themes.js"></script>
   <script src="lib/tactical-aggregator.js"></script>
   <script src="lib/chess-analysis.js"></script>
@@ -710,8 +711,44 @@
       const conjuntosVisiveis = conjuntosOrdenados.slice(0, 4);
       const sobrando = conjuntosOrdenados.length - conjuntosVisiveis.length;
 
+      // Onboarding nudges progressivo: baseado em quantos conjuntos e
+      // ciclos o usuário já tem. Cada passo só aparece quando aplicável,
+      // some sozinho ao avançar.
+      const totalCiclos = ciclos.length;
+      const nudge = useMemo(() => {
+        if (!temConjuntos) return null; // empty state já tem 3-card chooser
+        if (totalCiclos === 0) {
+          return {
+            titulo: 'Próximo passo: Ciclo 1',
+            texto: 'Você criou um conjunto. Inicie o Ciclo 1 — esse vira seu baseline. Cada ciclo seguinte é mais rápido que o anterior.',
+          };
+        }
+        if (totalCiclos === 1) {
+          return {
+            titulo: 'Próximo passo: Ciclo 2',
+            texto: 'Volte amanhã ou hoje pra fazer o Ciclo 2 do mesmo conjunto. O método pede repetição — mesmas posições, mais rápido.',
+          };
+        }
+        if (totalCiclos < 5) {
+          return {
+            titulo: 'Continue até o Ciclo 5+',
+            texto: 'A diferença real do método aparece em ciclos 5-7. Você está em ' + totalCiclos + '. O alvo é o halving: tempo total = 50% do Ciclo 1.',
+          };
+        }
+        return null;
+      }, [temConjuntos, totalCiclos]);
+
       return (
         <div className="tela-container">
+          {nudge && (
+            <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--gold)' }}>
+              <div className="mono fs-10 ls-2 txt-muted mb-4">{nudge.titulo.toUpperCase()}</div>
+              <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.55 }}>
+                {nudge.texto}
+              </div>
+            </div>
+          )}
+
           {unif && unif.fontes.length > 0 && (
             <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--primary)' }}>
               <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -2137,6 +2174,22 @@
             )}
             <button className="btn btn-ghost btn-block" onClick={onEvolucao}>
               📊 Ver Evolução Completa
+            </button>
+            <button className="btn btn-ghost btn-block" onClick={() => {
+              if (!window.WP || !window.WP.ResumoImagem) return;
+              const fname = 'woodpecker-' + (conjunto.nome || 'ciclo')
+                .replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-c' + ciclo.numero + '.png';
+              window.WP.ResumoImagem.baixarResumo({
+                conjuntoNome: conjunto.nome,
+                numero: ciclo.numero,
+                tempoTotal: ciclo.tempo_total_s,
+                acertos: acertos,
+                total: total,
+                razaoBaseline: baseline ? razaoBaseline : null,
+                data: dataLabel,
+              }, fname);
+            }}>
+              🖼 Compartilhar PNG
             </button>
           </div>
         </div>
@@ -3598,6 +3651,24 @@
         setTema(t => t === 'escuro' ? 'claro' : 'escuro');
       }
 
+      // Atalhos rápidos de navegação (1-5 → telas, ? → help, Esc fecha).
+      // Vim-style minimalista: app não tem listas profundas o suficiente
+      // pra justificar h/j/k/l puro.
+      const [mostraHelp, setMostraHelp] = useState(false);
+      useKeyboardShortcuts((e) => {
+        // Não captura quando usuário está em input/textarea (já protegido
+        // pelo useKeyboardShortcuts) nem quando está treinando (TelaTreinar
+        // tem seus próprios atalhos que precisam preferência).
+        if (tela === 'treinar') return;
+        if (e.key === '?') { e.preventDefault(); setMostraHelp(h => !h); return; }
+        if (e.key === 'Escape' && mostraHelp) { e.preventDefault(); setMostraHelp(false); return; }
+        if (e.key === '1') { e.preventDefault(); setTela('inicio'); }
+        else if (e.key === '2') { e.preventDefault(); setTela('conjuntos'); }
+        else if (e.key === '3') { e.preventDefault(); setTela('criar'); }
+        else if (e.key === '4') { e.preventDefault(); setTela('analisar'); }
+        else if (e.key === '5') { e.preventDefault(); setTela('evolucao'); }
+      }, [tela, mostraHelp]);
+
       // Companion áudio: opt-in. Persistido em Chaves.AUDIO_ON.
       const [audioOn, setAudioOn] = useState(() => Store.get(Chaves.AUDIO_ON, false));
       useEffect(() => { Store.set(Chaves.AUDIO_ON, audioOn); }, [audioOn]);
@@ -3980,6 +4051,56 @@
           </div>
 
           <Footer />
+
+          {mostraHelp && (
+            <div className="modal-overlay" onClick={() => setMostraHelp(false)}>
+              <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+                <div className="serif bold fs-17 mb-12">Atalhos de teclado</div>
+                <div className="vstack gap-6">
+                  {[
+                    ['1', 'Início'],
+                    ['2', 'Meus Conjuntos'],
+                    ['3', 'Criar Conjunto'],
+                    ['4', 'Analisar Jogador'],
+                    ['5', 'Evolução'],
+                    ['?', 'Mostrar/esconder esta ajuda'],
+                    ['Esc', 'Fechar overlays'],
+                  ].map(([k, label]) => (
+                    <div key={k} className="hstack gap-12">
+                      <kbd className="num" style={{
+                        background: 'var(--surface)', border: '1px solid var(--border)',
+                        borderRadius: 4, padding: '2px 8px', minWidth: 32, textAlign: 'center',
+                        fontSize: 12,
+                      }}>{k}</kbd>
+                      <span className="serif fs-13">{label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="serif bold fs-13 mt-16 mb-8">No treino</div>
+                <div className="vstack gap-6">
+                  {[
+                    ['Espaço', 'Pular puzzle'],
+                    ['P', 'Pausar/retomar'],
+                    ['Enter / →', 'Próximo puzzle (após feedback)'],
+                    ['Esc', 'Cancelar lance pendente'],
+                  ].map(([k, label]) => (
+                    <div key={k} className="hstack gap-12">
+                      <kbd className="num" style={{
+                        background: 'var(--surface)', border: '1px solid var(--border)',
+                        borderRadius: 4, padding: '2px 8px', minWidth: 32, textAlign: 'center',
+                        fontSize: 12,
+                      }}>{k}</kbd>
+                      <span className="serif fs-13">{label}</span>
+                    </div>
+                  ))}
+                </div>
+                <button className="btn btn-ghost btn-block mt-16"
+                  onClick={() => setMostraHelp(false)}>
+                  Fechar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
