@@ -2692,7 +2692,172 @@
       );
     }
 
+    // Aba "Total": agregado de TODOS os conjuntos e ciclos (ativos +
+    // concluídos). Mostra volume, taxa, tempo, conjuntos e top temas
+    // de erro cross-conjunto.
+    function AbaTotal({ conjuntos, ciclos }) {
+      const dados = useMemo(() => {
+        const totalCiclos = ciclos.length;
+        const totalPuzzles = ciclos.reduce((s, c) => s + ((c.resultados || []).length), 0);
+        const acertos = ciclos.reduce((s, c) => s + ((c.resultados || []).filter(r => r.correto).length), 0);
+        const tempoTotal = ciclos.reduce((s, c) => s + (c.tempo_total_s || 0), 0);
+        const taxaAcerto = totalPuzzles > 0 ? Math.round((acertos / totalPuzzles) * 100) : 0;
+        const idsUnicos = new Set();
+        for (const c of ciclos) for (const r of (c.resultados || [])) idsUnicos.add(r.puzzle_id);
+        const dist = {};
+        for (const c of ciclos) {
+          for (const r of (c.resultados || [])) {
+            if (!r.correto && r.temas) {
+              for (const t of r.temas) dist[t] = (dist[t] || 0) + 1;
+            }
+          }
+        }
+        const topErros = Object.entries(dist).sort((a,b)=>b[1]-a[1]).slice(0, 5);
+        return {
+          totalCiclos: totalCiclos, totalPuzzles: totalPuzzles, tempoTotal: tempoTotal,
+          taxaAcerto: taxaAcerto, puzzlesUnicos: idsUnicos.size, topErros: topErros,
+          conjuntosAtivos: conjuntos.filter(c => !c.concluido).length,
+          conjuntosConcluidos: conjuntos.filter(c => !!c.concluido).length,
+        };
+      }, [conjuntos, ciclos]);
+
+      if (dados.totalCiclos === 0) {
+        return (
+          <div className="card center">
+            <div className="serif fs-13 txt-muted">Nenhum ciclo completado ainda.</div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="vstack gap-14">
+          <div className="card">
+            <div className="metric-grid">
+              <div className="metric-card">
+                <div className="metric-label">CICLOS TOTAIS</div>
+                <div className="metric-value num">{dados.totalCiclos}</div>
+              </div>
+              <div className="metric-card green">
+                <div className="metric-label">PUZZLES RESOLVIDOS</div>
+                <div className="metric-value num">{formatarNumero(dados.totalPuzzles)}</div>
+              </div>
+              <div className="metric-card slate">
+                <div className="metric-label">PUZZLES ÚNICOS</div>
+                <div className="metric-value num">{formatarNumero(dados.puzzlesUnicos)}</div>
+              </div>
+              <div className="metric-card gold">
+                <div className="metric-label">TAXA AGREGADA</div>
+                <div className="metric-value num">{dados.taxaAcerto}%</div>
+              </div>
+            </div>
+            <div className="mono fs-11 txt-muted mt-12">
+              Tempo total · <span className="num bold">{formatarTempoLongo(dados.tempoTotal)}</span>
+              {' · '}Conjuntos · <span className="num bold">{dados.conjuntosAtivos}</span> ativos,
+              {' '}<span className="num bold">{dados.conjuntosConcluidos}</span> concluídos
+            </div>
+          </div>
+
+          {dados.topErros.length > 0 && (
+            <div className="card">
+              <div className="serif bold fs-13 mb-8">⚠ Temas críticos (todos os conjuntos)</div>
+              <div className="vstack gap-6">
+                {dados.topErros.map(([tema, n]) => (
+                  <div key={tema} className="hstack gap-8" style={{
+                    padding: '6px 10px', background: 'var(--surface)',
+                    border: '1px solid var(--border)', borderRadius: 6,
+                  }}>
+                    <span className="serif fs-12">{traduzirTema(tema)}</span>
+                    <span className="mono fs-11 txt-muted" style={{ marginLeft: 'auto' }}>{n} erros</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Aba "Por tipo": agrupa conjuntos pelos 3 tipos canônicos (padrão,
+    // pessoal, adversário). Mostra volume e taxa de acerto separados por
+    // tipo, pra responder "qual tipo de treino mais rendeu pra mim?".
+    function AbaPorTipo({ conjuntos, ciclos }) {
+      const Conjunto = window.WP.Conjunto;
+      const tipos = ['padrao', 'pessoal', 'adversario'];
+
+      const porTipo = useMemo(() => {
+        const out = {};
+        for (const t of tipos) {
+          out[t] = { ativos: [], concluidos: [], ciclos: [], puzzles: 0, acertos: 0, tempoTotal: 0 };
+        }
+        for (const c of conjuntos) {
+          const t = Conjunto.tipoDe(c);
+          if (!out[t]) continue;
+          if (c.concluido) out[t].concluidos.push(c);
+          else out[t].ativos.push(c);
+        }
+        for (const cic of ciclos) {
+          const c = conjuntos.find(x => x.id === cic.conjunto_id);
+          if (!c) continue;
+          const t = Conjunto.tipoDe(c);
+          if (!out[t]) continue;
+          out[t].ciclos.push(cic);
+          const res = cic.resultados || [];
+          out[t].puzzles += res.length;
+          out[t].acertos += res.filter(r => r.correto).length;
+          out[t].tempoTotal += cic.tempo_total_s || 0;
+        }
+        return out;
+      }, [conjuntos, ciclos]);
+
+      return (
+        <div className="vstack gap-14">
+          {tipos.map(t => {
+            const d = porTipo[t];
+            const taxa = d.puzzles ? Math.round((d.acertos / d.puzzles) * 100) : 0;
+            return (
+              <div key={t} className="card">
+                <div className="hstack gap-8 mb-12" style={{ alignItems: 'center' }}>
+                  <span className="fs-22">{Conjunto.ICONES_TIPOS[t]}</span>
+                  <span className="serif bold fs-15">{Conjunto.NOMES_TIPOS[t]}</span>
+                  <span className="mono fs-11 txt-muted" style={{ marginLeft: 'auto' }}>
+                    {d.ativos.length} ativo{d.ativos.length !== 1 ? 's' : ''}
+                    {' · '}{d.concluidos.length} concluído{d.concluidos.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {d.ciclos.length === 0 ? (
+                  <div className="serif fs-12 txt-muted">Sem ciclos completados deste tipo.</div>
+                ) : (
+                  <div className="metric-grid">
+                    <div className="metric-card">
+                      <div className="metric-label">CICLOS</div>
+                      <div className="metric-value num">{d.ciclos.length}</div>
+                    </div>
+                    <div className="metric-card green">
+                      <div className="metric-label">TAXA</div>
+                      <div className="metric-value num">{taxa}%</div>
+                    </div>
+                    <div className="metric-card slate">
+                      <div className="metric-label">PUZZLES</div>
+                      <div className="metric-value num">{formatarNumero(d.puzzles)}</div>
+                    </div>
+                    <div className="metric-card gold">
+                      <div className="metric-label">TEMPO TOTAL</div>
+                      <div className="metric-value num" style={{ fontSize: 14 }}>{formatarTempoLongo(d.tempoTotal)}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
     function TelaEvolucao({ conjuntos, ciclos, conjuntoInicial, onVoltar, onCriarFocado }) {
+      // Default 'individual' quando vem de conjunto específico (clicar
+      // em "ver evolução" do banner do TelaInicio); 'total' quando entra
+      // pela TelaInicio sem contexto.
+      const [aba, setAba] = useState(conjuntoInicial ? 'individual' : 'total');
       const [conjuntoId, setConjuntoId] = useState(
         conjuntoInicial ? conjuntoInicial.id : (conjuntos[0] && conjuntos[0].id) || null
       );
@@ -2890,6 +3055,20 @@
             </div>
           ) : (
             <div>
+              {/* Abas: Total · Por tipo · Individual */}
+              <div className="center mb-16">
+                <div className="segmented">
+                  <button className={aba === 'total' ? 'active' : ''} onClick={() => setAba('total')}>TOTAL</button>
+                  <button className={aba === 'por-tipo' ? 'active' : ''} onClick={() => setAba('por-tipo')}>POR TIPO</button>
+                  <button className={aba === 'individual' ? 'active' : ''} onClick={() => setAba('individual')}>INDIVIDUAL</button>
+                </div>
+              </div>
+
+              {aba === 'total' && <AbaTotal conjuntos={conjuntos} ciclos={ciclos} />}
+              {aba === 'por-tipo' && <AbaPorTipo conjuntos={conjuntos} ciclos={ciclos} />}
+
+              {aba === 'individual' && (
+                <div>
               {conjuntos.length > 1 && (
                 <div className="card-soft mb-16">
                   <div className="input-label">CONJUNTO</div>
@@ -2900,7 +3079,7 @@
                       padding: '8px 10px', fontFamily: "'Courier New', monospace", fontSize: 13
                     }}>
                     {conjuntos.map(c => (
-                      <option key={c.id} value={c.id}>{c.nome}</option>
+                      <option key={c.id} value={c.id}>{c.nome}{c.concluido ? ' (concluído)' : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -3046,6 +3225,8 @@
                       <span className={status.klass}>{status.label}</span>
                     </div>
                   </div>
+                </div>
+              )}
                 </div>
               )}
             </div>
