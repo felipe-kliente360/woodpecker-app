@@ -31,6 +31,7 @@
   <script src="src/domain/ciclo.js"></script>
   <script src="src/domain/rating.js"></script>
   <script src="src/domain/srs.js"></script>
+  <script src="src/domain/conjunto.js"></script>
   <script src="src/domain/resumoImagem.js"></script>
   <script src="lib/tactical-themes.js"></script>
   <script src="lib/tactical-aggregator.js"></script>
@@ -3017,7 +3018,7 @@
       );
     }
 
-    function TelaAnalisarJogador({ onCriarComTemas }) {
+    function TelaAnalisarJogador({ onCriarComTemas, onRatingDescoberto }) {
       // tipo='auto' → username do próprio jogador (Mode 3 default + toggle Mode 1)
       // tipo='adversario' → username de um oponente específico (Mode 2)
       const [tipo, setTipo] = useState('auto');
@@ -3137,6 +3138,11 @@
         try {
           const p = await window.ChessAnalysis.analyzePlayer(u, onProg);
           setPrograma(p);
+          // Análise auto descobre rating real do jogador. Persistir como
+          // rating-do-usuário (fonte 'chesscom') só quando ehAuto.
+          if (ehAuto && p && p.suggested_rating && onRatingDescoberto) {
+            onRatingDescoberto(p.suggested_rating, 'chesscom', u);
+          }
         } catch (e) {
           console.error(e);
           setErro(e.message || String(e));
@@ -3941,6 +3947,32 @@
       const [tela, setTela] = useState('inicio');
       const [conjuntos, setConjuntos] = useState(() => Store.get(Chaves.CONJUNTOS, []));
       const [ciclos, setCiclos] = useState(() => Store.get(Chaves.CICLOS, []));
+
+      // Rating do usuário como entidade. Definido via calibragem, import
+      // chess.com ou manual. Usado por TelaCriar (faixa de puzzles) e
+      // por toda inferência de rating-related.
+      const [ratingUsuario, setRatingUsuarioState] = useState(() => ({
+        valor:    Store.get(Chaves.RATING_USUARIO, null),
+        fonte:    Store.get(Chaves.RATING_FONTE, null),
+        data:     Store.get(Chaves.RATING_DATA, null),
+        chesscom: Store.get(Chaves.RATING_CHESSCOM_USERNAME, null),
+      }));
+      function setRatingUsuario(valor, fonte, chesscomUser) {
+        const v = parseInt(valor, 10);
+        if (!v || isNaN(v)) return;
+        const novo = {
+          valor:    v,
+          fonte:    fonte || 'manual',
+          data:     Date.now(),
+          chesscom: chesscomUser || ratingUsuario.chesscom,
+        };
+        setRatingUsuarioState(novo);
+        Store.set(Chaves.RATING_USUARIO, novo.valor);
+        Store.set(Chaves.RATING_FONTE, novo.fonte);
+        Store.set(Chaves.RATING_DATA, novo.data);
+        if (novo.chesscom) Store.set(Chaves.RATING_CHESSCOM_USERNAME, novo.chesscom);
+      }
+
       const [conjuntoAtivo, setConjuntoAtivo] = useState(null);
       const [cicloAtual, setCicloAtual] = useState(null);
       const [puzzlesAtivos, setPuzzlesAtivos] = useState(null);
@@ -4150,6 +4182,15 @@
         setCicloAtual(cicloFinal);
         limparSessao();
         setTela('conclusao');
+
+        // Conjunto de calibragem: ao concluir, gravar rating do usuário
+        // automaticamente — fonte 'calibragem'. Substitui valores
+        // anteriores (assume calibragem mais recente é a verdade).
+        if (cicloAtual && cicloAtual.calibracao) {
+          const r = calcularRatingSugerido(cicloFinal);
+          if (r != null) setRatingUsuario(r, 'calibragem', null);
+        }
+
         // Auto-backup opcional: dispara download do JSON após o ciclo ser persistido.
         // Aguarda o useEffect de setCiclos gravar no localStorage antes de gerar o blob.
         if (Store.get(Chaves.AUTO_BACKUP, false)) {
@@ -4366,6 +4407,7 @@
                     setPresetCriar(preset);
                     setTela('criar');
                   }}
+                  onRatingDescoberto={setRatingUsuario}
                 />
               )}
               {!carregando && tela === 'flash' && (
