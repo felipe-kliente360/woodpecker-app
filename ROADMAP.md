@@ -9,6 +9,15 @@ estimativa). Não é compromisso de entrega — é mapa estratégico.
 
 ## Anterior — entregue
 
+### Onda recente: pressão + análise + experimentos
+
+| Item | Descrição | Commit |
+|---|---|---|
+| Modo 2 v2 — janela estendida | `annotateLossAndRole` varre i+1, i+3, i+5 buscando theme; captura sacrifícios preparatórios | `5eebdc8` |
+| Pace Coach | Indicador ao vivo "+12s vs C1" abaixo do timer (per-puzzle, não acumulado) | `5eebdc8` |
+| Bloco-de-N | Cadência 25/50/100 configurável; 25 = micro-cerimônia, 50/100 = reflexão escrita | `5eebdc8` |
+| Visão por dica | Após 3 erros históricos, sussurro "👁 olhe pra peça em e5" abaixo do board | `5eebdc8` |
+
 ### Reestruturação: tipos de conjunto + rating como entidade
 
 | Item | Descrição | Commit |
@@ -145,7 +154,6 @@ estimativa). Não é compromisso de entrega — é mapa estratégico.
 
 | Item | Descrição | Estimativa |
 |---|---|---|
-| Modo 2 v2 — janela estendida | Inspeciona PV 2-3 plies à frente; captura sacrifícios preparatórios | ~2h |
 | Briefing pré-jogo | Modo 2 simplificado, 30s, mental note ("ele cai em garfos · cavalo central") | ~3h |
 | Pós-mortem pareado | Link de partida específica; análise dual (eu perdi + ele expôs) | ~4h |
 | Histórico cabeça-a-cabeça | Evolução das fraquezas do oponente entre análises (usa `analysis_history`) | ~3h |
@@ -155,17 +163,14 @@ estimativa). Não é compromisso de entrega — é mapa estratégico.
 
 | Item | Descrição | Estimativa |
 |---|---|---|
-| Pace Coach | Indicador ao vivo "+12s vs Ciclo 1" no timer durante o puzzle | ~2h |
 | Speedrun Mode | Fullscreen, board e timer gigantes, sem sidebar; Esc dupla | ~3h |
 | No-pause Mode | Sem pause até completar bloco; desistência formal com penalidade | ~2h |
-| Bloco-de-25 | Ciclos divididos em blocos de 25/50/100 com micro-cerimônia | ~3h |
 
 ### Eixo 6 — Experimentos restantes
 
 | Item | Descrição | Estimativa |
 |---|---|---|
 | "Aposte em si mesmo" | Estima tempo total antes do ciclo; compara depois | ~2h |
-| Visão por dica | Após 3 erros no mesmo puzzle, app sussurra "olhe pra peça em e5" | ~3h |
 | Reverse mode | Começa pela posição final, volta um lance; treina visão final | ~5h |
 | Blindfold mode | Posição vista por N seg, depois só notação textual + lista de peças | ~6h |
 
@@ -175,9 +180,9 @@ estimativa). Não é compromisso de entrega — é mapa estratégico.
 
 | Onda | Conteúdo | Total |
 |---|---|---|
-| A — Pressão Woodpecker | Pace Coach + Speedrun + No-pause + Bloco-25 | ~7-10h |
-| B — Derivações Modo 2 | v2 janela + briefing + H2H + pós-mortem | ~8-10h |
-| C — Experimentos | Aposte em si + Visão por dica + Reverse + Blindfold (escolher) | varia |
+| A — Pressão restante | Speedrun + No-pause | ~5h |
+| B — Derivações Modo 2 | Briefing + H2H + pós-mortem | ~10h |
+| C — Experimentos | Aposte em si + Reverse + Blindfold (escolher) | varia |
 | D — Long-running | Rivalry mode | ~4-6h |
 
 ---
