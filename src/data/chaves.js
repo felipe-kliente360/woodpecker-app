@@ -15,6 +15,8 @@
     SCHEMA_VERSION:   "wp_schema_version",
     MODO_MONGE:       "wp_modo_monge",
     AUDIO_ON:         "wp_audio_on",
+    // Tamanho do bloco da pausa-cerimônia: 25, 50 ou 100. Default 50.
+    BLOCO_TAMANHO:    "wp_bloco_tamanho",
     // Rating do usuário como entidade própria (não atributo do conjunto).
     // Definido via 1 dos 3 caminhos: calibragem, import chess.com, manual.
     RATING_USUARIO:           "wp_rating_usuario",

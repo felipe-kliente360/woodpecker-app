@@ -28,6 +28,7 @@
     const Hooks  = (global.WP && global.WP.Hooks)  || {};
     const useTimerComPausa  = Hooks.useTimerComPausa;
     const useKeyboardShortcuts = Hooks.useKeyboardShortcuts;
+    const useMemo = React.useMemo;
 
     const [idx, setIdx] = useState(sessao ? sessao.index_atual : 0);
     const [resultados, setResultados] = useState(sessao ? (sessao.resultados_parciais || []) : []);
@@ -72,6 +73,40 @@
     const ritmoVsBaseline = tempoBaselineAteAqui !== null
       ? tempoAcumulado - tempoBaselineAteAqui
       : null;
+
+    // Pace Coach: tempo gasto em CADA puzzle no Ciclo 1 (baseline).
+    // Mostra ao vivo "+12s vs C1" quando seg ultrapassa baseline puzzle
+    // atual. Diferente de ritmoVsBaseline (que é acumulado de ciclo
+    // inteiro): este compara só o puzzle em jogo, ajuda a sentir quando
+    // estagnou em uma posição que antes era resolvida rápido.
+    const tempoBaselinePuzzleAtual = (baselineCiclo && baselineCiclo.resultados && baselineCiclo.resultados[idx])
+      ? (baselineCiclo.resultados[idx].tempo_s || 0)
+      : null;
+    const paceVsPuzzleBaseline = (tempoBaselinePuzzleAtual !== null && estado === "jogando")
+      ? seg - tempoBaselinePuzzleAtual
+      : null;
+
+    // Visão por dica: depois de 3 erros históricos no mesmo puzzle
+    // (somando todos os ciclos anteriores), expõe a casa-fonte do lance
+    // correto (puzzle.lances[1] = primeira resposta esperada do jogador).
+    // É um sussurro, não a solução — direciona o olhar sem revelar a peça
+    // alvo nem a continuação.
+    const dicaVisao = useMemo(() => {
+      const p = puzzles && puzzles[idx];
+      if (!p || !ciclosAnteriores || ciclosAnteriores.length === 0) return null;
+      const id = p.id || p.puzzleId;
+      let n = 0;
+      for (const c of ciclosAnteriores) {
+        for (const r of (c.resultados || [])) {
+          if ((r.puzzle_id === id) && !r.correto) n += 1;
+        }
+      }
+      if (n < 3) return null;
+      const lances = p.lances || p.moves || [];
+      const resp = lances[1];
+      if (!resp || resp.length < 4) return null;
+      return { casa: resp.slice(0, 2), erros: n };
+    }, [puzzles, idx, ciclosAnteriores]);
 
     // Inicia/recarrega cada puzzle
     useEffect(() => {
@@ -377,6 +412,9 @@
       restantes: restantes,
       tempoAcumulado: tempoAcumulado,
       ritmoVsBaseline: ritmoVsBaseline,
+      paceVsPuzzleBaseline: paceVsPuzzleBaseline,
+      tempoBaselinePuzzleAtual: tempoBaselinePuzzleAtual,
+      dicaVisao: dicaVisao,
       // Estado de jogo
       estado: estado,
       feedback: feedback,

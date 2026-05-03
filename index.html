@@ -546,11 +546,13 @@
     /* === SEÇÃO BACKUP / IMPORTAÇÃO === */
     function SecaoBackup({ onAposImport }) {
       const [autoBackup, setAutoBackup] = useState(() => Store.get(Chaves.AUTO_BACKUP, false));
+      const [bloco, setBloco] = useState(() => Store.get(Chaves.BLOCO_TAMANHO, 50));
       const [erro, setErro] = useState(null);
       const [aviso, setAviso] = useState(null);
       const fileRef = useRef(null);
 
       useEffect(() => { Store.set(Chaves.AUTO_BACKUP, autoBackup); }, [autoBackup]);
+      useEffect(() => { Store.set(Chaves.BLOCO_TAMANHO, bloco); }, [bloco]);
 
       function aoExportar() {
         try {
@@ -599,6 +601,16 @@
             <input type="checkbox" checked={autoBackup} onChange={e => setAutoBackup(e.target.checked)} style={{ width: 14, height: 14 }} />
             <span className="mono fs-11 txt-mid">Backup automático ao concluir cada ciclo</span>
           </label>
+          {/* Cadência da pausa: 25 (micro-cerimônia) / 50 (reflexão) / 100 (raro) */}
+          <div className="hstack gap-8 mt-12 flex-wrap" style={{ alignItems: 'center' }}>
+            <span className="mono fs-11 txt-mid">Pausa a cada</span>
+            <div className="segmented">
+              {[25, 50, 100].map(n => (
+                <button key={n} className={bloco === n ? 'active' : ''} onClick={() => setBloco(n)}>{n}</button>
+              ))}
+            </div>
+            <span className="mono fs-10 txt-muted">{bloco === 25 ? 'micro-cerimônia' : 'reflexão escrita opcional'}</span>
+          </div>
           {erro && <div className="mono fs-11 txt-red mt-8">{erro}</div>}
           {aviso && <div className="mono fs-11 txt-green mt-8">{aviso}</div>}
         </div>
@@ -1604,41 +1616,52 @@
       );
     }
 
-    /* === REFLEXÃO A CADA 50 ===
-     * Modal leve a cada 50 puzzles dentro de um ciclo. Pausa cognitiva
-     * curta. Texto opcional, persiste no ciclo via onConcluir. */
-    function ReflexaoModal({ posicao, total, onSalvar, onPular }) {
+    /* === BLOCO-DE-N (PAUSA DE BLOCO) ===
+     * Modal leve a cada N puzzles dentro de um ciclo. Pausa cognitiva
+     * curta. Em blocos pequenos (≤25) é micro-cerimônia (só pausa, sem
+     * textarea). Em blocos grandes (≥50) abre espaço pra reflexão escrita.
+     * Texto opcional, persiste no ciclo via onConcluir. */
+    function ReflexaoModal({ posicao, total, blocoTamanho, onSalvar, onPular }) {
       const [texto, setTexto] = useState('');
+      const eMicro = (blocoTamanho || 50) <= 25;
       return (
         <div className="modal-overlay">
           <div className="modal-card" style={{ maxWidth: 460 }}>
-            <div className="mono fs-10 ls-2 txt-muted mb-4">PAUSA DE 50</div>
+            <div className="mono fs-10 ls-2 txt-muted mb-4">
+              {eMicro ? ('PAUSA · BLOCO DE ' + blocoTamanho) : ('PAUSA DE ' + (blocoTamanho || 50))}
+            </div>
             <div className="serif bold fs-17 mb-4">{posicao} de {total}</div>
             <div className="serif fs-13 txt-mid mb-16">
-              Respire. O que você notou? Uma frase, opcional.
+              {eMicro
+                ? 'Bloco fechado. Respire. Olhe pra longe por 10 segundos.'
+                : 'Respire. O que você notou? Uma frase, opcional.'}
             </div>
-            <textarea
-              value={texto}
-              onChange={e => setTexto(e.target.value)}
-              autoFocus
-              rows={2}
-              placeholder="ex: muitos garfos com cavalo central..."
-              style={{
-                width: '100%', resize: 'vertical',
-                background: 'var(--surface)', color: 'var(--txt)',
-                border: '1px solid var(--border)', borderRadius: 6,
-                padding: '8px 10px', fontFamily: 'var(--font-serif)', fontSize: 13,
-                lineHeight: 1.5, outline: 'none', marginBottom: 12,
-              }} />
+            {!eMicro && (
+              <textarea
+                value={texto}
+                onChange={e => setTexto(e.target.value)}
+                autoFocus
+                rows={2}
+                placeholder="ex: muitos garfos com cavalo central..."
+                style={{
+                  width: '100%', resize: 'vertical',
+                  background: 'var(--surface)', color: 'var(--txt)',
+                  border: '1px solid var(--border)', borderRadius: 6,
+                  padding: '8px 10px', fontFamily: 'var(--font-serif)', fontSize: 13,
+                  lineHeight: 1.5, outline: 'none', marginBottom: 12,
+                }} />
+            )}
             <div className="hstack gap-8">
               <button className="btn btn-primary"
                 style={{ flex: 1 }}
                 onClick={() => onSalvar(texto.trim())}>
-                {texto.trim() ? 'Salvar e continuar' : 'Continuar'}
+                {eMicro ? 'Continuar' : (texto.trim() ? 'Salvar e continuar' : 'Continuar')}
               </button>
-              <button className="btn btn-ghost btn-small" onClick={onPular}>
-                Pular
-              </button>
+              {!eMicro && (
+                <button className="btn btn-ghost btn-small" onClick={onPular}>
+                  Pular
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1665,6 +1688,7 @@
       const {
         idx, total, puzzle, fenAtual, orientacao, fenInicialJogador,
         resultados, acertos, erros, restantes, tempoAcumulado, ritmoVsBaseline,
+        paceVsPuzzleBaseline, tempoBaselinePuzzleAtual, dicaVisao,
         estado, feedback, lancePendente, promoPicker, casaSelecionada,
         ultimoLanceAdv, erroPuzzle, seg, pausado, modoConfirmar, uciInput,
         onDrop, onSquareClick, confirmarPendente, cancelarPendente,
@@ -1697,18 +1721,20 @@
       const ehRetomada = sessao && sessao.index_atual > 0;
       const [mostraRitual, setMostraRitual] = useState(ciclo.numero > 1 && !ehRetomada);
 
-      // Reflexão a cada 50: detecta quando resultados.length cruza múltiplo
-      // de 50, marca posição vista pra não repetir.
+      // Bloco-de-N: tamanho configurável via Chaves.BLOCO_TAMANHO (25/50/100,
+      // default 50). Detecta quando resultados.length cruza múltiplo de N,
+      // marca posição vista pra não repetir.
+      const blocoTamanho = Store.get(Chaves.BLOCO_TAMANHO, 50);
       const [reflexaoPendente, setReflexaoPendente] = useState(null);
       const [posicoesVistas, setPosicoesVistas] = useState(new Set(
         ((sessao && sessao.reflexoes) || []).map(r => r.posicao)
       ));
       useEffect(() => {
         const n = resultados.length;
-        if (n > 0 && n % 50 === 0 && !posicoesVistas.has(n) && estado === 'feedback') {
+        if (n > 0 && n % blocoTamanho === 0 && !posicoesVistas.has(n) && estado === 'feedback') {
           setReflexaoPendente(n);
         }
-      }, [resultados.length, estado]);
+      }, [resultados.length, estado, blocoTamanho]);
 
       function salvarReflexao(texto) {
         const pos = reflexaoPendente;
@@ -1759,6 +1785,17 @@
                 selectedSquare={casaSelecionada}
               />
             </div>
+
+            {/* Visão por dica: sussurro discreto após 3 erros históricos
+                no mesmo puzzle. Direciona o olhar sem revelar a peça. */}
+            {dicaVisao && estado === 'jogando' && !modoMonge && (
+              <div className="mono fs-11 mt-8 center" style={{
+                color: 'var(--txt-muted)', letterSpacing: '0.04em', fontStyle: 'italic'
+              }}>
+                👁 olhe pra peça em <span className="bold" style={{ color: 'var(--txt-mid)' }}>{dicaVisao.casa}</span>
+                <span className="txt-muted"> · {dicaVisao.erros} erros antes</span>
+              </div>
+            )}
 
             {/* Mobile-only: botão grande logo abaixo do tabuleiro.
                 Vira "Próximo Puzzle" quando o estado é feedback. */}
@@ -1819,6 +1856,17 @@
               <div className={'timer ' + corTimer + ' mb-16'} style={{ position: 'relative' }}>
                 <div className="timer-value" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(seg)}</div>
                 <div className="timer-label">TEMPO DESTE PUZZLE {pausado && '· PAUSADO'}</div>
+                {/* Pace Coach: delta ao vivo deste puzzle vs Ciclo 1 */}
+                {paceVsPuzzleBaseline !== null && estado === 'jogando' && !pausado && (
+                  <div className="mono fs-10 mt-4" style={{
+                    color: paceVsPuzzleBaseline > 5
+                      ? 'var(--red)'
+                      : (paceVsPuzzleBaseline < -2 ? 'var(--green)' : 'var(--txt-muted)'),
+                    letterSpacing: '0.05em'
+                  }}>
+                    {paceVsPuzzleBaseline >= 0 ? '+' : '−'}{Math.abs(paceVsPuzzleBaseline)}s vs C1
+                  </div>
+                )}
                 <div className="timer-divider"></div>
                 <div className="timer-total mono" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(tempoAcumulado)}</div>
                 <div className="timer-label">TEMPO TOTAL DO CICLO</div>
@@ -2033,6 +2081,7 @@
             <ReflexaoModal
               posicao={reflexaoPendente}
               total={total}
+              blocoTamanho={blocoTamanho}
               onSalvar={salvarReflexao}
               onPular={pularReflexao} />
           )}
