@@ -89,3 +89,24 @@ débito é registrado como TODO de roadmap — nunca silencioso.
 | Halving atingido | `Halving. 50% do baseline.` |
 | Confirmar reanalise | `Reanalisar {usuario}? Leva alguns minutos.` |
 | Loading genérico | `Carregando...` (não "Aguarde", não "...") |
+
+## Roadmap
+
+`ROADMAP.md` é arquivo vivo. Atualizar sempre que entregar feature
+relevante (mover de "Em frente" pra "Anterior — entregue" com commit
+ref).
+
+**Formato canônico** (sempre apresentar e manter assim):
+
+- Duas seções principais: **Anterior — entregue** e **Em frente — pendente**
+- Cada seção é dividida em sub-blocos por contexto/eixo
+- Cada sub-bloco é uma **tabela** com colunas:
+  - Item · Descrição (uma linha) · Commit/Estimativa
+- "Anterior" usa coluna `Commit` (hash curto ou marcador como "núcleo")
+- "Em frente" usa coluna `Estimativa` (em horas aproximadas)
+- Pós-tabelas pendentes, listar **Ondas sugeridas** (também em tabela)
+  agrupando itens em pacotes coerentes de execução
+- Encerrar com seção **Princípios de seleção** (estável, raramente muda)
+
+Quando o usuário pedir "roadmap" sem mais contexto, apresentar nesse
+formato — não em listas com bullets.
