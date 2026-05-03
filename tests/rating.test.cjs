@@ -88,3 +88,53 @@ test("ratingUnificado — calibração tem peso 1.2 (mais que performance)", () 
   assert.equal(u.fontes[0].nome, "Calibração");
   assert.equal(u.fontes[0].peso, 1.2);
 });
+
+test("ratingPonderadoChesscom retorna null sem stats relevantes", () => {
+  const { Rating } = dom();
+  assert.equal(Rating.ratingPonderadoChesscom(null), null);
+  assert.equal(Rating.ratingPonderadoChesscom({}), null);
+  assert.equal(Rating.ratingPonderadoChesscom({ chess_daily: { last: { rating: 1500 } } }), null);
+});
+
+test("ratingPonderadoChesscom: rapid sozinho retorna o próprio rating arredondado em 50", () => {
+  const { Rating } = dom();
+  const r = Rating.ratingPonderadoChesscom({
+    chess_rapid: { last: { rating: 1487 } },
+  });
+  assert.equal(r.rating, 1500);
+  assert.equal(r.fontes.length, 1);
+  assert.equal(r.fontes[0].time_class, "rapid");
+});
+
+test("ratingPonderadoChesscom: rapid > blitz > bullet (pesos 2.0/1.0/0.5)", () => {
+  const { Rating } = dom();
+  // rapid 1600 (peso 2.0) + blitz 1400 (peso 1.0) + bullet 1200 (peso 0.5)
+  // média = (3200 + 1400 + 600) / 3.5 = 5200 / 3.5 ≈ 1485.7 → 1500
+  const r = Rating.ratingPonderadoChesscom({
+    chess_rapid:  { last: { rating: 1600 } },
+    chess_blitz:  { last: { rating: 1400 } },
+    chess_bullet: { last: { rating: 1200 } },
+  });
+  assert.equal(r.rating, 1500);
+  assert.equal(r.fontes.length, 3);
+  assert.equal(r.fontes[0].time_class, "rapid");
+});
+
+test("ratingPonderadoChesscom: ignora chess_daily mesmo se presente", () => {
+  const { Rating } = dom();
+  const r = Rating.ratingPonderadoChesscom({
+    chess_blitz: { last: { rating: 1500 } },
+    chess_daily: { last: { rating: 2200 } },
+  });
+  assert.equal(r.rating, 1500);
+  assert.equal(r.fontes.length, 1);
+  assert.equal(r.fontes[0].time_class, "blitz");
+});
+
+test("ratingPonderadoChesscom: clamp 600..2800", () => {
+  const { Rating } = dom();
+  const lo = Rating.ratingPonderadoChesscom({ chess_rapid: { last: { rating: 100 } } });
+  assert.equal(lo.rating, 600);
+  const hi = Rating.ratingPonderadoChesscom({ chess_rapid: { last: { rating: 3500 } } });
+  assert.equal(hi.rating, 2800);
+});

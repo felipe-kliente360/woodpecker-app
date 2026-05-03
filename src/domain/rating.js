@@ -124,9 +124,53 @@
     };
   }
 
+  // Pesos por time_class pro rating ponderado do chess.com. Mesma
+  // ordem de prioridade do score tático (rapid > blitz > bullet),
+  // descartando daily (correspondência demais, valor baixo pra tática).
+  const PESOS_TC_RATING = {
+    rapid:  2.0,
+    blitz:  1.0,
+    bullet: 0.5,
+    daily:  0.0,
+  };
+
+  // Recebe `stats` no formato do endpoint /pub/player/{u}/stats e
+  // retorna { rating, fontes, detalhe } onde `rating` é a média
+  // ponderada arredondada em múltiplos de 50, dentro de [600, 2800].
+  // `fontes` lista cada formato encontrado pra UI exibir o breakdown.
+  // Retorna null se nenhum formato relevante (rapid/blitz/bullet) tem
+  // rating registrado.
+  function ratingPonderadoChesscom(stats) {
+    if (!stats || typeof stats !== "object") return null;
+    const buckets = [
+      { tc: "rapid",  obj: stats.chess_rapid  },
+      { tc: "blitz",  obj: stats.chess_blitz  },
+      { tc: "bullet", obj: stats.chess_bullet },
+      { tc: "daily",  obj: stats.chess_daily  },
+    ];
+    const fontes = [];
+    let pesoTotal = 0;
+    let somaPesada = 0;
+    for (const b of buckets) {
+      const r = b.obj && b.obj.last && b.obj.last.rating;
+      const w = PESOS_TC_RATING[b.tc] || 0;
+      if (!r || w <= 0) continue;
+      fontes.push({ time_class: b.tc, rating: r, peso: w });
+      pesoTotal += w;
+      somaPesada += r * w;
+    }
+    if (pesoTotal === 0) return null;
+    const media = somaPesada / pesoTotal;
+    const arr = Math.round(media / 50) * 50;
+    const rating = Math.max(600, Math.min(2800, arr));
+    return { rating: rating, fontes: fontes };
+  }
+
   global.WP = global.WP || {};
   global.WP.Rating = {
-    calcularRatingSugerido: calcularRatingSugerido,
-    ratingUnificado: ratingUnificado,
+    calcularRatingSugerido:    calcularRatingSugerido,
+    ratingUnificado:           ratingUnificado,
+    ratingPonderadoChesscom:   ratingPonderadoChesscom,
+    PESOS_TC_RATING:           PESOS_TC_RATING,
   };
 })(typeof window !== "undefined" ? window : globalThis);

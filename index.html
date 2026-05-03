@@ -686,12 +686,113 @@
       );
     }
 
+    /* === IMPORT RATING CHESS.COM (LITE) ===
+     * Fluxo curto pra fixar rating inicial sem analisar partidas. Hit no
+     * /pub/player/{u}/stats e média ponderada via WP.Rating. */
+    function ImportRatingChesscomModal({ onConfirmar, onFechar }) {
+      const [u, setU] = useState('');
+      const [carregando, setCarregando] = useState(false);
+      const [erro, setErro] = useState(null);
+      const [resultado, setResultado] = useState(null);
+
+      async function buscar() {
+        const username = u.trim();
+        if (!username) return;
+        setCarregando(true);
+        setErro(null);
+        setResultado(null);
+        try {
+          const resp = await fetch('https://api.chess.com/pub/player/' + encodeURIComponent(username.toLowerCase()) + '/stats');
+          if (!resp.ok) {
+            if (resp.status === 404) throw new Error('Usuário não encontrado no chess.com.');
+            throw new Error('Falha ao buscar (HTTP ' + resp.status + ').');
+          }
+          const stats = await resp.json();
+          const r = window.WP.Rating.ratingPonderadoChesscom(stats);
+          if (!r) throw new Error('Sem rating em rapid/blitz/bullet — cadastre via "Já sei meu rating".');
+          setResultado({ rating: r.rating, fontes: r.fontes, username: username });
+        } catch (e) {
+          setErro(e.message || String(e));
+        } finally {
+          setCarregando(false);
+        }
+      }
+
+      function aplicar() {
+        if (!resultado) return;
+        onConfirmar(resultado.rating, resultado.username);
+      }
+
+      const labelTC = { rapid: 'Rapid', blitz: 'Blitz', bullet: 'Bullet' };
+
+      return (
+        <div className="modal-overlay" onClick={onFechar}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <div className="mono fs-10 ls-2 txt-muted mb-4">IMPORTAR RATING · CHESS.COM</div>
+            <div className="serif bold fs-17 mb-4">Qual é seu username?</div>
+            <div className="serif fs-13 txt-mid mb-12">
+              Buscamos seu rating atual em rapid, blitz e bullet — e fazemos a média ponderada nessa ordem.
+            </div>
+            <div className="hstack gap-8 mb-12">
+              <input
+                type="text"
+                value={u}
+                onChange={e => setU(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') buscar(); }}
+                autoFocus
+                placeholder="seu_usuario"
+                spellCheck={false}
+                autoCapitalize="none"
+                style={{
+                  flex: 1, background: 'var(--surface)', color: 'var(--txt)',
+                  border: '1px solid var(--border)', borderRadius: 6,
+                  padding: '8px 10px', fontFamily: "'Courier New', monospace", fontSize: 13,
+                  outline: 'none',
+                }} />
+              <button className="btn btn-small" onClick={buscar} disabled={carregando || !u.trim()}>
+                {carregando ? 'Buscando…' : 'Buscar'}
+              </button>
+            </div>
+
+            {erro && <div className="mono fs-11 txt-red mb-12">✗ {erro}</div>}
+
+            {resultado && (
+              <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--green)' }}>
+                <div className="mono fs-10 ls-2 txt-muted mb-4">RATING PONDERADO</div>
+                <div className="serif bold num-display fs-22 mb-8">{resultado.rating}</div>
+                <div className="vstack gap-4">
+                  {resultado.fontes.map(f => (
+                    <div key={f.time_class} className="hstack gap-8">
+                      <span className="mono fs-11 txt-mid" style={{ width: 60 }}>{labelTC[f.time_class]}</span>
+                      <span className="num fs-12 bold">{f.rating}</span>
+                      <span className="mono fs-10 txt-muted" style={{ marginLeft: 'auto' }}>peso ×{f.peso}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="hstack gap-8">
+              {resultado && (
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={aplicar}>
+                  ✓ Aplicar rating
+                </button>
+              )}
+              <button className="btn btn-ghost btn-small" onClick={onFechar}>
+                {resultado ? 'Cancelar' : 'Fechar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function TelaInicio({
       conjuntos, ciclos, ratingUsuario,
       onContinuar, onTreinar, onEvolucao, onTreinarApenasErros,
       onConcluirConjunto, onConcluir,
       onCriarPadrao, onCriarPessoal, onCriarAdversario,
-      onCalibrar, onImportRating, onSetRatingManual,
+      onCalibrar, onSetRatingManual, onSetRatingChesscom,
       onAposImport, onIrParaConjuntos,
     }) {
       const Conjunto = window.WP.Conjunto;
@@ -699,6 +800,7 @@
       const podeNovo = ativos.length < Conjunto.LIMITE_ATIVOS;
       const temRating = !!(ratingUsuario && ratingUsuario.valor);
       const temChesscom = !!(ratingUsuario && ratingUsuario.chesscom);
+      const [mostraImport, setMostraImport] = useState(false);
       const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
 
       const revisao = useMemo(() => puzzlesDevidoRevisao(ciclos, conjuntos), [ciclos, conjuntos]);
@@ -769,7 +871,7 @@
                 <div className="vstack gap-4" style={{ alignItems: 'flex-end' }}>
                   <button className="btn btn-small ghost" onClick={onCalibrar}
                     title="Refazer calibragem (30 puzzles)">🎯 Calibrar</button>
-                  <button className="btn btn-small ghost" onClick={onImportRating}
+                  <button className="btn btn-small ghost" onClick={() => setMostraImport(true)}
                     title="Reimportar via chess.com">🔍 Atualizar</button>
                 </div>
               </div>
@@ -789,13 +891,13 @@
                   </div>
                   <div className="choice-action">→ CALIBRAR (30 puzzles)</div>
                 </button>
-                <button className="choice-card" onClick={onImportRating}>
+                <button className="choice-card" onClick={() => setMostraImport(true)}>
                   <div className="choice-icon">🔍</div>
                   <div className="choice-title">Importar do chess.com</div>
                   <div className="choice-desc">
-                    Análise de 30 partidas reais. Define rating + desbloqueia plano pessoal e adversário.
+                    Lê seu perfil. Rating ponderado por rapid, blitz e bullet — sem analisar partidas.
                   </div>
-                  <div className="choice-action">→ ANALISAR JOGADOR</div>
+                  <div className="choice-action">→ INFORMAR USERNAME</div>
                 </button>
                 <button className="choice-card" onClick={() => {
                   const v = prompt('Qual é o seu rating? (600-2800)');
@@ -1060,6 +1162,15 @@
                 </button>
               </div>
             </div>
+          )}
+
+          {mostraImport && (
+            <ImportRatingChesscomModal
+              onConfirmar={(rating, username) => {
+                if (onSetRatingChesscom) onSetRatingChesscom(rating, username);
+                setMostraImport(false);
+              }}
+              onFechar={() => setMostraImport(false)} />
           )}
         </div>
       );
@@ -4699,9 +4810,11 @@
                   onConcluirConjunto={concluirConjunto}
                   onIrParaConjuntos={() => setTela('conjuntos')}
                   onCalibrar={iniciarCalibracao}
-                  onImportRating={() => setTela('analisar')}
                   onSetRatingManual={(v) => {
                     if (v && v >= 600 && v <= 2800) setRatingUsuario(v, 'manual', null);
+                  }}
+                  onSetRatingChesscom={(rating, username) => {
+                    if (rating && rating >= 600 && rating <= 2800) setRatingUsuario(rating, 'chesscom', username);
                   }}
                   onCriarPadrao={() => {
                     setPresetCriar({ tipo: 'padrao', rating: ratingUsuario.valor });
