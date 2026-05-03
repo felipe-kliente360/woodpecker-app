@@ -105,7 +105,7 @@
       embaralhar, determinaCorJogador, corDoTabuleiro,
       lanceUciParaSan, aplicarLanceSilencioso, sequenciaSan,
     } = window.WP.Puzzle;
-    const { metricasAtividade, nivelDoRating } = window.WP.Ciclo;
+    const { metricasAtividade, nivelDoRating, streakPorDia, streakAtual } = window.WP.Ciclo;
     const { calcularRatingSugerido, ratingUnificado } = window.WP.Rating;
     const { puzzlesDevidoRevisao } = window.WP.SRS;
 
@@ -623,6 +623,45 @@
       );
     }
 
+    /* === CALENDÁRIO DE STREAK ===
+     * Heatmap dos últimos N dias (default 84 = 12 semanas). Cores por
+     * intensidade do count de ciclos. Coluna mais à direita = hoje. */
+    function CalendarioStreak({ ciclos, dias }) {
+      dias = dias || 84;
+      const grid = streakPorDia(ciclos, dias);
+      const streak = streakAtual(ciclos);
+      const totalCiclos = grid.reduce((a, d) => a + d.count, 0);
+      const diasComCiclo = grid.filter(d => d.count > 0).length;
+      function nivel(c) {
+        if (c === 0) return '';
+        if (c === 1) return ' lvl-1';
+        if (c === 2) return ' lvl-2';
+        return ' lvl-3';
+      }
+      return (
+        <div className="card-soft mb-12" style={{ overflowX: 'auto' }}>
+          <div className="between mb-8" style={{ flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <div className="mono fs-10 ls-2 txt-muted">SEUS ÚLTIMOS {dias} DIAS</div>
+              <div className="serif bold fs-15">
+                {streak > 0 ? streak + ' dia' + (streak > 1 ? 's' : '') + ' seguidos' : 'sem streak ativo'}
+              </div>
+            </div>
+            <div className="mono fs-10 txt-muted" style={{ textAlign: 'right' }}>
+              {diasComCiclo}/{dias} dias com ciclo · {totalCiclos} no total
+            </div>
+          </div>
+          <div className="streak-grid" style={{ minWidth: 'fit-content' }}>
+            {grid.map((d, i) => (
+              <div key={d.data}
+                className={'streak-cell' + nivel(d.count)}
+                title={d.data + ' · ' + d.count + ' ciclo' + (d.count !== 1 ? 's' : '')} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     function TelaInicio({ conjuntos, ciclos, onCriar, onContinuar, onTreinar, onEvolucao, onTreinarApenasErros, onIrParaConjuntos, onCalibrar, onAnalisar, onAposImport }) {
       const temConjuntos = conjuntos.length > 0;
       const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
@@ -739,6 +778,10 @@
                 </div>
               </div>
             </div>
+          )}
+
+          {temConjuntos && atividade.total > 0 && (
+            <CalendarioStreak ciclos={ciclos} dias={84} />
           )}
 
           {temConjuntos && (
@@ -1918,6 +1961,34 @@
     /* corCss: lib/wp-helpers.js */
 
     /* === TELA EVOLUÇÃO === */
+    // Sparkline SVG mini do tempo do puzzle ao longo dos ciclos.
+    // Pontos vermelhos em erro, verdes em acerto. Linha conectando os
+    // tempos. Diferencia "ficou rápido" (linha desce) de "decorou"
+    // (linha estável após erro). Largura adaptável.
+    function SparklineTeimoso({ historico, width, height }) {
+      width = width || 80;
+      height = height || 22;
+      if (!historico || historico.length < 2) return null;
+      const tempos = historico.map(h => h.tempo_s || 0);
+      const maxT = Math.max.apply(null, tempos) || 1;
+      const stepX = width / (historico.length - 1);
+      const ptos = historico.map((h, i) => {
+        const x = i * stepX;
+        const y = height - (h.tempo_s / maxT) * (height - 4) - 2;
+        return { x: x, y: y, correto: h.correto };
+      });
+      const path = ptos.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+      return (
+        <svg width={width} height={height} style={{ display: 'block', overflow: 'visible' }}>
+          <path d={path} fill="none" stroke="var(--txt-muted)" strokeWidth="1" />
+          {ptos.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r="2.2"
+              fill={p.correto ? 'var(--green)' : 'var(--red)'} />
+          ))}
+        </svg>
+      );
+    }
+
     function LinhaTeimoso({ t }) {
       const [aberto, setAberto] = useState(false);
       const acertos = t.historico.filter(h => h.correto).length;
@@ -1934,6 +2005,7 @@
             <span className="mono fs-11 txt-muted">#{t.id}</span>
             {t.rating && <span className="mono fs-10 txt-muted">Rating {t.rating}</span>}
             <span className="mono fs-10 txt-muted">{acertos}/{totalAttempts}</span>
+            <SparklineTeimoso historico={t.historico} />
             <div className="hstack gap-6 flex-wrap" style={{ marginLeft: 'auto' }}>
               {(t.temas || []).slice(0, 3).map(tem => (
                 <span key={tem} className="badge">{traduzirTema(tem)}</span>
@@ -2026,9 +2098,9 @@
         return Object.entries(dist).sort((a,b)=>b[1]-a[1]).slice(0,8);
       }, [cs]);
 
-      // Puzzles teimosos: errados em ≥2 ciclos (assumindo que cada ciclo
-      // resolve cada puzzle no máximo uma vez — verdadeiro no fluxo atual).
-      const teimosos = useMemo(() => {
+      // Mapa de puzzles com histórico completo. Base pra teimosos e
+      // personal worst — só percorremos cs uma vez.
+      const puzzleHistorico = useMemo(() => {
         const porId = {};
         for (const c of cs) {
           for (const r of (c.resultados || [])) {
@@ -2049,12 +2121,33 @@
             if (r.rating) porId[r.puzzle_id].rating = r.rating;
           }
         }
-        return Object.values(porId)
+        return Object.values(porId);
+      }, [cs]);
+
+      // Puzzles teimosos: errados em ≥2 ciclos.
+      const teimosos = useMemo(() => {
+        return puzzleHistorico
           .map(p => ({ ...p, count: p.historico.filter(h => !h.correto).length }))
           .filter(p => p.count >= 2)
           .sort((a, b) => b.count - a.count || b.historico.length - a.historico.length)
           .slice(0, 12);
-      }, [cs]);
+      }, [puzzleHistorico]);
+
+      // Personal Worst: top 10 por tempo total agregado (sum tempo_s
+      // em todos os ciclos). Pode ser ponto cego ou só puzzle complexo
+      // — usuário decide. Filtra puzzles vistos em ≥ 2 ciclos pra ter
+      // sinal estável.
+      const personalWorst = useMemo(() => {
+        return puzzleHistorico
+          .map(p => ({
+            ...p,
+            tempoTotal: p.historico.reduce((a, h) => a + (h.tempo_s || 0), 0),
+            n: p.historico.length,
+          }))
+          .filter(p => p.n >= 2)
+          .sort((a, b) => b.tempoTotal - a.tempoTotal)
+          .slice(0, 10);
+      }, [puzzleHistorico]);
 
       const dataErros = useMemo(() => {
         const max = errosPorTema.length ? errosPorTema[0][1] : 1;
@@ -2236,6 +2329,35 @@
                       <div className="vstack gap-8">
                         {teimosos.map(t => (
                           <LinhaTeimoso key={t.id} t={t} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {personalWorst.length > 0 && (
+                    <div className="card">
+                      <div className="serif bold fs-13 mb-4">⏱ Personal Worst</div>
+                      <div className="mono fs-11 txt-muted mb-12">
+                        Os 10 puzzles em que você gastou mais tempo total. Pode ser ponto cego — ou só puzzle complexo. Você decide.
+                      </div>
+                      <div className="vstack gap-6">
+                        {personalWorst.map((p, i) => (
+                          <div key={p.id} className="hstack gap-8 flex-wrap" style={{
+                            padding: '6px 10px',
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 6,
+                          }}>
+                            <span className="num fs-11 txt-muted" style={{ width: 22 }}>{i + 1}.</span>
+                            <span className="num fs-13 bold">{formatarTempoLongo(p.tempoTotal)}</span>
+                            <span className="mono fs-10 txt-muted">em {p.n} ciclo{p.n > 1 ? 's' : ''}</span>
+                            <span className="mono fs-10 txt-muted">#{p.id}</span>
+                            {p.rating && <span className="mono fs-10 txt-muted">{p.rating}</span>}
+                            <a href={'https://lichess.org/training/' + p.id} target="_blank" rel="noopener"
+                              className="mono fs-10" style={{ color: 'var(--primary)', marginLeft: 'auto' }}>
+                              ↗
+                            </a>
+                          </div>
                         ))}
                       </div>
                     </div>
