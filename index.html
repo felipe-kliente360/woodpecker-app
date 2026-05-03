@@ -2040,6 +2040,261 @@
       );
     }
 
+    /* === HEATMAP POR TEMA ===
+     * Tabela tema × ciclo com taxa de acerto por célula. Verde alto,
+     * gold médio, vermelho baixo. Mostra evolução de fluência por
+     * padrão tático ao longo da repetição. */
+    function HeatmapTemas({ cs }) {
+      const matriz = useMemo(() => {
+        const temasSet = new Set();
+        for (const c of cs) {
+          for (const r of (c.resultados || [])) {
+            for (const t of (r.temas || [])) {
+              if (TEMAS_INSTRUTIVOS.has(t)) temasSet.add(t);
+            }
+          }
+        }
+        const temas = Array.from(temasSet);
+        const out = temas.map(t => {
+          const ciclos = cs.map(c => {
+            let ok = 0, total = 0;
+            for (const r of (c.resultados || [])) {
+              if ((r.temas || []).includes(t)) {
+                total += 1;
+                if (r.correto) ok += 1;
+              }
+            }
+            return { numero: c.numero, ok, total, taxa: total > 0 ? ok / total : null };
+          });
+          const totalGeral = ciclos.reduce((s, x) => s + x.total, 0);
+          return { tema: t, ciclos: ciclos, totalGeral: totalGeral };
+        });
+        out.sort((a, b) => b.totalGeral - a.totalGeral);
+        // Filtra temas com pouquíssimo sinal (< 5 ocorrências totais)
+        return out.filter(r => r.totalGeral >= 5).slice(0, 8);
+      }, [cs]);
+
+      if (matriz.length === 0 || cs.length === 0) return null;
+
+      const corCelula = (taxa) => {
+        if (taxa == null) return 'transparent';
+        if (taxa >= 0.7) return 'var(--green)';
+        if (taxa >= 0.4) return 'var(--gold)';
+        return 'var(--red)';
+      };
+
+      return (
+        <div className="card mb-12">
+          <div className="serif bold fs-13 mb-4">🔥 Heatmap por tema</div>
+          <div className="mono fs-11 txt-muted mb-12">
+            Taxa de acerto por tema em cada ciclo. Verde ≥ 70% · gold 40-70% · vermelho &lt; 40%.
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 2, minWidth: 'fit-content' }}>
+              <thead>
+                <tr>
+                  <th></th>
+                  {cs.map(c => (
+                    <th key={c.numero} className="mono fs-10 txt-muted" style={{ padding: '4px 6px', fontWeight: 600 }}>
+                      C{c.numero}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {matriz.map(row => (
+                  <tr key={row.tema}>
+                    <td className="serif fs-12 txt-mid" style={{ paddingRight: 10, whiteSpace: 'nowrap' }}>
+                      {TEMAS[row.tema] || row.tema}
+                    </td>
+                    {row.ciclos.map((cell, i) => (
+                      <td key={i}
+                        title={cell.total + ' puzzles · ' + cell.ok + ' acertos' +
+                               (cell.taxa != null ? ' (' + Math.round(cell.taxa * 100) + '%)' : '')}
+                        style={{
+                          background: corCelula(cell.taxa),
+                          opacity: cell.total === 0 ? 0.15 : (cell.total < 3 ? 0.5 : 1),
+                          width: 30, height: 26, padding: 0,
+                          borderRadius: 3, textAlign: 'center', verticalAlign: 'middle',
+                        }}>
+                        <span className="mono fs-10" style={{
+                          color: cell.total > 0 ? '#fff' : 'var(--txt-muted)',
+                          fontWeight: 600,
+                        }}>
+                          {cell.total > 0 ? Math.round(cell.taxa * 100) : '—'}
+                        </span>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    /* === COMPARADOR DE CICLOS ===
+     * Selecione 2 ciclos. Mostra top 5 melhorias e top 5 piorias por
+     * puzzle (delta de tempo entre ciclos B e A). */
+    function ComparadorCiclos({ cs }) {
+      const [aIdx, setAIdx] = useState(Math.max(0, cs.length - 2));
+      const [bIdx, setBIdx] = useState(cs.length - 1);
+      if (cs.length < 2) return null;
+      const a = cs[aIdx];
+      const b = cs[bIdx];
+      if (!a || !b || aIdx === bIdx) return null;
+
+      const ta = {}, tb = {}, ra = {}, rb = {};
+      for (const r of (a.resultados || [])) {
+        ta[r.puzzle_id] = r.tempo_s || 0;
+        ra[r.puzzle_id] = r.correto;
+      }
+      for (const r of (b.resultados || [])) {
+        tb[r.puzzle_id] = r.tempo_s || 0;
+        rb[r.puzzle_id] = r.correto;
+      }
+      const comuns = Object.keys(ta).filter(id => id in tb && ra[id] && rb[id]);
+      const deltas = comuns.map(id => ({
+        id: id, ta: ta[id], tb: tb[id], delta: tb[id] - ta[id]
+      }));
+      const melhorias = deltas.slice().sort((x, y) => x.delta - y.delta).filter(d => d.delta < 0).slice(0, 5);
+      const piorias  = deltas.slice().sort((x, y) => y.delta - x.delta).filter(d => d.delta > 0).slice(0, 5);
+
+      const Linha = ({ d, isPior }) => (
+        <div className="hstack gap-8 flex-wrap" style={{
+          padding: '4px 8px', fontSize: 11,
+          background: 'var(--surface)', borderRadius: 4,
+        }}>
+          <span className="mono txt-muted">#{d.id}</span>
+          <span className="num" style={{ marginLeft: 'auto' }}>
+            {formatarTempo(d.ta)} → <span className="bold">{formatarTempo(d.tb)}</span>
+          </span>
+          <span className="num bold" style={{
+            color: isPior ? 'var(--red)' : 'var(--green)', minWidth: 50, textAlign: 'right',
+          }}>
+            {d.delta > 0 ? '+' : ''}{d.delta}s
+          </span>
+        </div>
+      );
+
+      return (
+        <div className="card mb-12">
+          <div className="serif bold fs-13 mb-4">🔄 Comparador de ciclos</div>
+          <div className="mono fs-11 txt-muted mb-12">
+            Maiores diferenças por puzzle (só conta puzzles acertados em ambos os ciclos).
+          </div>
+          <div className="hstack gap-12 mb-16 flex-wrap">
+            <div>
+              <div className="input-label">Ciclo A</div>
+              <select value={aIdx} onChange={e => setAIdx(parseInt(e.target.value))}
+                style={{
+                  background: 'var(--surface)', color: 'var(--txt)',
+                  border: '1px solid var(--border)', borderRadius: 6,
+                  padding: '6px 10px', fontFamily: 'var(--font-mono)', fontSize: 12,
+                }}>
+                {cs.map((c, i) => <option key={i} value={i}>Ciclo {c.numero}</option>)}
+              </select>
+            </div>
+            <span className="serif fs-15 txt-muted" style={{ alignSelf: 'flex-end', paddingBottom: 6 }}>vs</span>
+            <div>
+              <div className="input-label">Ciclo B</div>
+              <select value={bIdx} onChange={e => setBIdx(parseInt(e.target.value))}
+                style={{
+                  background: 'var(--surface)', color: 'var(--txt)',
+                  border: '1px solid var(--border)', borderRadius: 6,
+                  padding: '6px 10px', fontFamily: 'var(--font-mono)', fontSize: 12,
+                }}>
+                {cs.map((c, i) => <option key={i} value={i}>Ciclo {c.numero}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="hstack gap-12 flex-wrap" style={{ alignItems: 'flex-start' }}>
+            <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+              <div className="mono fs-10 ls-2 txt-green mb-8">▼ MAIORES MELHORIAS</div>
+              <div className="vstack gap-4">
+                {melhorias.length === 0
+                  ? <div className="mono fs-11 txt-muted italic">— nenhuma —</div>
+                  : melhorias.map(d => <Linha key={d.id} d={d} isPior={false} />)}
+              </div>
+            </div>
+            <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+              <div className="mono fs-10 ls-2 txt-red mb-8">▲ MAIORES PIORIAS</div>
+              <div className="vstack gap-4">
+                {piorias.length === 0
+                  ? <div className="mono fs-11 txt-muted italic">— nenhuma —</div>
+                  : piorias.map(d => <Linha key={d.id} d={d} isPior={true} />)}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* === YEAR-IN-REVIEW ===
+     * Card destacado quando >= 365 dias passaram desde o 1º ciclo do
+     * usuário (qualquer conjunto). Stats agregadas. Aparece no topo da
+     * TelaEvolucao. */
+    function YearInReview({ ciclos, conjuntos }) {
+      const dados = useMemo(() => {
+        if (!ciclos || ciclos.length === 0) return null;
+        const ord = ciclos.slice().filter(c => c.data_fim).sort((a, b) => a.data_fim - b.data_fim);
+        if (ord.length === 0) return null;
+        const primeiro = ord[0];
+        const dias = (Date.now() - primeiro.data_fim) / 86400000;
+        if (dias < 365) return null;
+        const anos = Math.floor(dias / 365);
+        const totalCiclos = ciclos.length;
+        const totalPuzzles = ciclos.reduce((s, c) => s + ((c.resultados || []).length), 0);
+        const acertos = ciclos.reduce((s, c) => s + ((c.resultados || []).filter(r => r.correto).length), 0);
+        const taxaAcerto = totalPuzzles > 0 ? Math.round((acertos / totalPuzzles) * 100) : 0;
+        const idsUnicos = new Set();
+        for (const c of ciclos) {
+          for (const r of (c.resultados || [])) idsUnicos.add(r.puzzle_id);
+        }
+        return {
+          anos: anos,
+          totalCiclos: totalCiclos,
+          totalConjuntos: conjuntos ? conjuntos.length : 0,
+          totalPuzzles: totalPuzzles,
+          puzzlesUnicos: idsUnicos.size,
+          taxaAcerto: taxaAcerto,
+        };
+      }, [ciclos, conjuntos]);
+      if (!dados) return null;
+
+      return (
+        <div className="card mb-16" style={{ borderTop: '3px solid var(--gold)' }}>
+          <div className="mono fs-10 ls-2 txt-muted mb-4">RESUMO</div>
+          <div className="serif bold fs-22 mb-12">
+            {dados.anos} ano{dados.anos > 1 ? 's' : ''} de Woodpecker
+          </div>
+          <div className="metric-grid">
+            <div className="metric-card gold">
+              <div className="metric-label">CICLOS</div>
+              <div className="metric-value num">{dados.totalCiclos}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">CONJUNTOS</div>
+              <div className="metric-value num">{dados.totalConjuntos}</div>
+            </div>
+            <div className="metric-card green">
+              <div className="metric-label">PUZZLES RESOLVIDOS</div>
+              <div className="metric-value num">{formatarNumero(dados.totalPuzzles)}</div>
+            </div>
+            <div className="metric-card slate">
+              <div className="metric-label">PUZZLES ÚNICOS</div>
+              <div className="metric-value num">{formatarNumero(dados.puzzlesUnicos)}</div>
+            </div>
+          </div>
+          <div className="mono fs-11 txt-muted mt-12">
+            Taxa de acerto agregada: <span className="num bold">{dados.taxaAcerto}%</span>
+          </div>
+        </div>
+      );
+    }
+
     function TelaEvolucao({ conjuntos, ciclos, conjuntoInicial, onVoltar, onCriarFocado }) {
       const [conjuntoId, setConjuntoId] = useState(
         conjuntoInicial ? conjuntoInicial.id : (conjuntos[0] && conjuntos[0].id) || null
@@ -2229,6 +2484,9 @@
             {onVoltar && <button className="btn btn-small ghost" onClick={onVoltar}>← Voltar</button>}
           </div>
 
+          {/* Year-in-review é cross-conjunto: aparece no topo se aplicável */}
+          <YearInReview ciclos={ciclos} conjuntos={conjuntos} />
+
           {conjuntos.length === 0 ? (
             <div className="card center">
               <div className="serif fs-13 txt-muted">Crie um conjunto e complete pelo menos 2 ciclos para visualizar a evolução.</div>
@@ -2319,6 +2577,9 @@
                       <div className="mono fs-11 txt-green mt-8">Você economizou {minEconomizado} min desde o Ciclo 1</div>
                     )}
                   </div>
+
+                  <HeatmapTemas cs={cs} />
+                  <ComparadorCiclos cs={cs} />
 
                   {teimosos.length > 0 && (
                     <div className="card">
