@@ -1392,13 +1392,124 @@
      * promo, modo confirmar, sessão) vive em src/hooks/useJogoPuzzle.js.
      * Aqui só temos JSX consumindo o hook + handlers triviais.
      */
+    /* === RITUAL DE INÍCIO DE CICLO ===
+     * Overlay antes do 1º puzzle de cada ciclo > 1. Mostra baseline,
+     * meta, halving alvo e quote do livro. Cria momento de "começou
+     * agora" antes de cair no flow do treino. */
+    const QUOTES_WOODPECKER = [
+      'Não é aprender. É gravar padrões na memória de longo prazo.',
+      'Repetição até virar reflexo.',
+      'O mesmo padrão, mais rápido a cada ciclo.',
+      'Velocidade > acurácia. Padrão > cálculo.',
+      'O alvo é halving: tempo total = 50% do Ciclo 1.',
+    ];
+    function RitualInicioCiclo({ ciclo, conjunto, ciclosAnteriores, onComecar }) {
+      const baseline = ciclosAnteriores && ciclosAnteriores[0];
+      const anterior = ciclosAnteriores && ciclosAnteriores[ciclosAnteriores.length - 1];
+      if (!baseline) return null;
+      const meta = anterior
+        ? Math.max(Math.round(baseline.tempo_total_s * 0.5), Math.round(anterior.tempo_total_s * 0.85))
+        : Math.round(baseline.tempo_total_s * 0.85);
+      const halvingMeta = Math.round(baseline.tempo_total_s * 0.5);
+      const quote = QUOTES_WOODPECKER[(ciclo.numero - 2) % QUOTES_WOODPECKER.length];
+
+      return (
+        <div className="modal-overlay" onClick={onComecar}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div className="mono fs-10 ls-2 txt-muted mb-4">{conjunto.nome}</div>
+            <div className="serif bold fs-22 mb-16">Ciclo {ciclo.numero}</div>
+
+            <div className="vstack gap-10 mb-20">
+              <div className="hstack gap-8 between">
+                <span className="serif fs-13">Baseline (Ciclo 1)</span>
+                <span className="num bold fs-15">{formatarTempoLongo(baseline.tempo_total_s)}</span>
+              </div>
+              {anterior && anterior !== baseline && (
+                <div className="hstack gap-8 between">
+                  <span className="serif fs-13 txt-mid">Ciclo anterior</span>
+                  <span className="num bold fs-13 txt-mid">{formatarTempoLongo(anterior.tempo_total_s)}</span>
+                </div>
+              )}
+              <div className="hstack gap-8 between">
+                <span className="serif fs-13 txt-primary">Meta deste ciclo</span>
+                <span className="num bold fs-15 txt-primary">{formatarTempoLongo(meta)}</span>
+              </div>
+              <div className="hstack gap-8 between">
+                <span className="serif fs-12 txt-muted">Halving (50% do baseline)</span>
+                <span className="num fs-12 txt-muted">{formatarTempoLongo(halvingMeta)}</span>
+              </div>
+            </div>
+
+            <div className="serif fs-13 txt-mid italic mb-20" style={{
+              borderLeft: '3px solid var(--gold)', paddingLeft: 12, lineHeight: 1.55,
+            }}>
+              "{quote}"
+            </div>
+
+            <button className="btn btn-primary btn-block" onClick={onComecar}>
+              Começar →
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    /* === REFLEXÃO A CADA 50 ===
+     * Modal leve a cada 50 puzzles dentro de um ciclo. Pausa cognitiva
+     * curta. Texto opcional, persiste no ciclo via onConcluir. */
+    function ReflexaoModal({ posicao, total, onSalvar, onPular }) {
+      const [texto, setTexto] = useState('');
+      return (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: 460 }}>
+            <div className="mono fs-10 ls-2 txt-muted mb-4">PAUSA DE 50</div>
+            <div className="serif bold fs-17 mb-4">{posicao} de {total}</div>
+            <div className="serif fs-13 txt-mid mb-16">
+              Respire. O que você notou? Uma frase, opcional.
+            </div>
+            <textarea
+              value={texto}
+              onChange={e => setTexto(e.target.value)}
+              autoFocus
+              rows={2}
+              placeholder="ex: muitos garfos com cavalo central..."
+              style={{
+                width: '100%', resize: 'vertical',
+                background: 'var(--surface)', color: 'var(--txt)',
+                border: '1px solid var(--border)', borderRadius: 6,
+                padding: '8px 10px', fontFamily: 'var(--font-serif)', fontSize: 13,
+                lineHeight: 1.5, outline: 'none', marginBottom: 12,
+              }} />
+            <div className="hstack gap-8">
+              <button className="btn btn-primary"
+                style={{ flex: 1 }}
+                onClick={() => onSalvar(texto.trim())}>
+                {texto.trim() ? 'Salvar e continuar' : 'Continuar'}
+              </button>
+              <button className="btn btn-ghost btn-small" onClick={onPular}>
+                Pular
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function TelaTreinar({ conjunto, ciclo, puzzles, sessao, ciclosAnteriores, onConcluir, onSalvarSessao, onSair }) {
+      // Reflexões a cada 50 — armazenadas localmente, injetadas em onConcluir
+      // via ref (evita stale closure quando o hook chama o callback).
+      const [reflexoesLocais, setReflexoesLocais] = useState(
+        (sessao && sessao.reflexoes) || []
+      );
+      const reflexoesRef = useRef(reflexoesLocais);
+      useEffect(() => { reflexoesRef.current = reflexoesLocais; }, [reflexoesLocais]);
+
       const j = useJogoPuzzle({
         puzzles: puzzles, sessao: sessao,
         conjunto: conjunto, ciclo: ciclo,
         ciclosAnteriores: ciclosAnteriores,
-        onConcluirCiclo: onConcluir,
-        onSalvarSessao: onSalvarSessao,
+        onConcluirCiclo: (resultados) => onConcluir(resultados, { reflexoes: reflexoesRef.current }),
+        onSalvarSessao: (s) => onSalvarSessao(Object.assign({}, s, { reflexoes: reflexoesRef.current })),
       });
 
       const {
@@ -1415,6 +1526,37 @@
       const pct = total ? Math.round((idx / total) * 100) : 0;
       const corTimer = seg < 60 ? 'green' : (seg < 120 ? 'gold' : 'red');
       const corLabel = determinaCorJogador(fenInicialJogador || (puzzle && puzzle.fen) || '');
+
+      // Ritual de início: só pra ciclo > 1 (precisa de baseline) e só se
+      // estamos começando do 0 (não retomando sessão no meio).
+      const ehRetomada = sessao && sessao.index_atual > 0;
+      const [mostraRitual, setMostraRitual] = useState(ciclo.numero > 1 && !ehRetomada);
+
+      // Reflexão a cada 50: detecta quando resultados.length cruza múltiplo
+      // de 50, marca posição vista pra não repetir.
+      const [reflexaoPendente, setReflexaoPendente] = useState(null);
+      const [posicoesVistas, setPosicoesVistas] = useState(new Set(
+        ((sessao && sessao.reflexoes) || []).map(r => r.posicao)
+      ));
+      useEffect(() => {
+        const n = resultados.length;
+        if (n > 0 && n % 50 === 0 && !posicoesVistas.has(n) && estado === 'feedback') {
+          setReflexaoPendente(n);
+        }
+      }, [resultados.length, estado]);
+
+      function salvarReflexao(texto) {
+        const pos = reflexaoPendente;
+        if (texto) {
+          setReflexoesLocais(reflexoesLocais.concat([{ posicao: pos, texto: texto, ts: Date.now() }]));
+        }
+        setPosicoesVistas(new Set(Array.from(posicoesVistas).concat([pos])));
+        setReflexaoPendente(null);
+      }
+      function pularReflexao() {
+        setPosicoesVistas(new Set(Array.from(posicoesVistas).concat([reflexaoPendente])));
+        setReflexaoPendente(null);
+      }
 
       if (!puzzle) return <div className="card center">Sem puzzles para treinar.</div>;
       if (erroPuzzle) {
@@ -1686,6 +1828,22 @@
             onEscolher={escolherPromocao}
             onCancelar={cancelarPromocao}
           />
+
+          {mostraRitual && (
+            <RitualInicioCiclo
+              ciclo={ciclo}
+              conjunto={conjunto}
+              ciclosAnteriores={ciclosAnteriores}
+              onComecar={() => setMostraRitual(false)} />
+          )}
+
+          {reflexaoPendente !== null && (
+            <ReflexaoModal
+              posicao={reflexaoPendente}
+              total={total}
+              onSalvar={salvarReflexao}
+              onPular={pularReflexao} />
+          )}
         </div>
       );
     }
@@ -3514,7 +3672,8 @@
         setTela('treinar');
       }
 
-      function aoConcluirCiclo(resultados) {
+      function aoConcluirCiclo(resultados, opts) {
+        opts = opts || {};
         const total = resultados.length;
         const acertos = resultados.filter(r => r.correto).length;
         const erros = total - acertos;
@@ -3526,7 +3685,8 @@
           total, acertos, erros,
           tempo_medio_s: tempoMedio,
           tempo_total_s: tempoTotal,
-          resultados
+          resultados,
+          reflexoes: opts.reflexoes || [],
         };
         setCiclos(cs => cs.concat([cicloFinal]));
         setCicloAtual(cicloFinal);
