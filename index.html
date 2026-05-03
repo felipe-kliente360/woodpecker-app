@@ -24,6 +24,7 @@
   <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
   <script src="lib/chart.umd.js"></script>
   <script src="lib/wp-helpers.js"></script>
+  <script src="lib/audio.js"></script>
   <script src="src/data/chaves.js"></script>
   <script src="src/data/store.js"></script>
   <script src="src/domain/puzzle.js"></script>
@@ -447,7 +448,7 @@
     }
 
     /* === HEADER === */
-    function Header({ tema, onToggleTema }) {
+    function Header({ tema, onToggleTema, audioOn, onToggleAudio }) {
       return (
         <div className="header">
           <div className="header-left">
@@ -460,10 +461,18 @@
             <span className="header-title">WOODPECKER</span>
             <span className="header-sub">MÉTODO TÁTICO</span>
           </div>
-          <button className="theme-toggle" onClick={onToggleTema} title="Alternar tema">
-            <span>{tema === 'escuro' ? '☀' : '☽'}</span>
-            <span className="ttxt">{tema === 'escuro' ? 'Claro' : 'Escuro'}</span>
-          </button>
+          <div className="hstack gap-8">
+            <button className="theme-toggle"
+              onClick={onToggleAudio}
+              title={audioOn ? 'Áudio: ligado' : 'Áudio: desligado'}
+              style={{ padding: '6px 10px' }}>
+              <span>{audioOn ? '🔊' : '🔇'}</span>
+            </button>
+            <button className="theme-toggle" onClick={onToggleTema} title="Alternar tema">
+              <span>{tema === 'escuro' ? '☀' : '☽'}</span>
+              <span className="ttxt">{tema === 'escuro' ? 'Claro' : 'Escuro'}</span>
+            </button>
+          </div>
         </div>
       );
     }
@@ -1527,6 +1536,21 @@
       const corTimer = seg < 60 ? 'green' : (seg < 120 ? 'gold' : 'red');
       const corLabel = determinaCorJogador(fenInicialJogador || (puzzle && puzzle.fen) || '');
 
+      // Modo monge — UI minimalista pra foco extremo. Persiste por
+      // sessão de treino (Chaves.MODO_MONGE). Esconde tudo exceto
+      // tabuleiro, timer simplificado e ações essenciais.
+      const [modoMonge, setModoMonge] = useState(() => Store.get(Chaves.MODO_MONGE, false));
+      useEffect(() => { Store.set(Chaves.MODO_MONGE, modoMonge); }, [modoMonge]);
+
+      // Companion áudio — toca som no feedback se Chaves.AUDIO_ON.
+      useEffect(() => {
+        if (!feedback) return;
+        if (!Store.get(Chaves.AUDIO_ON, false)) return;
+        if (!window.WP || !window.WP.Audio) return;
+        if (feedback.correto) window.WP.Audio.acerto();
+        else if (!feedback.pulado) window.WP.Audio.erro();
+      }, [feedback]);
+
       // Ritual de início: só pra ciclo > 1 (precisa de baseline) e só se
       // estamos começando do 0 (não retomando sessão no meio).
       const ehRetomada = sessao && sessao.index_atual > 0;
@@ -1635,32 +1659,56 @@
           </div>
 
           <div>
-            <div className={'timer ' + corTimer + ' mb-16'} style={{ position: 'relative' }}>
-              <div className="timer-value" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(seg)}</div>
-              <div className="timer-label">TEMPO DESTE PUZZLE {pausado && '· PAUSADO'}</div>
-              <div className="timer-divider"></div>
-              <div className="timer-total mono" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(tempoAcumulado)}</div>
-              <div className="timer-label">TEMPO TOTAL DO CICLO</div>
-              {estado === 'jogando' && (
-                <button
-                  onClick={() => setPausado(p => !p)}
-                  title={pausado ? 'Retomar' : 'Pausar'}
-                  style={{
-                    position: 'absolute', top: 8, right: 8,
-                    background: 'transparent', border: '1px solid var(--border)',
-                    borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
-                    fontSize: 12, color: 'var(--txt-mid)',
-                    fontFamily: "'Courier New', monospace"
-                  }}>
-                  {pausado ? '▶' : '⏸'}
-                </button>
-              )}
-            </div>
+            {modoMonge ? (
+              // Modo monge: timer ultra-minimal, sem chrome
+              <div className="hstack gap-12 between mb-16" style={{ alignItems: 'baseline' }}>
+                <div className="num-display num-xl">{formatarTempo(seg)}</div>
+                <div className="hstack gap-6">
+                  <button onClick={() => setModoMonge(false)} title="Sair do modo monge"
+                    className="btn btn-small ghost"
+                    style={{ height: 28, padding: '0 10px', fontSize: 10 }}>
+                    ✕ monge
+                  </button>
+                  <button className="btn btn-small ghost"
+                    style={{ height: 28, padding: '0 10px', fontSize: 10 }}
+                    onClick={onSair}>sair</button>
+                </div>
+              </div>
+            ) : (
+              <div className={'timer ' + corTimer + ' mb-16'} style={{ position: 'relative' }}>
+                <div className="timer-value" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(seg)}</div>
+                <div className="timer-label">TEMPO DESTE PUZZLE {pausado && '· PAUSADO'}</div>
+                <div className="timer-divider"></div>
+                <div className="timer-total mono" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(tempoAcumulado)}</div>
+                <div className="timer-label">TEMPO TOTAL DO CICLO</div>
+                {estado === 'jogando' && (
+                  <button
+                    onClick={() => setPausado(p => !p)}
+                    title={pausado ? 'Retomar' : 'Pausar'}
+                    style={{
+                      position: 'absolute', top: 8, right: 8,
+                      background: 'transparent', border: '1px solid var(--border)',
+                      borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                      fontSize: 12, color: 'var(--txt-mid)',
+                      fontFamily: "'Courier New', monospace"
+                    }}>
+                    {pausado ? '▶' : '⏸'}
+                  </button>
+                )}
+              </div>
+            )}
 
+            {!modoMonge && (
             <div className="card-soft mb-16">
               <div className="between mb-8">
                 <div className="mono fs-13 txt-muted">{idx + 1} / {total}</div>
-                <button className="btn btn-small ghost" onClick={onSair}>✕ Sair</button>
+                <div className="hstack gap-6">
+                  <button className="btn btn-small ghost" onClick={() => setModoMonge(true)}
+                    title="Modo monge — UI minimalista">
+                    🧘
+                  </button>
+                  <button className="btn btn-small ghost" onClick={onSair}>✕ Sair</button>
+                </div>
               </div>
               <div className="progress-bar mb-12">
                 <div className="progress-fill" style={{ width: pct + '%' }}></div>
@@ -1684,7 +1732,9 @@
                 </div>
               )}
             </div>
+            )}
 
+            {!modoMonge && (
             <div className="mb-16 hstack gap-8 flex-wrap">
               <span className="badge">Rating {puzzle.rating || '?'}</span>
               {(puzzle.temas || puzzle.themes || []).slice(0, 3).map(t => (
@@ -1694,6 +1744,7 @@
                 <span className="badge">...</span>
               )}
             </div>
+            )}
 
             {estado === 'jogando' && (
               <div className="vstack gap-10">
@@ -3547,6 +3598,21 @@
         setTema(t => t === 'escuro' ? 'claro' : 'escuro');
       }
 
+      // Companion áudio: opt-in. Persistido em Chaves.AUDIO_ON.
+      const [audioOn, setAudioOn] = useState(() => Store.get(Chaves.AUDIO_ON, false));
+      useEffect(() => { Store.set(Chaves.AUDIO_ON, audioOn); }, [audioOn]);
+      function toggleAudio() {
+        setAudioOn(a => {
+          const novo = !a;
+          // tom de confirmação ao ligar (feedback imediato + desbloqueia
+          // AudioContext que precisa de user gesture na primeira vez)
+          if (novo && window.WP && window.WP.Audio) {
+            try { window.WP.Audio.tom(660, 80, { vol: 0.05 }); } catch (_) {}
+          }
+          return novo;
+        });
+      }
+
       function persistirSessao(s) {
         setSessaoSalva(s);
         Store.set(Chaves.SESSAO, s);
@@ -3776,7 +3842,8 @@
 
       return (
         <div className="app-shell">
-          <Header tema={tema} onToggleTema={toggleTema} />
+          <Header tema={tema} onToggleTema={toggleTema}
+            audioOn={audioOn} onToggleAudio={toggleAudio} />
 
           {showModalRetomar && sessaoSalva && (
             <ModalRetomada

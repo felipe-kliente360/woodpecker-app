@@ -13,5 +13,7 @@
     AUTO_BACKUP:      "wp_auto_backup",
     ANALISE_USERNAME: "wp_analise_username",
     SCHEMA_VERSION:   "wp_schema_version",
+    MODO_MONGE:       "wp_modo_monge",
+    AUDIO_ON:         "wp_audio_on",
   };
 })(typeof window !== "undefined" ? window : globalThis);
