@@ -259,6 +259,21 @@
       }]));
     }
 
+    // Marcador "vi de cara" — toggle opcional no resultado mais recente.
+    // Usuário marca quando reconheceu o padrão imediatamente (mesmo se
+    // tempo_s foi alto). Métrica cognitiva separada: não é só velocidade,
+    // é fluência de padrão. Persistido como visao_instantanea: true no
+    // resultado em sessao/ciclo.
+    function marcarVisaoInstantanea(visto) {
+      setResultados(rs => {
+        if (!rs.length) return rs;
+        const last = rs[rs.length - 1];
+        if (!last.correto) return rs; // só faz sentido em acerto
+        const novoLast = Object.assign({}, last, { visao_instantanea: !!visto });
+        return rs.slice(0, -1).concat([novoLast]);
+      });
+    }
+
     function pular() {
       if (estado !== "jogando") return;
       const tempo = segRef.current;
@@ -391,6 +406,7 @@
       setModoConfirmar: setModoConfirmar,
       setPausado: setPausado,
       pularPuzzleErro: () => setIdx(idx + 1),
+      marcarVisaoInstantanea: marcarVisaoInstantanea,
     };
   }
 

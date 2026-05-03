@@ -1366,6 +1366,7 @@
         onDrop, onSquareClick, confirmarPendente, cancelarPendente,
         escolherPromocao, cancelarPromocao, pular, avancar, confirmarUci,
         setUciInput, setModoConfirmar, setPausado, pularPuzzleErro,
+        marcarVisaoInstantanea,
       } = j;
 
       const pct = total ? Math.round((idx / total) * 100) : 0;
@@ -1593,6 +1594,38 @@
                       <div className="mono fs-10 txt-muted ls-2 mb-4">PADRÃO TÁTICO</div>
                       <div className="serif fs-13 txt-mid">{dica}</div>
                     </div>
+                  );
+                })()}
+                {!feedback.correto && !feedback.pulado && ciclo.numero >= 5 && (
+                  <div className="mono fs-11 txt-muted" style={{
+                    padding: '6px 10px', lineHeight: 1.5,
+                    borderLeft: '3px solid var(--border)',
+                  }}>
+                    Errar a partir do ciclo 5 é normal — você está indo mais rápido. Continue.
+                  </div>
+                )}
+                {feedback.correto && (() => {
+                  // Sinal cognitivo: "vi de cara" ≠ "fui rápido". Tempo curto
+                  // pode vir de cálculo veloz; reconhecimento instantâneo é
+                  // outra coisa. Toggle persiste em resultado.visao_instantanea.
+                  const ult = resultados[resultados.length - 1];
+                  const marcado = ult && ult.visao_instantanea;
+                  return (
+                    <button
+                      onClick={() => marcarVisaoInstantanea(!marcado)}
+                      className="btn-small ghost"
+                      style={{
+                        background: marcado ? 'var(--gold-bg)' : 'transparent',
+                        color: marcado ? 'var(--gold)' : 'var(--txt-muted)',
+                        borderColor: marcado ? 'var(--gold)' : 'var(--border)',
+                        border: '1px solid', borderRadius: 6,
+                        padding: '6px 12px', fontSize: 11,
+                        fontFamily: 'var(--font-mono)', fontWeight: 600,
+                        cursor: 'pointer', alignSelf: 'flex-start',
+                      }}
+                      title="Reconheceu o padrão imediatamente, sem cálculo">
+                      {marcado ? '★ vi de cara' : '☆ vi de cara'}
+                    </button>
                   );
                 })()}
                 <button className="btn btn-primary btn-block hide-mobile" onClick={avancar}>
@@ -2927,7 +2960,19 @@
 
     /* === APP ROOT === */
     function App() {
-      const [tema, setTema] = useState(() => Store.get(Chaves.TEMA, 'escuro'));
+      // Default segue prefers-color-scheme do sistema na primeira visita.
+      // Após o usuário escolher manualmente (toggle no header), respeita
+      // a escolha persistida em Chaves.TEMA.
+      const [tema, setTema] = useState(() => {
+        const salvo = Store.get(Chaves.TEMA, null);
+        if (salvo) return salvo;
+        try {
+          if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+            return 'claro';
+          }
+        } catch (_) {}
+        return 'escuro';
+      });
       const [tela, setTela] = useState('inicio');
       const [conjuntos, setConjuntos] = useState(() => Store.get(Chaves.CONJUNTOS, []));
       const [ciclos, setCiclos] = useState(() => Store.get(Chaves.CICLOS, []));
