@@ -16,13 +16,13 @@ estratégico. Itens concluídos saem dos eixos e ficam na seção
 - Domain puro testável (`src/domain/{rating,srs,ciclo,puzzle}.js`).
 - Hooks customizados (`useJogoPuzzle`, `useCriarConjunto`, `useTimer*`,
   `useKeyboardShortcuts`).
-- Suíte 44/44 `node:test` zero-deps.
+- Suíte 48/48 `node:test` zero-deps.
 
 ### Análise tática (chess.com)
 - **Modo 1 — Chances perdidas** (Role A dominante, sem padding) ✅ `62fe808`
 - **Modo 2 — Análise de adversário** (B+C com C ponderado 2×) ✅ `62fe808`
 - **Modo 3 — Plano completo** (default) ✅ `62fe808`
-- Segmented control "Plano para EU · MELHORAR / VENCER UM ADVERSÁRIO"
+- Segmented control "Plano para MELHORAR MEU JOGO / VENCER UM ADVERSÁRIO"
   acima do input ✅ `c2ce8da`
 - Cobertura prévia (`peekCoverage`) ✅
 - Wake Lock durante análise ✅
@@ -57,8 +57,42 @@ estratégico. Itens concluídos saem dos eixos e ficam na seção
 - System font stacks via `--font-serif` e `--font-mono` (Iowan Old
   Style, SF Mono, Cascadia, Liberation, etc.) ✅ `3d8a73f`
 - Focus-visible para a11y de teclado ✅ `3d8a73f`
+- Dark/light segue `prefers-color-scheme` na primeira visita ✅ `a029581`
 
-### Arquitetura em camadas (refatoração 5+1 fases)
+### Fluência de padrão (Eixo 3)
+- Marcador "Vi de cara" — toggle ☆/★ no acerto, métrica
+  `visao_instantanea` separada de tempo ✅ `a029581`
+- Sparkline por puzzle (em LinhaTeimoso) ✅ `1ebb561`
+- Heatmap por tema — tabela tema×ciclo com taxa por célula
+  (verde/gold/vermelho) ✅ `f56434b`
+- **Pattern Flash mode** — modo paralelo de reconhecimento instantâneo
+  com setup (conjunto/tempo/quantidade) e estado machine ✅ `00fd7ee`
+
+### Foto do progresso (Eixo 4)
+- Calendário de streak (heatmap GitHub-style 84 dias) ✅ `1ebb561`
+- Personal Worst (top 10 puzzles por tempo total agregado) ✅ `1ebb561`
+- Comparador de ciclos lado a lado ✅ `f56434b`
+- Year-in-review automático (>= 365 dias do 1º ciclo) ✅ `f56434b`
+
+### Estrutura ritual (Eixo 5)
+- Ritual de início de ciclo — overlay modal pra ciclo > 1 com
+  baseline + meta + halving + quote ✅ `4cca480`
+- Reflexão a cada 50 — modal automático com textarea opcional;
+  reflexões persistem em `ciclo.reflexoes` ✅ `4cca480`
+- "Aceitação do erro" — mensagem contextual em ciclo 5+ ✅ `a029581`
+
+### Experimentos (Eixo 6 — selecionados)
+- **Modo monge** — UI minimalista (só board + timer texto + ações
+  essenciais) ✅ `a11e44e`
+- **Companion áudio** (opt-in) — Web Audio API, acerto/erro com tons
+  sintetizados via OscillatorNode ✅ `a11e44e`
+
+### Polimento (Eixo 7)
+- Atalhos numéricos 1-6 + ? help overlay + Esc ✅ `3cccb79`
+- Compartilhar PNG do resumo do ciclo (Canvas API) ✅ `3cccb79`
+- Onboarding nudges contextual baseado em progresso (0/1/2-4 ciclos) ✅ `3cccb79`
+
+### Arquitetura em camadas (refatoração 5+1+1 fases)
 - `src/data/{chaves,store}.js` — única camada com `localStorage` ✅ Fase 1
 - `src/domain/*.js` — lógica pura, testável em Node ✅ Fase 2
 - `src/hooks/*.js` — hooks consomem domain + data ✅ Fase 3a
@@ -106,8 +140,9 @@ Trigger automático após cada partida contra username conhecido —
 
 ## Eixo 2 — Pressão e velocidade (fidelidade ao livro)
 
-O Woodpecker original é uma sessão intensa, ininterrupta. Nosso UX
-hoje é gentil demais.
+O Woodpecker original é uma sessão intensa, ininterrupta. Vários
+itens dessa frente já entraram via Modo Monge e Reflexão a cada 50;
+o que falta é mais agressivo:
 
 - **Pace Coach**: indicador ao vivo no timer "+12s vs ciclo 1" durante
   o puzzle. Hoje só pós-puzzle. ~2h.
@@ -120,114 +155,42 @@ hoje é gentil demais.
 
 ---
 
-## Eixo 3 — Fluência de padrão (objetivo profundo do método)
-
-O livro insiste: o objetivo é intuição imediata, não cálculo.
-
-- **Marcador "Vi de cara"**: após acerto, botão opcional pra marcar
-  "saquei imediatamente". Métrica nova: % de reconhecimento
-  instantâneo, separada de tempo. ~2h.
-- **Pattern Flash**: modo paralelo. Mostra posição por 2s → tela em
-  branco → input do lance. Calibra intuição sem cálculo. ~5h.
-- **Heatmap por tema**: gráfico mostrando qual tema melhorou mais
-  entre ciclos. ~3h.
-- **Sparkline por puzzle**: na lista de teimosos, linha do tempo nele
-  em cada ciclo. Diferencia "ficou rápido" de "decorou". ~2h.
-
----
-
-## Eixo 4 — Foto do progresso (data → narrativa)
-
-- **Calendário de streak**: heatmap estilo GitHub de ciclos por dia.
-  Aciona vontade de manter o tracinho diário. ~3h.
-- **Year-in-review automático**: a cada 365 dias do 1º ciclo, gera
-  post-mortem visual. ~5h.
-- **Comparador de ciclos lado a lado**: selecionar 2 ciclos do mesmo
-  conjunto e ver as 5 maiores melhorias e 5 piorias por puzzle. ~3h.
-- **Personal Worst**: lista dos 10 puzzles em que mais gastou tempo
-  agregado. ~2h.
-
----
-
-## Eixo 5 — Estrutura ritual
-
-- **Reflexão a cada 50**: pop-up leve a cada 50 puzzles dentro de um
-  ciclo: "1 frase: o que você notou?" (opt-out). ~3h.
-- **Ritual de início de ciclo**: tela bridge entre conjuntos. Mostra
-  histórico, qual ciclo começa, meta de tempo, quote do livro. ~2h.
-- **"Aceitação do erro"**: em ciclo 5+, mensagens diferentes — "errar
-  nessa altura é normal — está indo mais rápido". ~1h.
-
----
-
-## Eixo 6 — Experimentos criativos (alto risco, alta recompensa)
+## Eixo 6 — Experimentos restantes
 
 - **Blindfold mode**: posição visível por N segundos, depois apenas
   notação textual + lista de peças. Lance digitado. Faixa expert. ~6h.
+  (NB: Pattern Flash já entrega versão "lite" desse conceito.)
 - **Reverse mode**: começa pela posição final (mate), volta um lance,
   usuário precisa encontrar o penúltimo. ~5h.
 - **Visão por dica**: após 3 erros no mesmo puzzle ao longo de ciclos,
   app sussurra "olhe pra peça em e5". Não dá resposta, dá foco. ~3h.
-- **Modo monge**: tela 100% preta, só timer texto. Sem badges, sem
-  rating, sem temas — só posição+timer. ~2h.
-- **Companion áudio (opt-in)**: tique de relógio leve durante puzzle.
-  Sucesso = acorde. Erro = thud. ~3h.
 - **"Aposte em si mesmo"**: antes do ciclo, usuário estima seu tempo
   total. Depois compara. Calibra autopercepção. ~2h.
 
 ---
 
-## Eixo 7 — Polimento contínuo
+## Próximas ondas sugeridas
 
-- **Atalhos Vim-style desktop**: h/j/k/l + Enter para navegar tudo
-  sem mouse. Power-user.
-- **Compartilhar imagem do ciclo**: botão exporta resultado como PNG
-  via canvas.
-- **Onboarding interativo**: primeira visita guiada (criar conjunto
-  pequeno, fazer 3 puzzles, ver evolução). Hoje temos o 3-card chooser
-  estático — falta o passo-a-passo.
-- **Dark/light auto**: seguir `prefers-color-scheme`. Hoje toggle
-  manual.
-
----
-
-## Próximas ondas sugeridas (ordem de execução)
-
-### Onda A — Reforço da pressão Woodpecker (~6-8h)
+### Onda A — Pressão Woodpecker (~7-10h)
 1. Pace Coach — 2h
-2. Marcador "Vi de cara" — 2h
-3. Ritual de início de ciclo — 2h
-4. "Aceitação do erro" (mensagens contextuais ciclo 5+) — 1h
+2. Speedrun Mode — 3h
+3. No-pause Mode — 2h
+4. Bloco-de-25 — 3h
 
-### Onda B — Foto do progresso (~6-8h)
-1. Calendário de streak — 3h
-2. Sparkline por puzzle (em teimosos) — 2h
-3. Comparador de ciclos lado a lado — 3h
-
-### Onda C — Análise: derivações Modo 2 (~6-8h)
+### Onda B — Análise: derivações Modo 2 (~8-10h)
 1. Modo 2 v2 — janela 2-3 plies — 2h
 2. Briefing pré-jogo — 3h
 3. Histórico cabeça-a-cabeça — 3h
+4. Pós-mortem pareado — 4h
 
-### Onda D — Experimentos (escolher por afinidade)
-1. Pattern Flash mode — 5h
-2. "Aposte em si mesmo" — 2h
-3. Modo monge — 2h
-4. Heatmap por tema — 3h
+### Onda C — Experimentos (escolher por afinidade)
+1. "Aposte em si mesmo" — 2h
+2. Visão por dica — 3h
+3. Reverse mode — 5h
+4. Blindfold mode — 6h
 
-### Backlog longo
-- Pós-mortem pareado
-- Reflexão a cada 50
-- Year-in-review
-- Personal Worst
-- Blindfold / Reverse / Visão por dica
-- Companion áudio
-- Atalhos Vim
-- Compartilhar imagem
-- Onboarding interativo
-- Dark/light auto
-- Rivalry mode
-- Speedrun Mode + No-pause Mode + Bloco-de-25 (toda a Eixo 2 que sobrou)
+### Onda D — Long-running
+1. Rivalry mode (auto-update análise H2H) — 4-6h
 
 ---
 
