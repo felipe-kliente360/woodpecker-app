@@ -2196,6 +2196,199 @@
       );
     }
 
+    /* === ScreenSets (handoff Tela 7) ===
+       Lista de conjuntos com cycle bars (5 cols). Tap → onTreinar (continua
+       último ciclo) ou onEvolucao (analytics). Empty state: card placeholder
+       dashed. */
+    function ScreenSets({ conjuntos, ciclos, onTreinar, onEvolucao, onCriar }) {
+      const Conjunto = window.WP.Conjunto;
+      const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
+
+      function CycleBars({ c }) {
+        const cs = ciclosDoConjunto(ciclos, c.id);
+        const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)] || 5;
+        const tempos = cs.map(x => x.tempo_total_s || 0);
+        const max = Math.max(...tempos, 1);
+        const slots = [];
+        for (let i = 0; i < meta; i++) {
+          const ciclo = cs[i] || null;
+          const isLast = i === cs.length - 1 && cs.length > 0;
+          slots.push({ ciclo, isLast });
+        }
+        return (
+          <div className="wp-cycle-bars">
+            {slots.map((s, i) => (
+              <div key={i} className="wp-cycle-col">
+                {s.ciclo ? (
+                  <>
+                    <div className="wp-mono wp-cycle-time">{formatarTempo(s.ciclo.tempo_total_s)}</div>
+                    <div
+                      className={'wp-cycle-bar' + (s.isLast ? ' wp-cycle-bar--accent' : '')}
+                      style={{ height: ((s.ciclo.tempo_total_s / max) * 100) + '%' }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <div className="wp-mono wp-cycle-time" style={{ color: 'var(--wp-text-4)' }}>—</div>
+                    <div className="wp-cycle-bar wp-cycle-bar--empty" />
+                  </>
+                )}
+                <div className="wp-mono wp-cycle-label">c{i + 1}</div>
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      return (
+        <div className="wp-content">
+          <div className="wp-page-header">
+            <h1 className="wp-h1 wp-display">Conjuntos</h1>
+            <button className="wp-icon-btn" onClick={onCriar} aria-label="Novo conjunto">
+              <WpIcon name="plus" size={18} />
+            </button>
+          </div>
+
+          {ativos.length === 0 ? (
+            <WpCard onClick={onCriar} className="wp-em-empty">
+              <div className="wp-card-title">Comece um conjunto</div>
+              <div className="wp-card-desc">
+                Cada conjunto será repetido por 5 ciclos. O método começa com um.
+              </div>
+            </WpCard>
+          ) : (
+            <div className="vstack gap-12">
+              {ativos.map((c, i) => {
+                const cs = ciclosDoConjunto(ciclos, c.id);
+                const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)] || 5;
+                const cicloN = cs.length;
+                return (
+                  <div key={c.id} className="wp-card wp-set-card">
+                    <div className="wp-set-row">
+                      <span className="wp-mono wp-home-conjunto-idx">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="wp-em-title" style={{ fontSize: 16 }}>{c.nome}</div>
+                        <div className="wp-em-meta">
+                          {(c.tamanho || '?')} puzzles · {Conjunto.tipoDe(c)}
+                        </div>
+                      </div>
+                      {cicloN > 0 && cicloN < meta && (
+                        <span className="wp-mono wp-em-badge">ATIVO</span>
+                      )}
+                    </div>
+
+                    <CycleBars c={c} />
+
+                    <div className="wp-set-footer">
+                      <span className="wp-mono wp-set-counter">
+                        Ciclo <span style={{ color: 'var(--wp-text)' }}>{cicloN}</span> de {meta}
+                      </span>
+                      <div className="hstack gap-8">
+                        <WpButton variant="ghost" onClick={() => onEvolucao(c)}>Análises</WpButton>
+                        <WpButton variant="outline" onClick={() => onTreinar(c)}>
+                          {cicloN === 0 ? 'Começar' : (cicloN >= meta ? 'Revisar' : 'Continuar')}
+                        </WpButton>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <button className="wp-row wp-row--button wp-home-novo wp-set-novo" onClick={onCriar}>
+                <WpIcon name="plus" size={14} />
+                <span className="wp-row-label" style={{ color: 'var(--wp-text-2)' }}>Novo conjunto</span>
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* === ScreenNewSet (handoff Tela 8) ===
+       3 cards selecionáveis (Padrão / Plano de melhoria / Adversário).
+       Confirmação dispara onCriarPadrao | onCriarPessoal | onCriarAdversario
+       (handlers do App; pessoal/adversário entram em TelaAnalisar). */
+    function ScreenNewSet({ temChesscom, onVoltar, onCriarPadrao, onCriarPessoal, onCriarAdversario }) {
+      const [tipo, setTipo] = useState('padrao');
+      function aoConfirmar() {
+        if (tipo === 'padrao') onCriarPadrao();
+        else if (tipo === 'pessoal' && temChesscom) onCriarPessoal();
+        else if (tipo === 'adversario' && temChesscom) onCriarAdversario();
+      }
+      const podeAvancar = tipo === 'padrao' || (tipo === 'pessoal' && temChesscom) || (tipo === 'adversario' && temChesscom);
+
+      return (
+        <div className="wp-onboarding">
+          <div className="wp-onboarding-stepbar">
+            <button className="wp-icon-btn wp-onboarding-back" onClick={onVoltar} aria-label="Voltar">
+              <WpIcon name="close" size={18} />
+            </button>
+            <WpEyebrow>Novo conjunto</WpEyebrow>
+            <span style={{ width: 36 }} />
+          </div>
+
+          <h1 className="wp-display" style={{ fontSize: 28, fontWeight: 500, margin: '32px 0 0', lineHeight: 1.15 }}>
+            Que tipo de treino?
+          </h1>
+          <p className="wp-onboarding-lede" style={{ marginTop: 10 }}>
+            Cada conjunto será repetido por 5 ciclos.
+          </p>
+
+          <div className="vstack gap-10" style={{ marginTop: 28 }}>
+            <WpCard selected={tipo === 'padrao'} onClick={() => setTipo('padrao')}>
+              <div className="hstack gap-12" style={{ alignItems: 'baseline', marginBottom: 6 }}>
+                <span className="wp-mono wp-home-conjunto-idx">01</span>
+                <span className="wp-card-title" style={{ fontSize: 16 }}>Padrão</span>
+              </div>
+              <div className="wp-card-desc">Temas sortidos no seu rating.</div>
+              <div className="wp-mono wp-card-meta">50 ou 100 puzzles</div>
+            </WpCard>
+
+            <WpCard
+              selected={tipo === 'pessoal'}
+              onClick={() => temChesscom && setTipo('pessoal')}
+              className={!temChesscom ? 'wp-card--disabled' : ''}>
+              <div className="hstack gap-12" style={{ alignItems: 'baseline', marginBottom: 6 }}>
+                <span className="wp-mono wp-home-conjunto-idx">02</span>
+                <span className="wp-card-title" style={{ fontSize: 16 }}>Plano de melhoria</span>
+              </div>
+              <div className="wp-card-desc">
+                Importa fraquezas do chess.com.
+                {!temChesscom && <span style={{ color: 'var(--wp-text-4)' }}> · requer chess.com</span>}
+              </div>
+              <div className="wp-mono wp-card-meta">Personalizado</div>
+            </WpCard>
+
+            <WpCard
+              selected={tipo === 'adversario'}
+              onClick={() => temChesscom && setTipo('adversario')}
+              className={!temChesscom ? 'wp-card--disabled' : ''}>
+              <div className="hstack gap-12" style={{ alignItems: 'baseline', marginBottom: 6 }}>
+                <span className="wp-mono wp-home-conjunto-idx">03</span>
+                <span className="wp-card-title" style={{ fontSize: 16 }}>Adversário específico</span>
+              </div>
+              <div className="wp-card-desc">
+                Aberturas e padrões dele.
+                {!temChesscom && <span style={{ color: 'var(--wp-text-4)' }}> · requer chess.com</span>}
+              </div>
+              <div className="wp-mono wp-card-meta">username + 100 puzzles</div>
+            </WpCard>
+          </div>
+
+          <div style={{ flex: 1 }} />
+          <WpButton
+            variant="primary"
+            full
+            onClick={aoConfirmar}
+            disabled={!podeAvancar}
+            style={{ marginTop: 24 }}>
+            Configurar
+          </WpButton>
+        </div>
+      );
+    }
+
     function TelaConjuntos({ conjuntos, ciclos, onTreinar, onEvolucao, onExcluir, onAtualizar, onCriar }) {
       return (
         <div className="tela-container wide">
@@ -5486,7 +5679,8 @@
       // aba mostram a aba mais próxima (ex: 'criar' fica em 'conjuntos').
       const ABA_DA_TELA = {
         inicio: 'inicio', conjuntos: 'conjuntos', criar: 'conjuntos',
-        selecao: 'conjuntos', evolucao: 'evolucao', analisar: 'evolucao',
+        'criar-tipo': 'conjuntos', selecao: 'conjuntos',
+        evolucao: 'evolucao', analisar: 'evolucao',
         perfil: 'perfil', conclusao: 'inicio',
       };
       const abaAtiva = ABA_DA_TELA[tela] || 'inicio';
@@ -5596,14 +5790,24 @@
                 />
               )}
               {!carregando && tela === 'conjuntos' && (
-                <TelaConjuntos
+                <ScreenSets
                   conjuntos={conjuntos}
                   ciclos={ciclos}
                   onTreinar={iniciarTreino}
                   onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
-                  onExcluir={excluirConjunto}
-                  onAtualizar={atualizarConjunto}
-                  onCriar={() => setTela('criar')}
+                  onCriar={() => setTela('criar-tipo')}
+                />
+              )}
+              {!carregando && tela === 'criar-tipo' && (
+                <ScreenNewSet
+                  temChesscom={!!(ratingUsuario && ratingUsuario.chesscom)}
+                  onVoltar={() => setTela('conjuntos')}
+                  onCriarPadrao={() => {
+                    setPresetCriar({ tipo: 'padrao', rating: ratingUsuario.valor });
+                    setTela('criar');
+                  }}
+                  onCriarPessoal={() => { setTipoAnalise('auto'); setTela('analisar'); }}
+                  onCriarAdversario={() => { setTipoAnalise('adversario'); setTela('analisar'); }}
                 />
               )}
               {!carregando && tela === 'criar' && (

@@ -1115,6 +1115,78 @@
   margin-top: 2px;
 }
 .wp-home-novo .wp-row-label { color: var(--wp-text-3); }
+
+/* === ScreenSets (handoff Tela 7) — cycle bars === */
+.wp-set-card { padding: 18px; }
+.wp-set-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.wp-cycle-bars {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  height: 80px;
+  margin-bottom: 14px;
+}
+.wp-cycle-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.wp-cycle-time {
+  font-size: 9px;
+  color: var(--wp-text-4);
+  text-align: center;
+}
+.wp-cycle-bar {
+  width: 100%;
+  min-height: 4px;
+  background: var(--wp-surface-3);
+  border-radius: 1px;
+}
+.wp-cycle-bar--accent { background: var(--wp-accent); }
+.wp-cycle-bar--empty {
+  height: 2px !important;
+  background: var(--wp-line-soft);
+}
+.wp-cycle-label {
+  font-size: 9px;
+  color: var(--wp-text-4);
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.wp-set-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wp-set-counter { font-size: 12px; color: var(--wp-text-3); }
+.wp-set-novo {
+  border: 1px dashed var(--wp-line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  justify-content: center;
+}
+
+.wp-card-meta {
+  font-size: 11px;
+  color: var(--wp-text-4);
+  margin-top: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.wp-card--disabled {
+  opacity: 0.45;
+  cursor: not-allowed !important;
+}
 .wp-onboarding-brand {
   display: flex;
   align-items: center;
