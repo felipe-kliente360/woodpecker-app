@@ -448,6 +448,32 @@
   transition: width 0.3s;
 }
 
+/* === STATUS BAR (TelaTreinar) ===
+   Linha única horizontal: nro/total · puzzle · total · pace coach.
+   Sem cards aninhados, sem labels redundantes. */
+.status-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--txt-mid);
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.status-bar .num-display {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-size: 14px;
+  color: var(--txt);
+  font-weight: 600;
+}
+.status-bar .sep { color: var(--border-mid); }
+
 /* === TIMER === */
 .timer {
   border-radius: 12px;
@@ -606,21 +632,10 @@
   -webkit-user-drag: none;
   -webkit-touch-callout: none;
 }
-.train-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 58%) minmax(0, 42%);
-  gap: 20px;
-  max-width: 900px;
-  margin: 0 auto;
-  align-items: start;
-}
-@media (max-width: 800px) {
-  .train-layout { grid-template-columns: 1fr; max-width: 520px; gap: 12px; }
-}
+/* TelaTreinar usa .tela-container.narrow — column única, board centralizado */
 @media (max-width: 640px) {
   /* Treino mobile: padding mínimo para o tabuleiro respirar */
   .content-area.fullbleed { padding: 10px 8px 24px; }
-  .train-layout { gap: 10px; }
 }
 
 /* === LOADING DE PEÇAS (TelaCriar montagem) === */

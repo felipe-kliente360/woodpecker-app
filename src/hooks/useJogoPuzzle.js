@@ -5,7 +5,7 @@
 // Inputs:
 //   puzzles: array do ciclo (idx 0..n-1)
 //   sessao:  sessão salva ({ index_atual, resultados_parciais }) ou null
-//   conjunto, ciclo: contexto pra persistência e modo espelho
+//   conjunto, ciclo: contexto pra persistência
 //   ciclosAnteriores: usado pra calcular ritmoVsBaseline
 //   onConcluirCiclo(resultados): chamado quando idx ultrapassa total
 //   onSalvarSessao(s): chamado a cada mudança de progresso
@@ -49,10 +49,8 @@
     const [fenAtual, setFenAtual] = useState("");
     const [ultimoLanceErrado, setUltimoLanceErrado] = useState(null);
     const [ultimoLanceAdv, setUltimoLanceAdv] = useState(null);
-    const [lancePendente, setLancePendente] = useState(null);
     const [promoPicker, setPromoPicker]   = useState(null);
     const [casaSelecionada, setCasaSelecionada] = useState(null);
-    const [modoConfirmar, setModoConfirmar] = useState(false);
     const [erroPuzzle, setErroPuzzle] = useState(null);
 
     const puzzle = puzzles && puzzles[idx];
@@ -126,10 +124,7 @@
         chessRef.current = c;
         expectedIdxRef.current = 1;
         fenInicialJogadorRef.current = c.fen();
-        const corNatural = Puzzle.corDoTabuleiro(c.fen());
-        orientacaoRef.current = (conjunto && conjunto.espelho)
-          ? (corNatural === "white" ? "black" : "white")
-          : corNatural;
+        orientacaoRef.current = Puzzle.corDoTabuleiro(c.fen());
         setFenAtual(c.fen());
         setEstado("jogando");
         setFeedback(null);
@@ -178,21 +173,11 @@
     function processarLance(from, to, promo) {
       if (estado !== "jogando") return false;
       if (pausado) return false;
-      if (lancePendente) return false;
       const c = chessRef.current;
       if (!c) return false;
       if (!promo && ehPromocao(c, from, to)) {
         setPromoPicker({ from: from, to: to });
         return false;
-      }
-      if (modoConfirmar) {
-        let m;
-        try { m = c.move({ from: from, to: to, promotion: promo || "q" }); }
-        catch (e) { return false; }
-        if (!m) return false;
-        setFenAtual(c.fen());
-        setLancePendente({ from: from, to: to, promo: promo || "q", san: m.san });
-        return true;
       }
       return avaliarLance(from, to, promo);
     }
@@ -219,7 +204,16 @@
         const tempo = segRef.current;
         setRodando(false);
         const sans = Puzzle.sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
-        setFeedback({ correto: false, tempo_s: tempo, sans: sans, lance_jogado_san: m.san });
+        // Regra dos 3 erros: só revela a solução a partir do 3º erro
+        // histórico (no mesmo conjunto, ciclos passados + atual). Antes
+        // disso, feedback é só "errou — próximo": força o jogador a
+        // reler o padrão na próxima passada sem entregar a resposta.
+        const totalErros = contarErrosHistoricos(puzzle) + 1;
+        const mostrarSolucao = totalErros >= 3;
+        setFeedback({
+          correto: false, tempo_s: tempo, sans: sans, lance_jogado_san: m.san,
+          mostrar_solucao: mostrarSolucao, total_erros: totalErros,
+        });
         setUltimoLanceErrado(m.san);
         c.undo();
         setFenAtual(c.fen());
@@ -253,23 +247,6 @@
       return true;
     }
 
-    function confirmarPendente() {
-      if (!lancePendente) return;
-      const lp = lancePendente;
-      const c = chessRef.current;
-      try { c.undo(); } catch (e) {}
-      setLancePendente(null);
-      avaliarLance(lp.from, lp.to, lp.promo);
-    }
-
-    function cancelarPendente() {
-      if (!lancePendente) return;
-      const c = chessRef.current;
-      try { c.undo(); } catch (e) {}
-      setFenAtual(c.fen());
-      setLancePendente(null);
-    }
-
     function escolherPromocao(piece) {
       if (!promoPicker) return;
       const pp = promoPicker;
@@ -286,27 +263,33 @@
       setRodando(false);
       const lances = puzzle.lances || puzzle.moves || [];
       const sans = Puzzle.sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
-      setFeedback({ correto: true, tempo_s: tempo, sans: sans });
+      // "Vi de cara" automático: acerto em até 5s significa reconhecimento
+      // imediato do padrão. Métrica cognitiva separada do tempo (não é só
+      // velocidade — é fluência). Threshold conservador pra evitar falso
+      // positivo em puzzles de 1 lance trivial.
+      const visaoInstantanea = tempo <= 5;
+      setFeedback({ correto: true, tempo_s: tempo, sans: sans, visao_instantanea: visaoInstantanea });
       setEstado("feedback");
       setResultados(rs => rs.concat([{
         puzzle_id: puzzle.id || puzzle.puzzleId, correto: true,
         tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating,
+        visao_instantanea: visaoInstantanea,
       }]));
     }
 
-    // Marcador "vi de cara" — toggle opcional no resultado mais recente.
-    // Usuário marca quando reconheceu o padrão imediatamente (mesmo se
-    // tempo_s foi alto). Métrica cognitiva separada: não é só velocidade,
-    // é fluência de padrão. Persistido como visao_instantanea: true no
-    // resultado em sessao/ciclo.
-    function marcarVisaoInstantanea(visto) {
-      setResultados(rs => {
-        if (!rs.length) return rs;
-        const last = rs[rs.length - 1];
-        if (!last.correto) return rs; // só faz sentido em acerto
-        const novoLast = Object.assign({}, last, { visao_instantanea: !!visto });
-        return rs.slice(0, -1).concat([novoLast]);
-      });
+
+    // Conta erros históricos do mesmo puzzle nos ciclos anteriores do
+    // mesmo conjunto (ciclosAnteriores já chega filtrado pelo conjunto).
+    function contarErrosHistoricos(p) {
+      if (!p || !ciclosAnteriores) return 0;
+      const id = p.id || p.puzzleId;
+      let n = 0;
+      for (const c of ciclosAnteriores) {
+        for (const r of (c.resultados || [])) {
+          if ((r.puzzle_id === id) && !r.correto) n += 1;
+        }
+      }
+      return n;
     }
 
     function pular() {
@@ -315,7 +298,14 @@
       setRodando(false);
       const lances = puzzle.lances || puzzle.moves || [];
       const sans = Puzzle.sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
-      setFeedback({ correto: false, tempo_s: tempo, sans: sans, pulado: true });
+      // Pular conta como erro pra regra dos 3 — usuário desistiu, ainda
+      // não viu a solução.
+      const totalErros = contarErrosHistoricos(puzzle) + 1;
+      const mostrarSolucao = totalErros >= 3;
+      setFeedback({
+        correto: false, tempo_s: tempo, sans: sans, pulado: true,
+        mostrar_solucao: mostrarSolucao, total_erros: totalErros,
+      });
       setEstado("feedback");
       setResultados(rs => rs.concat([{
         puzzle_id: puzzle.id || puzzle.puzzleId, correto: false,
@@ -349,7 +339,7 @@
     };
 
     const onSquareClick = (sq) => {
-      if (estado !== "jogando" || pausado || lancePendente || promoPicker) return;
+      if (estado !== "jogando" || pausado || promoPicker) return;
       const c = chessRef.current;
       if (!c) return;
       if (!casaSelecionada) {
@@ -381,11 +371,6 @@
         else if (e.key === "n" || e.key === "N") { e.preventDefault(); escolherPromocao("n"); }
         return;
       }
-      if (estado === "jogando" && lancePendente) {
-        if (e.key === "Enter") { e.preventDefault(); confirmarPendente(); }
-        else if (e.key === "Escape") { e.preventDefault(); cancelarPendente(); }
-        return;
-      }
       if (estado === "jogando") {
         if (e.key === " ") { e.preventDefault(); pular(); }
         else if (e.key === "p" || e.key === "P") { e.preventDefault(); setPausado(p => !p); }
@@ -395,7 +380,7 @@
         if (e.key === "Enter" || e.key === "ArrowRight") { e.preventDefault(); avancar(); }
         return;
       }
-    }, [estado, lancePendente, promoPicker, idx, pausado]);
+    }, [estado, promoPicker, idx, pausado]);
 
     return {
       // Posição corrente
@@ -418,7 +403,6 @@
       // Estado de jogo
       estado: estado,
       feedback: feedback,
-      lancePendente: lancePendente,
       promoPicker: promoPicker,
       casaSelecionada: casaSelecionada,
       ultimoLanceAdv: ultimoLanceAdv,
@@ -427,24 +411,18 @@
       // Timer
       seg: seg,
       pausado: pausado,
-      // Modos
-      modoConfirmar: modoConfirmar,
       uciInput: uciInput,
       // Ações
       onDrop: onDrop,
       onSquareClick: onSquareClick,
-      confirmarPendente: confirmarPendente,
-      cancelarPendente: cancelarPendente,
       escolherPromocao: escolherPromocao,
       cancelarPromocao: cancelarPromocao,
       pular: pular,
       avancar: avancar,
       confirmarUci: confirmarUci,
       setUciInput: setUciInput,
-      setModoConfirmar: setModoConfirmar,
       setPausado: setPausado,
       pularPuzzleErro: () => setIdx(idx + 1),
-      marcarVisaoInstantanea: marcarVisaoInstantanea,
     };
   }
 

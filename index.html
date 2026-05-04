@@ -1162,17 +1162,6 @@
             </div>
           ) : null}
 
-          <label className="hstack gap-8 mb-12" style={{ cursor: 'pointer', userSelect: 'none' }}>
-            <input type="checkbox"
-              checked={!!c.espelho}
-              onChange={e => onAtualizar({ ...c, espelho: e.target.checked })}
-              style={{ width: 16, height: 16, flexShrink: 0 }} />
-            <span className="mono fs-11 txt-mid">
-              <span className="hide-mobile">🔄 Modo espelho — tabuleiro invertido para combater memorização da posição</span>
-              <span className="only-mobile">🔄 Modo espelho (tabuleiro invertido)</span>
-            </span>
-          </label>
-
           <div className="hstack gap-8 flex-wrap">
             <button className="btn btn-small" onClick={() => onTreinar(c)}>▶ Treinar</button>
             <button className="btn btn-small ghost" onClick={() => onEvolucao(c)}>📊 Evolução</button>
@@ -1695,7 +1684,7 @@
     }
 
     function TelaTreinar({ conjunto, ciclo, puzzles, sessao, ciclosAnteriores, onConcluir, onSalvarSessao, onSair }) {
-      // Reflexões a cada 50 — armazenadas localmente, injetadas em onConcluir
+      // Reflexões a cada N — armazenadas localmente, injetadas em onConcluir
       // via ref (evita stale closure quando o hook chama o callback).
       const [reflexoesLocais, setReflexoesLocais] = useState(
         (sessao && sessao.reflexoes) || []
@@ -1712,26 +1701,13 @@
       });
 
       const {
-        idx, total, puzzle, fenAtual, orientacao, fenInicialJogador,
-        resultados, acertos, erros, restantes, tempoAcumulado, ritmoVsBaseline,
-        paceVsPuzzleBaseline, tempoBaselinePuzzleAtual, dicaVisao,
-        estado, feedback, lancePendente, promoPicker, casaSelecionada,
-        ultimoLanceAdv, erroPuzzle, seg, pausado, modoConfirmar, uciInput,
-        onDrop, onSquareClick, confirmarPendente, cancelarPendente,
-        escolherPromocao, cancelarPromocao, pular, avancar, confirmarUci,
-        setUciInput, setModoConfirmar, setPausado, pularPuzzleErro,
-        marcarVisaoInstantanea,
+        idx, total, puzzle, fenAtual, orientacao,
+        resultados, tempoAcumulado, paceVsPuzzleBaseline, dicaVisao,
+        estado, feedback, promoPicker, casaSelecionada,
+        ultimoLanceAdv, erroPuzzle, seg, pausado,
+        onDrop, onSquareClick, escolherPromocao, cancelarPromocao,
+        pular, avancar, setPausado, pularPuzzleErro,
       } = j;
-
-      const pct = total ? Math.round((idx / total) * 100) : 0;
-      const corTimer = seg < 60 ? 'green' : (seg < 120 ? 'gold' : 'red');
-      const corLabel = determinaCorJogador(fenInicialJogador || (puzzle && puzzle.fen) || '');
-
-      // Modo monge — UI minimalista pra foco extremo. Persiste por
-      // sessão de treino (Chaves.MODO_MONGE). Esconde tudo exceto
-      // tabuleiro, timer simplificado e ações essenciais.
-      const [modoMonge, setModoMonge] = useState(() => Store.get(Chaves.MODO_MONGE, false));
-      useEffect(() => { Store.set(Chaves.MODO_MONGE, modoMonge); }, [modoMonge]);
 
       // Companion áudio — toca som no feedback se Chaves.AUDIO_ON.
       useEffect(() => {
@@ -1748,8 +1724,7 @@
       const [mostraRitual, setMostraRitual] = useState(ciclo.numero > 1 && !ehRetomada);
 
       // Bloco-de-N: tamanho configurável via Chaves.BLOCO_TAMANHO (25/50/100,
-      // default 50). Detecta quando resultados.length cruza múltiplo de N,
-      // marca posição vista pra não repetir.
+      // default 50). Detecta quando resultados.length cruza múltiplo de N.
       const blocoTamanho = Store.get(Chaves.BLOCO_TAMANHO, 50);
       const [reflexaoPendente, setReflexaoPendente] = useState(null);
       const [posicoesVistas, setPosicoesVistas] = useState(new Set(
@@ -1794,300 +1769,168 @@
 
       const boardId = 'board-' + (puzzle.id || puzzle.puzzleId || idx);
 
+      // Tema instrutivo do puzzle (pra mostrar em acerto + erro 3+)
+      const temas = puzzle.temas || puzzle.themes || [];
+      const tInstrutivo = temas.find(t => TEMAS_INSTRUTIVOS.has(t));
+      const explicacaoTema = tInstrutivo
+        ? ((window.TacticalAggregator && window.TacticalAggregator.CANONICAL_THEMES &&
+            window.TacticalAggregator.CANONICAL_THEMES[tInstrutivo]) || (TEMAS[tInstrutivo] || tInstrutivo))
+        : null;
+
       return (
-        <div className="train-layout">
-          <div>
-            <div className="board-wrap" style={{ margin: '0 auto' }}>
-              <ChessBoardView
-                key={boardId}
-                boardId={boardId}
-                fen={fenAtual}
-                orientation={orientacao}
-                onDrop={onDrop}
-                onSquareClick={onSquareClick}
-                draggable={estado === 'jogando' && !pausado}
-                highlightFrom={ultimoLanceAdv ? ultimoLanceAdv.from : null}
-                highlightTo={ultimoLanceAdv ? ultimoLanceAdv.to : null}
-                selectedSquare={casaSelecionada}
-              />
-            </div>
-
-            {/* Visão por dica: sussurro discreto após 3 erros históricos
-                no mesmo puzzle. Direciona o olhar sem revelar a peça. */}
-            {dicaVisao && estado === 'jogando' && !modoMonge && (
-              <div className="mono fs-11 mt-8 center" style={{
-                color: 'var(--txt-muted)', letterSpacing: '0.04em', fontStyle: 'italic'
-              }}>
-                👁 olhe pra peça em <span className="bold" style={{ color: 'var(--txt-mid)' }}>{dicaVisao.casa}</span>
-                <span className="txt-muted"> · {dicaVisao.erros} erros antes</span>
-              </div>
+        <div className="tela-container narrow">
+          {/* === STATUS BAR ÚNICA === */}
+          <div className="status-bar mb-12">
+            <span className="num-display">{idx + 1}<span className="txt-muted">/{total}</span></span>
+            <span className="sep">·</span>
+            <span className="num-display" style={{ opacity: pausado ? 0.4 : 1 }}>
+              {formatarTempo(seg)}
+            </span>
+            <span className="txt-muted fs-10">puzzle</span>
+            <span className="sep">·</span>
+            <span className="num" style={{ color: 'var(--txt-mid)' }}>
+              {formatarTempo(tempoAcumulado)}
+            </span>
+            <span className="txt-muted fs-10">total</span>
+            {paceVsPuzzleBaseline !== null && estado === 'jogando' && !pausado && (
+              <>
+                <span className="sep">·</span>
+                <span className="num" style={{
+                  color: paceVsPuzzleBaseline > 5
+                    ? 'var(--red)'
+                    : (paceVsPuzzleBaseline < -2 ? 'var(--green)' : 'var(--txt-muted)'),
+                }}>
+                  {paceVsPuzzleBaseline >= 0 ? '+' : '−'}{Math.abs(paceVsPuzzleBaseline)}s
+                </span>
+                <span className="txt-muted fs-10">vs C1</span>
+              </>
             )}
-
-            {/* Mobile-only: botão grande logo abaixo do tabuleiro.
-                Vira "Próximo Puzzle" quando o estado é feedback. */}
-            <div className="only-mobile" style={{ paddingTop: 20 }}>
-              {estado === 'feedback' ? (
+            <div style={{ marginLeft: 'auto' }} className="hstack gap-6">
+              {estado === 'jogando' && (
                 <button
-                  className={'btn btn-block btn-primary'}
-                  onClick={avancar}
-                  style={{
-                    height: 48,
-                    background: feedback && feedback.correto ? 'var(--green)' : 'var(--red)',
-                    borderColor: feedback && feedback.correto ? 'var(--green)' : 'var(--red)'
-                  }}>
-                  {feedback && feedback.correto ? '✓' : '✗'} {idx + 1 >= total ? 'Finalizar Ciclo' : 'Próximo Puzzle'} →
-                </button>
-              ) : lancePendente ? (
-                <div className="hstack gap-8">
-                  <button className="btn btn-primary" style={{ flex: 1, height: 48 }} onClick={confirmarPendente}>
-                    ✓ Confirmar {lancePendente.san}
-                  </button>
-                  <button className="btn btn-ghost" style={{ flex: '0 0 auto', height: 48 }} onClick={cancelarPendente}>
-                    ✗
-                  </button>
-                </div>
-              ) : (
-                <button className="btn btn-ghost btn-block" style={{ height: 44 }} onClick={pular}
-                  disabled={estado !== 'jogando' || pausado}>
-                  ⏭ Pular
+                  onClick={() => setPausado(p => !p)}
+                  title={pausado ? 'Retomar (P)' : 'Pausar (P)'}
+                  className="btn btn-small ghost"
+                  style={{ padding: '4px 8px', fontSize: 12 }}>
+                  {pausado ? '▶' : '⏸'}
                 </button>
               )}
-            </div>
-
-            <div className="mt-12 mono fs-12 center" style={{ color: 'var(--primary)' }}>
-              ● {corLabel}
-            </div>
-            <div className="mono fs-9 txt-muted center hide-mobile" style={{ wordBreak: 'break-all' }}>
-              {fenAtual.length > 40 ? fenAtual.slice(0, 40) + '...' : fenAtual}
+              <button className="btn btn-small ghost" onClick={onSair}
+                style={{ padding: '4px 8px', fontSize: 12 }}>✕</button>
             </div>
           </div>
 
-          <div>
-            {modoMonge ? (
-              // Modo monge: timer ultra-minimal, sem chrome
-              <div className="hstack gap-12 between mb-16" style={{ alignItems: 'baseline' }}>
-                <div className="num-display num-xl">{formatarTempo(seg)}</div>
-                <div className="hstack gap-6">
-                  <button onClick={() => setModoMonge(false)} title="Sair do modo monge"
-                    className="btn btn-small ghost"
-                    style={{ height: 28, padding: '0 10px', fontSize: 10 }}>
-                    ✕ monge
-                  </button>
-                  <button className="btn btn-small ghost"
-                    style={{ height: 28, padding: '0 10px', fontSize: 10 }}
-                    onClick={onSair}>sair</button>
-                </div>
-              </div>
-            ) : (
-              <div className={'timer ' + corTimer + ' mb-16'} style={{ position: 'relative' }}>
-                <div className="timer-value" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(seg)}</div>
-                <div className="timer-label">TEMPO DESTE PUZZLE {pausado && '· PAUSADO'}</div>
-                {/* Pace Coach: delta ao vivo deste puzzle vs Ciclo 1 */}
-                {paceVsPuzzleBaseline !== null && estado === 'jogando' && !pausado && (
-                  <div className="mono fs-10 mt-4" style={{
-                    color: paceVsPuzzleBaseline > 5
-                      ? 'var(--red)'
-                      : (paceVsPuzzleBaseline < -2 ? 'var(--green)' : 'var(--txt-muted)'),
-                    letterSpacing: '0.05em'
-                  }}>
-                    {paceVsPuzzleBaseline >= 0 ? '+' : '−'}{Math.abs(paceVsPuzzleBaseline)}s vs C1
-                  </div>
-                )}
-                <div className="timer-divider"></div>
-                <div className="timer-total mono" style={{ opacity: pausado ? 0.4 : 1 }}>{formatarTempo(tempoAcumulado)}</div>
-                <div className="timer-label">TEMPO TOTAL DO CICLO</div>
-                {estado === 'jogando' && (
-                  <button
-                    onClick={() => setPausado(p => !p)}
-                    title={pausado ? 'Retomar' : 'Pausar'}
-                    style={{
-                      position: 'absolute', top: 8, right: 8,
-                      background: 'transparent', border: '1px solid var(--border)',
-                      borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
-                      fontSize: 12, color: 'var(--txt-mid)',
-                      fontFamily: "'Courier New', monospace"
-                    }}>
-                    {pausado ? '▶' : '⏸'}
-                  </button>
-                )}
-              </div>
-            )}
+          {/* === TABULEIRO === */}
+          <div className="board-wrap" style={{ margin: '0 auto' }}>
+            <ChessBoardView
+              key={boardId}
+              boardId={boardId}
+              fen={fenAtual}
+              orientation={orientacao}
+              onDrop={onDrop}
+              onSquareClick={onSquareClick}
+              draggable={estado === 'jogando' && !pausado}
+              highlightFrom={ultimoLanceAdv ? ultimoLanceAdv.from : null}
+              highlightTo={ultimoLanceAdv ? ultimoLanceAdv.to : null}
+              selectedSquare={casaSelecionada}
+            />
+          </div>
 
-            {!modoMonge && (
-            <div className="card-soft mb-16">
-              <div className="between mb-8">
-                <div className="mono fs-13 txt-muted">{idx + 1} / {total}</div>
-                <div className="hstack gap-6">
-                  <button className="btn btn-small ghost" onClick={() => setModoMonge(true)}
-                    title="Modo monge — UI minimalista">
-                    🧘
-                  </button>
-                  <button className="btn btn-small ghost" onClick={onSair}>✕ Sair</button>
-                </div>
-              </div>
-              <div className="progress-bar mb-12">
-                <div className="progress-fill" style={{ width: pct + '%' }}></div>
-              </div>
-              <div className="mono fs-12 hstack gap-8 flex-wrap">
-                <span className="txt-green bold">✓ {acertos}</span>
-                <span className="txt-muted">·</span>
-                <span className="txt-red bold">✗ {erros}</span>
-                <span className="txt-muted">·</span>
-                <span className="txt-muted">→ {restantes}</span>
-              </div>
-              {ritmoVsBaseline !== null && (
-                <div className="mono fs-11 mt-8" style={{
-                  color: ritmoVsBaseline < 0 ? 'var(--green)' : (ritmoVsBaseline > 30 ? 'var(--red)' : 'var(--txt-muted)')
-                }}>
-                  vs Ciclo 1:&nbsp;
-                  {ritmoVsBaseline < 0 ? '↓ ' : '↑ '}
-                  {formatarTempoLongo(Math.abs(ritmoVsBaseline))}
-                  {ritmoVsBaseline < -30 && ' · no rumo do PR'}
-                  {ritmoVsBaseline > 30 && ' · atrás do baseline'}
-                </div>
-              )}
+          {/* Visão por dica: sussurro discreto após 3 erros históricos. */}
+          {dicaVisao && estado === 'jogando' && (
+            <div className="mono fs-11 mt-8 center" style={{
+              color: 'var(--txt-muted)', letterSpacing: '0.04em', fontStyle: 'italic'
+            }}>
+              👁 olhe pra peça em <span className="bold" style={{ color: 'var(--txt-mid)' }}>{dicaVisao.casa}</span>
+              <span className="txt-muted"> · {dicaVisao.erros} erros antes</span>
             </div>
-            )}
+          )}
 
-            {!modoMonge && (
-            <div className="mb-16 hstack gap-8 flex-wrap">
-              <span className="badge">Rating {puzzle.rating || '?'}</span>
-              {(puzzle.temas || puzzle.themes || []).slice(0, 3).map(t => (
-                <span key={t} className="badge primary">{traduzirTema(t)}</span>
-              ))}
-              {(puzzle.temas || puzzle.themes || []).length > 3 && (
-                <span className="badge">...</span>
-              )}
+          {/* === ÁREA DE AÇÃO/FEEDBACK === */}
+          {estado === 'jogando' && (
+            <div className="hstack gap-8 mt-16" style={{ justifyContent: 'center' }}>
+              <button className="btn btn-ghost" onClick={pular}
+                disabled={pausado}
+                title="Pular puzzle (espaço)">
+                ⏭ Pular
+              </button>
             </div>
-            )}
+          )}
 
-            {estado === 'jogando' && (
-              <div className="vstack gap-10">
-                {/* Toggle de modo confirmar (apenas desktop — em mobile o tap-to-move
-                    já dá tempo de calcular antes de soltar o lance) */}
-                <label className="hstack gap-8 hide-mobile" style={{ cursor: 'pointer', userSelect: 'none' }}>
-                  <input type="checkbox" checked={modoConfirmar}
-                    onChange={e => setModoConfirmar(e.target.checked)}
-                    disabled={!!lancePendente}
-                    style={{ width: 16, height: 16 }} />
-                  <span className="mono fs-11 txt-mid">
-                    Modo confirmar — calcular antes de comitar
-                  </span>
-                </label>
-
-                {lancePendente ? (
-                  <div className="vstack gap-10">
-                    <div className="card-soft" style={{ borderLeft: '3px solid var(--gold)' }}>
-                      <div className="mono fs-10 txt-muted ls-2 mb-4">LANCE PENDENTE</div>
-                      <div className="serif bold fs-15">{lancePendente.san}</div>
-                      <div className="mono fs-10 txt-muted mt-4 hide-mobile">Calcule mais. Quando estiver pronto, confirme.</div>
+          {estado === 'feedback' && feedback && (
+            <div className="vstack gap-10 mt-16">
+              {feedback.correto ? (
+                /* === ACERTO: mostra tema tático === */
+                <div className="feedback-banner green" style={{ marginTop: 0 }}>
+                  <div className="hstack gap-8 flex-wrap" style={{ alignItems: 'baseline' }}>
+                    <div className="feedback-title">
+                      ✓ {feedback.tempo_s >= 60 && (puzzle.rating || 0) <= 1500
+                        ? formatarTempoLongo(feedback.tempo_s) + ' · longo'
+                        : feedback.tempo_s + 's'}
                     </div>
-                    <button className="btn btn-primary btn-block" onClick={confirmarPendente}>
-                      ✓ Confirmar {lancePendente.san}
-                    </button>
-                    <button className="btn btn-ghost btn-block" onClick={cancelarPendente}>
-                      ✗ Reverter
-                    </button>
+                    {feedback.visao_instantanea && (
+                      <span className="badge amber" title="Acerto em ≤5s — reconhecimento instantâneo">
+                        ★ vi de cara
+                      </span>
+                    )}
                   </div>
-                ) : (
-                  <>
-                    <div className="hide-mobile">
-                      <div className="input-label">Ou digite o lance:</div>
-                      <input className="input-uci" type="text"
-                        placeholder="ex: e2e4"
-                        value={uciInput}
-                        onChange={e => setUciInput(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') confirmarUci(); }} />
+                  {explicacaoTema && (
+                    <div className="serif fs-13 txt-mid mt-8" style={{ lineHeight: 1.5 }}>
+                      {explicacaoTema}
                     </div>
-                    <button className="btn btn-primary btn-block hide-mobile"
-                      disabled={uciInput.trim().length < 4}
-                      onClick={confirmarUci}>
-                      ✓ Confirmar Lance
-                    </button>
-                    <button className="btn btn-ghost btn-block hide-mobile" onClick={pular}>⏭ Pular</button>
-                  </>
-                )}
-                <div className="mono fs-9 txt-muted center mt-8 hide-mobile" style={{ letterSpacing: '0.05em' }}>
-                  {lancePendente
-                    ? 'Atalhos: Enter confirma · Esc reverte'
-                    : 'Atalhos: Espaço pula · P pausa · Enter no input confirma'}
-                </div>
-              </div>
-            )}
-
-            {estado === 'feedback' && feedback && (
-              <div className="vstack gap-10">
-                <div className={'feedback-banner ' + (feedback.correto ? 'green' : 'red')} style={{ marginTop: 0 }}>
-                  <div className="feedback-title">
-                    {feedback.correto
-                      ? (feedback.tempo_s >= 60 && (puzzle.rating || 0) <= 1500
-                          ? '✓ ' + formatarTempoLongo(feedback.tempo_s) + ' · longo'
-                          : '✓ ' + feedback.tempo_s + 's')
-                      : (feedback.pulado ? '⏭ pulado — solução:' : '✗ — solução:')}
-                  </div>
-                  <div className="hstack gap-6 flex-wrap">
+                  )}
+                  <div className="hstack gap-6 flex-wrap mt-8">
                     {(feedback.sans || []).map((s, i) => (
                       <span key={i} className="badge">{s}</span>
                     ))}
                   </div>
                 </div>
-                {!feedback.correto && (() => {
-                  const temas = puzzle.temas || puzzle.themes || [];
-                  const tInstrutivo = temas.find(t => TEMAS_INSTRUTIVOS.has(t));
-                  if (!tInstrutivo) return null;
-                  const dica = (window.TacticalAggregator && window.TacticalAggregator.CANONICAL_THEMES &&
-                                window.TacticalAggregator.CANONICAL_THEMES[tInstrutivo]) || (TEMAS[tInstrutivo] || tInstrutivo);
-                  return (
-                    <div className="card-soft" style={{
-                      padding: '8px 10px', borderLeft: '3px solid var(--gold)',
-                      lineHeight: 1.5
-                    }}>
-                      <div className="mono fs-10 txt-muted ls-2 mb-4">PADRÃO TÁTICO</div>
-                      <div className="serif fs-13 txt-mid">{dica}</div>
-                    </div>
-                  );
-                })()}
-                {!feedback.correto && !feedback.pulado && ciclo.numero >= 5 && (
-                  <div className="mono fs-11 txt-muted" style={{
-                    padding: '6px 10px', lineHeight: 1.5,
-                    borderLeft: '3px solid var(--border)',
-                  }}>
-                    Errar a partir do ciclo 5 é normal — você está indo mais rápido. Continue.
+              ) : feedback.mostrar_solucao ? (
+                /* === ERRO 3+: revela solução + tema === */
+                <div className="feedback-banner red" style={{ marginTop: 0, borderLeft: '3px solid var(--amber)' }}>
+                  <div className="feedback-title">
+                    {feedback.pulado ? '⏭ pulado' : '✗ erro'} · {feedback.total_erros}º erro — solução:
                   </div>
-                )}
-                {feedback.correto && (() => {
-                  // Sinal cognitivo: "vi de cara" ≠ "fui rápido". Tempo curto
-                  // pode vir de cálculo veloz; reconhecimento instantâneo é
-                  // outra coisa. Toggle persiste em resultado.visao_instantanea.
-                  const ult = resultados[resultados.length - 1];
-                  const marcado = ult && ult.visao_instantanea;
-                  return (
-                    <button
-                      onClick={() => marcarVisaoInstantanea(!marcado)}
-                      className="btn-small ghost"
-                      style={{
-                        background: marcado ? 'var(--gold-bg)' : 'transparent',
-                        color: marcado ? 'var(--gold)' : 'var(--txt-muted)',
-                        borderColor: marcado ? 'var(--gold)' : 'var(--border)',
-                        border: '1px solid', borderRadius: 6,
-                        padding: '6px 12px', fontSize: 11,
-                        fontFamily: 'var(--font-mono)', fontWeight: 600,
-                        cursor: 'pointer', alignSelf: 'flex-start',
-                      }}
-                      title="Reconheceu o padrão imediatamente, sem cálculo">
-                      {marcado ? '★ vi de cara' : '☆ vi de cara'}
-                    </button>
-                  );
-                })()}
-                <button className="btn btn-primary btn-block hide-mobile" onClick={avancar}>
-                  {idx + 1 >= total ? '🏁 Finalizar Ciclo' : '→ Próximo Puzzle'}
-                </button>
-                <div className="mono fs-9 txt-muted center hide-mobile" style={{ letterSpacing: '0.05em' }}>
-                  Atalhos: Enter ou → avança
+                  <div className="hstack gap-6 flex-wrap mt-8">
+                    {(feedback.sans || []).map((s, i) => (
+                      <span key={i} className="badge">{s}</span>
+                    ))}
+                  </div>
+                  {explicacaoTema && (
+                    <div className="serif fs-13 txt-mid mt-8" style={{ lineHeight: 1.5 }}>
+                      {explicacaoTema}
+                    </div>
+                  )}
                 </div>
+              ) : (
+                /* === ERRO 1-2: só mensagem curta, sem solução === */
+                <div className="feedback-banner red" style={{ marginTop: 0 }}>
+                  <div className="feedback-title">
+                    {feedback.pulado ? '⏭ pulado' : '✗ errou'} — próximo
+                  </div>
+                  <div className="mono fs-10 txt-muted mt-4">
+                    {feedback.total_erros}º erro · solução revelada no 3º
+                  </div>
+                </div>
+              )}
+
+              {!feedback.correto && !feedback.pulado && ciclo.numero >= 5 && (
+                <div className="mono fs-11 txt-muted" style={{
+                  padding: '6px 10px', lineHeight: 1.5,
+                  borderLeft: '3px solid var(--border)',
+                }}>
+                  Errar a partir do ciclo 5 é normal — você está indo mais rápido. Continue.
+                </div>
+              )}
+
+              <button className="btn btn-primary btn-block" onClick={avancar}>
+                {idx + 1 >= total ? '🏁 Finalizar ciclo' : '→ Próximo'}
+              </button>
+              <div className="mono fs-9 txt-muted center" style={{ letterSpacing: '0.05em' }}>
+                Enter ou → avança
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <Promocao
             promoPicker={promoPicker}
