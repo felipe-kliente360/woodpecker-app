@@ -1681,7 +1681,17 @@
   gap: 22px;
   background: var(--wp-bg);
 }
-.wp-sidebar-brand { padding-left: 10px; }
+.wp-sidebar-brand {
+  padding: 6px 10px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius);
+  text-align: left;
+}
+.wp-sidebar-brand:hover { background: var(--wp-surface); }
 .wp-sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
 .wp-sidebar-item {
   display: flex;

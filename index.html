@@ -655,7 +655,12 @@
     function WpSidebar({ active, onTab }) {
       return (
         <aside className="wp-sidebar">
-          <div className="wp-sidebar-brand"><WpLogo /></div>
+          <button
+            className="wp-sidebar-brand"
+            onClick={() => onTab && onTab('inicio')}
+            aria-label="Ir para Treino">
+            <WpLogo />
+          </button>
           <nav className="wp-sidebar-nav">
             {WP_NAV_ITENS.map(it => (
               <button
@@ -1609,12 +1614,16 @@
       return (
         <div className="wp-content wp-home">
           <div className="wp-home-header">
-            <div className="wp-home-brand">
+            <button
+              className="wp-home-brand"
+              onClick={() => onIrParaPerfil && false /* logo do home: já estamos no home, no-op */}
+              style={{ background: 'transparent', border: 0, padding: 0, cursor: 'default' }}
+              aria-label="Woodpecker">
               <span className="wp-tally" style={{ color: 'var(--wp-accent)' }}>
                 <i className="on" /><i className="on" /><i className="on" /><i className="on" />
               </span>
               <span className="wp-mono wp-home-mark">WOODPECKER</span>
-            </div>
+            </button>
             <div className="wp-home-user">
               <span className="wp-mono wp-home-rating">{ratingValor}</span>
               <button className="wp-home-avatar wp-mono" onClick={onIrParaPerfil} aria-label="Perfil">
