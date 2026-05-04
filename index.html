@@ -3025,7 +3025,10 @@
               <div className="wp-puzzle-state" style={{ color: stateColor }}>{stateText}</div>
             </div>
             <div className="wp-puzzle-timer">
-              <div className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)' }}>{formatarTempo(seg)}</div>
+              <div className="wp-mono wp-puzzle-timer-now">{formatarTempo(seg)}</div>
+              <div className="wp-mono wp-puzzle-timer-acc" title="Tempo acumulado neste ciclo">
+                ciclo {formatarTempo(tempoAcumulado)}
+              </div>
               {baseRef && (
                 <div className="wp-mono" style={{ fontSize: 10, color: 'var(--wp-text-4)', marginTop: 2 }}>
                   antes {paceVsPuzzleBaseline >= 0 ? '+' : '−'}{Math.abs(paceVsPuzzleBaseline)}s
@@ -3075,6 +3078,43 @@
             )}
             {estado === 'feedback' && feedback && (
               <>
+                {/* Banner detalhado abaixo do tabuleiro: tempo, solução, badges */}
+                <div className={'feedback-banner ' + (feedback.correto ? 'green' : 'red')}>
+                  <div className="feedback-title">
+                    {feedback.correto
+                      ? (feedback.visao_instantanea ? 'Vi de cara' : 'Acertou')
+                      : (feedback.pulado ? 'Pulado' : 'Errou')}
+                    <span className="wp-mono" style={{ marginLeft: 8, color: 'var(--wp-text-3)', fontSize: 11, letterSpacing: '0.04em' }}>
+                      · {formatarTempo(feedback.tempo_s || 0)}
+                    </span>
+                  </div>
+                  {feedback.correto ? (
+                    <div style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>
+                      {feedback.sans && feedback.sans.length > 0 ? (
+                        <>
+                          Solução:{' '}
+                          <span className="wp-mono" style={{ color: 'var(--wp-text)' }}>
+                            {feedback.sans.join(' ')}
+                          </span>
+                        </>
+                      ) : 'Próximo puzzle.'}
+                    </div>
+                  ) : feedback.mostrar_solucao ? (
+                    <div style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>
+                      Solução:{' '}
+                      <span className="wp-mono" style={{ color: 'var(--wp-text)' }}>
+                        {(feedback.sans || []).join(' ')}
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>
+                      {feedback.total_erros === 1
+                        ? 'Solução revelada no 3º erro. Tente reconhecer o padrão na próxima passada.'
+                        : 'Erro ' + feedback.total_erros + ' de 3. Solução revelada no próximo.'}
+                    </div>
+                  )}
+                </div>
+
                 {feedback.correto && baseRef && paceVsPuzzleBaseline < 0 && (
                   <div className="wp-card wp-puzzle-feedback-card">
                     <span style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>
