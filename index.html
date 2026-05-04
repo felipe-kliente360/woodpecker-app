@@ -700,7 +700,7 @@
     /* === ScreenProfile (handoff Tela 15) ===
        Avatar + nome + chess.com handle, grid 3-col stats hairline,
        settings rows (Treino + Conta), footer "WOODPECKER · v1.0". */
-    function ScreenProfile({ ratingUsuario, conjuntos, ciclos, onCalibrar, onAbrirSettings, onSetChesscomUsername, onLogout }) {
+    function ScreenProfile({ ratingUsuario, conjuntos, ciclos, onCalibrar, onConectarChesscom, onAbrirSettings, onSetChesscomUsername, onLogout }) {
       const inicial = ratingUsuario && ratingUsuario.chesscom
         ? ratingUsuario.chesscom.charAt(0).toUpperCase()
         : 'W';
@@ -770,9 +770,11 @@
 
           <WpEyebrow style={{ marginTop: 22, marginBottom: 4 }}>Conta</WpEyebrow>
           <div className="wp-list">
-            <button className="wp-row wp-row--button" onClick={() => onSetChesscomUsername && onSetChesscomUsername(null)}>
+            <button className="wp-row wp-row--button" onClick={onConectarChesscom}>
               <span className="wp-row-label">
-                {ratingUsuario && ratingUsuario.chesscom ? 'chess.com — conectado' : 'Conectar chess.com'}
+                {ratingUsuario && ratingUsuario.chesscom
+                  ? 'chess.com · @' + ratingUsuario.chesscom
+                  : 'Conectar chess.com'}
               </span>
               <WpIcon name="chevron-right" size={14} />
             </button>
@@ -1557,6 +1559,7 @@
     function ScreenHome({
       conjuntos, ciclos, ratingUsuario,
       onContinuar, onTreinar, onEvolucao, onCriar, onIrParaPerfil,
+      onCalibrar, onConectarChesscom,
     }) {
       const Conjunto = window.WP.Conjunto;
       const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
@@ -1620,7 +1623,52 @@
             </div>
           </div>
 
-          <div className="wp-home-streak">
+          {/* Card de rating + chess.com — sempre presente, com 4 estados:
+              (a) sem rating → CTA "Definir rating" full-width
+              (b) com rating + sem chess.com → mostra rating, CTA chess.com
+              (c) com ambos → mostra rating + handle clicável
+              (d) clicar no card abre Profile/Calibragem */}
+          <div className="wp-card wp-rating-card">
+            <div className="wp-rating-row">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <WpEyebrow>Rating</WpEyebrow>
+                {ratingUsuario && ratingUsuario.valor ? (
+                  <div className="hstack gap-8" style={{ alignItems: 'baseline', marginTop: 4 }}>
+                    <span className="wp-mono wp-rating-num">{ratingUsuario.valor}</span>
+                    <span className="wp-mono wp-rating-fonte">
+                      {ratingUsuario.fonte === 'chesscom' ? 'chess.com'
+                        : ratingUsuario.fonte === 'calibragem' ? 'calibração'
+                        : 'manual'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="wp-rating-empty">Sem rating definido.</div>
+                )}
+              </div>
+              <WpButton
+                variant={ratingUsuario && ratingUsuario.valor ? 'ghost' : 'primary'}
+                onClick={onCalibrar}>
+                {ratingUsuario && ratingUsuario.valor ? 'Recalibrar' : 'Definir rating'}
+              </WpButton>
+            </div>
+            <div className="wp-divider" style={{ margin: '14px 0' }} />
+            <button
+              className="wp-rating-chesscom"
+              onClick={onConectarChesscom}
+              aria-label={ratingUsuario && ratingUsuario.chesscom ? 'Trocar conta chess.com' : 'Conectar chess.com'}>
+              <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                <WpEyebrow>chess.com</WpEyebrow>
+                {ratingUsuario && ratingUsuario.chesscom ? (
+                  <div className="wp-mono wp-rating-handle">@{ratingUsuario.chesscom}</div>
+                ) : (
+                  <div className="wp-rating-empty">Não conectado</div>
+                )}
+              </div>
+              <WpIcon name="chevron-right" size={14} />
+            </button>
+          </div>
+
+          <div className="wp-home-streak" style={{ marginTop: 22 }}>
             <div>
               <WpEyebrow>Constância</WpEyebrow>
               <div className="wp-home-streak-row">
@@ -3034,7 +3082,7 @@
               </span>
             </div>
             <span className="wp-mono wp-puzzle-pacote">
-              Pacote {pacote} — puzzle {pacoteProgresso + 1}
+              {conjunto.nome} — puzzle {pacoteProgresso + 1}
             </span>
           </div>
 
@@ -6321,7 +6369,7 @@
               {tela === 'calibrar' && (
                 <ScreenCalibrate
                   temChesscom={!!(ratingUsuario && ratingUsuario.chesscom)}
-                  onVoltar={() => setTela('welcome')}
+                  onVoltar={() => setTela(Store.get(Chaves.ONBOARDING_VISTO, false) ? 'inicio' : 'welcome')}
                   onChesscom={() => setTela('calibrar-user')}
                   onTrintaPuzzles={iniciarCalibracao}
                   onManual={() => {
@@ -6337,7 +6385,7 @@
               )}
               {tela === 'calibrar-user' && (
                 <ScreenCalibrateUsername
-                  onVoltar={() => setTela('calibrar')}
+                  onVoltar={() => setTela(Store.get(Chaves.ONBOARDING_VISTO, false) ? 'inicio' : 'calibrar')}
                   onConfirmar={(rating, username) => {
                     setRatingUsuario(rating, 'chesscom', username);
                     Store.set(Chaves.ONBOARDING_VISTO, true);
@@ -6367,8 +6415,10 @@
                   onContinuar={continuarTreino}
                   onTreinar={iniciarTreino}
                   onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
-                  onCriar={() => setTela('criar')}
+                  onCriar={() => setTela('criar-tipo')}
                   onIrParaPerfil={() => setTela('perfil')}
+                  onCalibrar={() => setTela('calibrar')}
+                  onConectarChesscom={() => setTela('calibrar-user')}
                 />
               )}
               {!carregando && tela === 'conjuntos' && (
@@ -6463,7 +6513,8 @@
                   ratingUsuario={ratingUsuario}
                   conjuntos={conjuntos}
                   ciclos={ciclos}
-                  onCalibrar={iniciarCalibracao}
+                  onCalibrar={() => setTela('calibrar')}
+                  onConectarChesscom={() => setTela('calibrar-user')}
                   onAbrirSettings={() => setMostraConfig(true)}
                   onSetChesscomUsername={setChesscomUsername}
                 />
