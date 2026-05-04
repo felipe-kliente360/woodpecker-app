@@ -671,16 +671,123 @@
       );
     }
 
-    /* Wrapper de tela: max-width 440px, padding lateral 24px, mobile-first.
-       hideTabBar omite a barra (usado em onboarding e puzzle). */
-    function WpScreen({ children, hideTabBar, active, onTab, className = '' }) {
+    /* Wrapper global do app: ocupa 100vh, sidebar fixa à esquerda em ≥768px,
+       tab bar fixa no rodapé em mobile. hideTabBar+hideSidebar usados em
+       puzzle/onboarding para tela cheia.
+
+       active: id da tela ativa pra navegação.
+       onTab: callback (id) → setTela.
+       hideTabBar: oculta a tab bar (puzzle/onboarding).
+       hideSidebar: oculta a sidebar desktop (puzzle/onboarding).
+    */
+    function WpScreen({ children, hideTabBar, hideSidebar, active, onTab, className = '' }) {
+      const cls = 'wp-screen'
+        + (hideTabBar ? ' wp-screen--no-tabs' : '')
+        + (hideSidebar ? ' wp-screen--no-sidebar' : '')
+        + (className ? ' ' + className : '');
       return (
-        <div className={'wp-screen' + (hideTabBar ? ' wp-screen--no-tabs' : '') + (className ? ' ' + className : '')}>
-          <WpSidebar active={active} onTab={onTab} />
+        <div className={cls}>
+          {!hideSidebar && <WpSidebar active={active} onTab={onTab} />}
           <div className="wp-screen-body">
             {children}
             {!hideTabBar && <WpTabBar active={active} onTab={onTab} />}
           </div>
+        </div>
+      );
+    }
+
+    /* === ScreenProfile (handoff Tela 15) ===
+       Avatar + nome + chess.com handle, grid 3-col stats hairline,
+       settings rows (Treino + Conta), footer "WOODPECKER · v1.0". */
+    function ScreenProfile({ ratingUsuario, conjuntos, ciclos, onCalibrar, onAbrirSettings, onSetChesscomUsername, onLogout }) {
+      const inicial = ratingUsuario && ratingUsuario.chesscom
+        ? ratingUsuario.chesscom.charAt(0).toUpperCase()
+        : 'W';
+      const nome = ratingUsuario && ratingUsuario.chesscom
+        ? ratingUsuario.chesscom
+        : 'Treinador';
+      const subtitulo = ratingUsuario && ratingUsuario.chesscom
+        ? '@' + ratingUsuario.chesscom + ' · chess.com'
+        : 'sem conta vinculada';
+      const ratingValor = ratingUsuario && ratingUsuario.valor ? ratingUsuario.valor : '—';
+      const ciclosCompletos = ciclos.filter(c => c.acertos !== undefined).length;
+      const streak = window.WP.Ciclo.streakAtual(ciclos);
+
+      return (
+        <div className="wp-content">
+          <div className="wp-page-header">
+            <h1 className="wp-h1 wp-display">Perfil</h1>
+            <button className="wp-icon-btn" onClick={onAbrirSettings} aria-label="Configurações">
+              <WpIcon name="settings" size={18} />
+            </button>
+          </div>
+
+          <div className="wp-profile-user">
+            <div className="wp-profile-avatar wp-mono">{inicial}</div>
+            <div>
+              <div className="wp-profile-name">{nome}</div>
+              <div className="wp-profile-handle wp-mono">{subtitulo}</div>
+            </div>
+          </div>
+
+          <div className="wp-stats-grid wp-stats-grid--3">
+            <div className="wp-stat-cell">
+              <WpEyebrow>Rating</WpEyebrow>
+              <div className="wp-stat-value wp-mono">{ratingValor}</div>
+              {ratingUsuario && ratingUsuario.fonte && (
+                <div className="wp-stat-sub wp-mono">{ratingUsuario.fonte}</div>
+              )}
+            </div>
+            <div className="wp-stat-cell">
+              <WpEyebrow>Ciclos</WpEyebrow>
+              <div className="wp-stat-value wp-mono">{ciclosCompletos}</div>
+              <div className="wp-stat-sub wp-mono">completos</div>
+            </div>
+            <div className="wp-stat-cell">
+              <WpEyebrow>Streak</WpEyebrow>
+              <div className="wp-stat-value wp-mono">{streak}</div>
+              <div className="wp-stat-sub wp-mono">{streak === 1 ? 'dia' : 'dias'}</div>
+            </div>
+          </div>
+
+          <WpEyebrow style={{ marginTop: 28, marginBottom: 4 }}>Treino</WpEyebrow>
+          <div className="wp-list">
+            <button className="wp-row wp-row--button" onClick={onCalibrar}>
+              <span className="wp-row-label">Calibrar rating</span>
+              <span className="wp-row-value wp-mono">{ratingValor}</span>
+              <WpIcon name="chevron-right" size={14} />
+            </button>
+            <button className="wp-row wp-row--button" onClick={onAbrirSettings}>
+              <span className="wp-row-label">Som de movimento</span>
+              <WpIcon name="chevron-right" size={14} />
+            </button>
+            <button className="wp-row wp-row--button" onClick={onAbrirSettings}>
+              <span className="wp-row-label">Cadência da pausa</span>
+              <WpIcon name="chevron-right" size={14} />
+            </button>
+          </div>
+
+          <WpEyebrow style={{ marginTop: 22, marginBottom: 4 }}>Conta</WpEyebrow>
+          <div className="wp-list">
+            <button className="wp-row wp-row--button" onClick={() => onSetChesscomUsername && onSetChesscomUsername(null)}>
+              <span className="wp-row-label">
+                {ratingUsuario && ratingUsuario.chesscom ? 'chess.com — conectado' : 'Conectar chess.com'}
+              </span>
+              <WpIcon name="chevron-right" size={14} />
+            </button>
+            <button className="wp-row wp-row--button" onClick={onAbrirSettings}>
+              <span className="wp-row-label">Backup e dados</span>
+              <WpIcon name="chevron-right" size={14} />
+            </button>
+            {onLogout && (
+              <button className="wp-row wp-row--button" onClick={onLogout}>
+                <span className="wp-row-label" style={{ color: 'var(--wp-bad)' }}>Limpar todos os dados</span>
+                <WpIcon name="chevron-right" size={14} />
+              </button>
+            )}
+          </div>
+
+          <div className="wp-profile-footer wp-mono">WOODPECKER · v1.0</div>
         </div>
       );
     }
@@ -4925,12 +5032,21 @@
         await carregarEIniciar(conjuntoAtivo, cicloAtual.numero + 1, true);
       }
 
-      const ocultarSidebar = tela === 'treinar';
+      // Mapeia rotas pra aba ativa do shell. Telas que não correspondem a uma
+      // aba mostram a aba mais próxima (ex: 'criar' fica em 'conjuntos').
+      const ABA_DA_TELA = {
+        inicio: 'inicio', conjuntos: 'conjuntos', criar: 'conjuntos',
+        selecao: 'conjuntos', evolucao: 'evolucao', analisar: 'evolucao',
+        perfil: 'perfil', conclusao: 'inicio',
+      };
+      const abaAtiva = ABA_DA_TELA[tela] || 'inicio';
+      // Telas full-screen (sem shell): treino e onboarding (Fase 8).
+      const TELAS_FULLSCREEN = new Set(['treinar']);
+      const fullscreen = TELAS_FULLSCREEN.has(tela);
       const [mostraConfig, setMostraConfig] = useState(false);
 
       return (
         <div className="app-shell">
-          <Header onAbrirConfig={() => setMostraConfig(true)} />
           {mostraConfig && (
             <SettingsModal
               audioOn={audioOn}
@@ -4953,14 +5069,12 @@
             />
           )}
 
-          {!ocultarSidebar && (
-            <Sidebar mobile tela={tela} onNav={navegar} />
-          )}
-
-          <div className="main-row">
-            {!ocultarSidebar && <Sidebar tela={tela} onNav={navegar} />}
-
-            <div className={'content-area' + (ocultarSidebar ? ' fullbleed' : '')}>
+          <WpScreen
+            active={abaAtiva}
+            onTab={navegar}
+            hideTabBar={fullscreen}
+            hideSidebar={fullscreen}>
+            <div className={'wp-screen-content' + (fullscreen ? ' wp-screen-content--full' : '')}>
               {carregando && <LoadingPuzzles msg={carregandoMsg} />}
               {erroCarregar && (
                 <div className="feedback-banner red tela-container narrow" style={{ marginTop: 20, marginBottom: 20 }}>
@@ -5105,10 +5219,18 @@
                   }}
                 />
               )}
+              {!carregando && tela === 'perfil' && (
+                <ScreenProfile
+                  ratingUsuario={ratingUsuario}
+                  conjuntos={conjuntos}
+                  ciclos={ciclos}
+                  onCalibrar={iniciarCalibracao}
+                  onAbrirSettings={() => setMostraConfig(true)}
+                  onSetChesscomUsername={setChesscomUsername}
+                />
+              )}
             </div>
-          </div>
-
-          <Footer />
+          </WpScreen>
 
           {mostraHelp && (
             <div className="modal-overlay" onClick={() => setMostraHelp(false)}>

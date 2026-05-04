@@ -1161,7 +1161,8 @@
 /* === Screen wrapper / TabBar / Sidebar ===
    Mobile-first: tab bar em rodapé fixo, conteúdo max-width 440px centrado.
    ≥768px: sidebar 240px à esquerda, conteúdo central ~520px max, tab bar
-   esconde. */
+   esconde. Quando hideSidebar+hideTabBar (puzzle/onboarding), wp-screen
+   vira tela cheia sem cromo. */
 .wp-screen {
   min-height: 100vh;
   display: flex;
@@ -1176,6 +1177,14 @@
   padding-bottom: 72px; /* espaço p/ tab bar fixa */
 }
 .wp-screen--no-tabs .wp-screen-body { padding-bottom: 0; }
+.wp-screen-content {
+  flex: 1;
+  min-width: 0;
+}
+.wp-screen-content--full {
+  display: flex;
+  flex-direction: column;
+}
 
 .wp-tabbar {
   display: grid;
@@ -1255,3 +1264,134 @@
     margin: 0 auto;
   }
 }
+
+/* === Conteúdo padrão de tela (Profile, Home, Sets, Stats) ===
+   Padding lateral 24px, mobile-first. */
+.wp-content {
+  padding: 14px 24px 24px;
+  display: flex;
+  flex-direction: column;
+}
+.wp-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.wp-h1 {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--wp-text);
+}
+@media (max-width: 380px) {
+  .wp-h1 { font-size: 22px; }
+}
+.wp-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  background: transparent;
+  color: var(--wp-text-2);
+  border: 1px solid var(--wp-line-soft);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.wp-icon-btn:hover { background: var(--wp-surface); color: var(--wp-text); border-color: var(--wp-line); }
+
+/* === Stats grid hairline (Profile 3-col, PackComplete 2-col) ===
+   Celdas separadas por linhas via gap 1px sobre background line-soft. */
+.wp-stats-grid {
+  display: grid;
+  gap: 1px;
+  background: var(--wp-line-soft);
+  margin-top: 28px;
+  border: 1px solid var(--wp-line-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.wp-stats-grid--3 { grid-template-columns: repeat(3, 1fr); }
+.wp-stats-grid--2 { grid-template-columns: repeat(2, 1fr); }
+.wp-stat-cell {
+  background: var(--wp-bg);
+  padding: 18px 14px;
+}
+.wp-stat-value {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--wp-text);
+  margin-top: 8px;
+}
+.wp-stat-sub {
+  font-size: 10px;
+  color: var(--wp-text-3);
+  margin-top: 4px;
+}
+
+/* === Profile-specific === */
+.wp-profile-user {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 0;
+}
+.wp-profile-avatar {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--wp-surface-3);
+  color: var(--wp-accent);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wp-profile-name {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--wp-text);
+}
+.wp-profile-handle {
+  font-size: 12px;
+  color: var(--wp-text-3);
+  margin-top: 2px;
+}
+.wp-profile-footer {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--wp-text-4);
+  text-transform: uppercase;
+}
+
+/* === Listas de rows (.wp-row já existe em base.css; aqui só agrupador) === */
+.wp-list {
+  display: flex;
+  flex-direction: column;
+}
+.wp-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--wp-line-soft);
+  background: transparent;
+  border-left: 0; border-right: 0; border-top: 0;
+  font-family: var(--font-ui);
+  width: 100%;
+  text-align: left;
+}
+.wp-row:last-child { border-bottom: 0; }
+.wp-row--button { cursor: pointer; }
+.wp-row--button:hover { background: var(--wp-surface); }
+.wp-row-label {
+  flex: 1;
+  font-size: 14px;
+  color: var(--wp-text);
+}
+.wp-row-value {
+  font-size: 13px;
+  color: var(--wp-text-3);
+}
+.wp-row svg { color: var(--wp-text-4); flex-shrink: 0; }
