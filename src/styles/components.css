@@ -1101,6 +1101,19 @@
   font-size: 11px;
   color: var(--wp-text-3);
 }
+.wp-puzzle-pct {
+  font-size: 10px;
+  color: var(--wp-text-4);
+  letter-spacing: 0.04em;
+}
+
+/* Delete discreto no card de conjunto — mesma altura do .wp-icon-btn,
+   mas tinge no hover pra avermelhado pra deixar a ação clara. */
+.wp-set-delete:hover {
+  color: var(--wp-bad);
+  border-color: var(--wp-bad-soft);
+  background: var(--wp-bad-soft);
+}
 .wp-puzzle-stats {
   display: flex;
   align-items: baseline;
