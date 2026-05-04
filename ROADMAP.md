@@ -9,6 +9,23 @@ estimativa). Não é compromisso de entrega — é mapa estratégico.
 
 ## Anterior — entregue
 
+### Repaginação UX/UI completa (6 ondas)
+
+| Item | Descrição | Commit |
+|---|---|---|
+| Paleta única dark (midnight + aço) | tokens.css repaginado; sem light theme; `--primary` azul aço dessaturado | `32ca221` |
+| Drop tema toggle + rating manual | Header só com gear/áudio; calibragem e chess.com são únicos caminhos pro rating | `32ca221` |
+| TelaInicio simplificada | Drop tagline/como-funciona/3-cards; banners viram badges inline; CTA "+ Criar conjunto" abre wizard modal | `3ba18e5` |
+| WizardCriarConjunto | Modal único com 3 tipos (padrão/pessoal/adversário); pessoal e adversário desabilitados sem chess.com | `3ba18e5` |
+| TelaTreinar repaginada | Single column, status bar única no topo; modo monge/confirmar/espelho removidos; UCI input removido | `d9a40b7` |
+| Regra dos 3 erros | Solução só revelada no 3º erro do mesmo puzzle (no mesmo conjunto); antes disso, "errou — próximo" | `d9a40b7` |
+| "Vi de cara" automático | Acerto em ≤5s marca `visao_instantanea: true` no resultado e mostra badge ★ | `d9a40b7` |
+| OnboardingModal | Welcome + 2 CTAs (calibrar/chess.com) no primeiro acesso; pular cai na TelaInicio sem rating | `51b200d` |
+| SettingsModal (gear ⚙) | Modal único com áudio + cadência da pausa + backup; substitui SecaoBackup do rodapé | `11c7325` |
+| Streak movido pra TelaEvolucao | Atividade + CalendarioStreak agora ficam na aba Total | `11c7325` |
+| Rating bloqueado fora da TelaInicio | TelaCriar mostra read-only; TelaAnalisar não atualiza rating | `d52a5cb` |
+| Adversário usa rating do usuário | Análise extrai temas; faixa de puzzles segue ratingUsuario.valor (não suggested do adversário) | `d52a5cb` |
+
 ### Onda recente: pressão + análise + experimentos
 
 | Item | Descrição | Commit |
