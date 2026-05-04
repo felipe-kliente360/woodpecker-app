@@ -1134,7 +1134,7 @@
             <span className="wp-mono wp-onboarding-mark">WOODPECKER</span>
           </div>
 
-          <WpEyebrow style={{ marginBottom: 16 }}>O método</WpEyebrow>
+          <WpEyebrow style={{ marginBottom: 16 }}>O método dos grandes mestres</WpEyebrow>
           <h1 className="wp-display wp-onboarding-hero">
             Repetir<br />
             <span style={{ color: 'var(--wp-accent)' }}>até reconhecer.</span><br />
@@ -1142,17 +1142,16 @@
             <span style={{ color: 'var(--wp-text-3)' }}>até dominar.</span>
           </h1>
           <p className="wp-onboarding-lede">
-            Cada ciclo é o mesmo conjunto, resolvido mais rápido.
-            Constância é o sinal — não a primeira solução.
+            Você resolve o mesmo conjunto de puzzles várias vezes — cada ciclo
+            mais rápido. Quando o tempo cai pela metade, o padrão deixou de ser
+            calculado: virou reflexo. Em poucas semanas você lê posições que
+            antes exigiam minutos de cálculo.
           </p>
 
           <div style={{ flex: 1 }} />
           <div className="vstack gap-8" style={{ marginTop: 24 }}>
             <WpButton variant="primary" full onClick={onComecar}>
-              Começar calibração
-            </WpButton>
-            <WpButton variant="ghost" full onClick={onPular}>
-              Já tenho conta
+              Iniciar
             </WpButton>
           </div>
         </div>
@@ -5859,6 +5858,52 @@
       );
     }
 
+    /* Tela de "preparação" mostrada durante o onboarding enquanto os
+       puzzles são montados em background. Substitui o LoadingPuzzles
+       genérico nas duas situações iniciais (5 puzzles ambientação ou
+       30 puzzles calibração) — explica o que vai acontecer em vez de
+       só mostrar uma barra de progresso. */
+    function ScreenOnbExplain({ kind, msg }) {
+      const titulo = kind === '30' ? 'Calibração em 30 puzzles' : '5 puzzles pra você sentir o método';
+      const corpo = kind === '30'
+        ? 'Vamos te mostrar puzzles em diferentes faixas de dificuldade. Resolva normalmente — acertos e erros nos dizem onde está o seu nível ideal. Leva uns 12 minutos. Quando terminar, seu rating fica definido e o app já te leva pra primeiro conjunto.'
+        : 'Vamos rodar 5 puzzles na sua faixa, pra você entender a dinâmica do método em escala mínima. Em 3 ciclos curtos de 5 puzzles, você sente a aceleração: o mesmo conjunto resolvido cada vez mais rápido. Depois disso, conjuntos maiores rendem mais.';
+      return (
+        <div className="wp-onboarding">
+          <div className="wp-onboarding-brand">
+            <span className="wp-tally" style={{ color: 'var(--wp-accent)', gap: 4 }}>
+              <i className="on" style={{ width: 3, height: 22 }} />
+              <i className="on" style={{ width: 3, height: 22 }} />
+              <i className="on" style={{ width: 3, height: 22 }} />
+              <i className="on" style={{ width: 3, height: 22 }} />
+            </span>
+            <span className="wp-mono wp-onboarding-mark">WOODPECKER</span>
+          </div>
+
+          <WpEyebrow style={{ marginBottom: 14 }}>Preparando</WpEyebrow>
+          <h1 className="wp-display" style={{ fontSize: 28, fontWeight: 500, margin: 0, lineHeight: 1.15, color: 'var(--wp-text)' }}>
+            {titulo}
+          </h1>
+          <p className="wp-onboarding-lede" style={{ marginTop: 14 }}>
+            {corpo}
+          </p>
+
+          <div style={{ marginTop: 36 }}>
+            <div className="hstack between" style={{ alignItems: 'baseline', marginBottom: 12 }}>
+              <span className="wp-mono wp-pulse" style={{ fontSize: 13, color: 'var(--wp-accent)' }}>
+                {msg || 'Preparando puzzles...'}
+              </span>
+            </div>
+            <div style={{ height: 2, background: 'var(--wp-line-soft)', overflow: 'hidden', borderRadius: 1 }}>
+              <div className="wp-pulse" style={{ height: '100%', width: '40%', background: 'var(--wp-accent)' }} />
+            </div>
+          </div>
+
+          <div style={{ flex: 1 }} />
+        </div>
+      );
+    }
+
     /* === TELA ANALISAR JOGADOR (chess.com username → puzzle_program) === */
     function CoberturaInline({ cobertura }) {
       const c = cobertura.counts || {};
@@ -6710,6 +6755,9 @@
       const [puzzlesAtivos, setPuzzlesAtivos] = useState(null);
       const [carregando, setCarregando] = useState(false);
       const [carregandoMsg, setCarregandoMsg] = useState('');
+      // Contexto do loading: 'onb-5' / 'onb-30' renderiza ScreenOnbExplain
+      // em vez do LoadingPuzzles genérico durante o onboarding.
+      const [loadingScreen, setLoadingScreen] = useState(null);
       const [erroCarregar, setErroCarregar] = useState(null);
       const [sessaoSalva, setSessaoSalva] = useState(() => Store.get(Chaves.SESSAO, null));
       const [showModalRetomar, setShowModalRetomar] = useState(() => !!Store.get(Chaves.SESSAO, null));
@@ -6777,7 +6825,7 @@
         if (treinar) {
           iniciarCiclo(novo, puzzles, 1, false);
         } else {
-          setTela('conjuntos');
+          setTela('inicio');
         }
       }
 
@@ -6813,6 +6861,7 @@
       // sem temas, e inicia treino. Após o ciclo, TelaConclusao mostra rating sugerido.
       async function iniciarCalibracao() {
         setCarregando(true);
+        setLoadingScreen('onb-30');
         setErroCarregar(null);
         setCarregandoMsg('Montando puzzles de calibração...');
         try {
@@ -6842,6 +6891,7 @@
           setErroCarregar('Falha ao iniciar calibração: ' + (e.message || e));
         } finally {
           setCarregando(false);
+          setLoadingScreen(null);
         }
       }
 
@@ -6856,6 +6906,7 @@
           window.WP.Prefetch.adversarios(username);
         }
         setCarregando(true);
+        setLoadingScreen('onb-5');
         setErroCarregar(null);
         setCarregandoMsg('Montando seus 5 puzzles iniciais...');
         try {
@@ -6891,6 +6942,7 @@
           setErroCarregar('Falha no conjunto inicial: ' + (e.message || e));
         } finally {
           setCarregando(false);
+          setLoadingScreen(null);
         }
       }
 
@@ -7046,7 +7098,7 @@
 
       function sairDoTreino() {
         if (confirm('Sair do treino? Sua sessão fica salva para retomada.')) {
-          setTela('conjuntos');
+          setTela('inicio');
         }
       }
 
@@ -7104,7 +7156,9 @@
             hideTabBar={fullscreen}
             hideSidebar={fullscreen}>
             <div className={'wp-screen-content' + (fullscreen ? ' wp-screen-content--full' : '')}>
-              {carregando && <LoadingPuzzles msg={carregandoMsg} />}
+              {carregando && (loadingScreen === 'onb-5' || loadingScreen === 'onb-30')
+                ? <ScreenOnbExplain kind={loadingScreen === 'onb-30' ? '30' : '5'} msg={carregandoMsg} />
+                : (carregando && <LoadingPuzzles msg={carregandoMsg} />)}
               {erroCarregar && (
                 <div className="feedback-banner red tela-container narrow" style={{ marginTop: 20, marginBottom: 20 }}>
                   <div className="feedback-title">⚠ {erroCarregar}</div>
