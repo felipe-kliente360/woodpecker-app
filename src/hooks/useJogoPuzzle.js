@@ -178,6 +178,7 @@
         temposPorLanceRef.current = [];
         resetTimer();
         setRodando(true);
+        try { const Audio = global.WP && global.WP.Audio; if (Audio) Audio.pronto(); } catch (_) {}
       } catch (e) {
         console.error("Falha ao inicializar puzzle:", e);
         setErroPuzzle(e.message || String(e));
@@ -229,6 +230,12 @@
       try { m = c.move({ from: from, to: to, promotion: promo || "q" }); }
       catch (e) { return false; }
       if (!m) return false;
+
+      // Som imediato de movimento/captura (antes de saber se é correto).
+      try {
+        const Audio = global.WP && global.WP.Audio;
+        if (Audio) { if (m.captured) Audio.capturar(); else Audio.mover(); }
+      } catch (_) {}
 
       const lances = puzzle.lances || puzzle.moves || [];
       const expectedUci = lances[expectedIdxRef.current];
@@ -283,10 +290,16 @@
       const respIdx = expectedIdxRef.current;
       if (lances[respIdx]) {
         setTimeout(() => {
-          try { Puzzle.aplicarLanceSilencioso(c, lances[respIdx]); } catch (e) {}
+          const uciAdv = lances[respIdx];
+          const eraCaptura = !!(c.get(uciAdv.slice(2, 4)));
+          try { Puzzle.aplicarLanceSilencioso(c, uciAdv); } catch (e) {}
+          try {
+            const Audio = global.WP && global.WP.Audio;
+            if (Audio) { if (eraCaptura) Audio.capturar(); else Audio.mover(); }
+          } catch (_) {}
           expectedIdxRef.current = respIdx + 1;
           setFenAtual(c.fen());
-          setUltimoLanceAdv({ from: lances[respIdx].slice(0, 2), to: lances[respIdx].slice(2, 4) });
+          setUltimoLanceAdv({ from: uciAdv.slice(0, 2), to: uciAdv.slice(2, 4) });
           // Vez do jogador recomeça aqui — zera o relógio do próximo lance.
           segLanceIniciadoRef.current = segRef.current;
           if (expectedIdxRef.current >= lances.length) {

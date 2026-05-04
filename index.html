@@ -2034,11 +2034,8 @@
         return () => clearTimeout(t);
       }, [estado, feedback]);
 
-      // Companion áudio — toca som no feedback se Chaves.AUDIO_ON.
       useEffect(() => {
-        if (!feedback) return;
-        if (!Store.get(Chaves.AUDIO_ON, false)) return;
-        if (!window.WP || !window.WP.Audio) return;
+        if (!feedback || !window.WP || !window.WP.Audio) return;
         if (feedback.correto) window.WP.Audio.acerto();
         else if (!feedback.pulado) window.WP.Audio.erro();
       }, [feedback]);
