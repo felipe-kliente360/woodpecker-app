@@ -783,6 +783,66 @@
       );
     }
 
+    /* === WIZARD: CRIAR CONJUNTO ===
+     * Modal único disparado pelo CTA "+ Criar conjunto" da TelaInicio.
+     * 3 cards (padrão / pessoal / adversário). Pessoal e Adversário
+     * desabilitados se !temChesscom. Após escolha, fecha e dispara o
+     * callback correspondente — pipeline de criação roda como antes. */
+    function WizardCriarConjunto({ temChesscom, onCriarPadrao, onCriarPessoal, onCriarAdversario, onFechar }) {
+      function escolher(tipo) {
+        onFechar();
+        setTimeout(() => {
+          if (tipo === 'padrao')         onCriarPadrao();
+          else if (tipo === 'pessoal')    onCriarPessoal();
+          else if (tipo === 'adversario') onCriarAdversario();
+        }, 50);
+      }
+      return (
+        <div className="modal-overlay" onClick={onFechar}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <div className="mono fs-10 ls-2 txt-muted mb-4">CRIAR CONJUNTO</div>
+            <div className="serif bold fs-17 mb-12">Que tipo de treino?</div>
+            <div className="vstack gap-8">
+              <button className="choice-card" onClick={() => escolher('padrao')}>
+                <div className="choice-icon">♞</div>
+                <div className="choice-title">Padrão</div>
+                <div className="choice-desc">
+                  Manutenção tática. Puzzles aleatórios na sua faixa de rating.
+                </div>
+              </button>
+              <button className="choice-card"
+                onClick={() => temChesscom && escolher('pessoal')}
+                disabled={!temChesscom}
+                style={!temChesscom ? { opacity: 0.45, cursor: 'not-allowed' } : null}
+                title={!temChesscom ? 'Configure chess.com no rating primeiro' : ''}>
+                <div className="choice-icon">🎯</div>
+                <div className="choice-title">Plano pessoal</div>
+                <div className="choice-desc">
+                  Análise das suas partidas. Foca nas suas fraquezas reais.
+                  {!temChesscom && <span className="txt-muted"> · requer chess.com</span>}
+                </div>
+              </button>
+              <button className="choice-card"
+                onClick={() => temChesscom && escolher('adversario')}
+                disabled={!temChesscom}
+                style={!temChesscom ? { opacity: 0.45, cursor: 'not-allowed' } : null}
+                title={!temChesscom ? 'Configure chess.com no rating primeiro' : ''}>
+                <div className="choice-icon">⚔</div>
+                <div className="choice-title">Contra adversário</div>
+                <div className="choice-desc">
+                  Análise das partidas de um oponente. Foca nos pontos cegos dele.
+                  {!temChesscom && <span className="txt-muted"> · requer chess.com</span>}
+                </div>
+              </button>
+            </div>
+            <button className="btn btn-ghost btn-block mt-12" onClick={onFechar}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     function TelaInicio({
       conjuntos, ciclos, ratingUsuario,
       onContinuar, onTreinar, onEvolucao, onTreinarApenasErros,
@@ -797,42 +857,25 @@
       const temRating = !!(ratingUsuario && ratingUsuario.valor);
       const temChesscom = !!(ratingUsuario && ratingUsuario.chesscom);
       const [mostraImport, setMostraImport] = useState(false);
+      const [mostraWizard, setMostraWizard] = useState(false);
+      const [tentativaCriar, setTentativaCriar] = useState(null);
       const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
 
       const revisao = useMemo(() => puzzlesDevidoRevisao(ciclos, conjuntos), [ciclos, conjuntos]);
-      const revisaoEntries = Object.values(revisao);
-      const totalRevisao = revisaoEntries.reduce((a, e) => a + e.devidos, 0);
 
-      // Conjuntos prontos pra concluir (banner action)
-      const prontosPraConcluir = useMemo(() => {
-        return ativos
-          .map(c => ({ c, status: Conjunto.prontoPraConcluir(c, ciclos) }))
-          .filter(x => x.status.pronto);
-      }, [ativos, ciclos]);
-
-      // Modal pra forçar concluir 1 antes de criar novo (limite estrito)
-      const [tentativaCriar, setTentativaCriar] = useState(null); // 'padrao' | 'pessoal' | 'adversario'
-
-      function tentarCriar(tipo) {
+      function abrirWizard() {
         if (!temRating) return;
         if (!podeNovo) {
-          setTentativaCriar(tipo);
+          setTentativaCriar('qualquer');
           return;
         }
-        if (tipo === 'padrao')         onCriarPadrao();
-        else if (tipo === 'pessoal')    onCriarPessoal();
-        else if (tipo === 'adversario') onCriarAdversario();
+        setMostraWizard(true);
       }
 
-      function confirmarConcluirEAbrir(c, tipoNovo) {
+      function confirmarConcluirEAbrir(c) {
         onConcluirConjunto(c.id);
         setTentativaCriar(null);
-        // pequeno timeout pra dar tempo do state atualizar
-        setTimeout(() => {
-          if (tipoNovo === 'padrao')         onCriarPadrao();
-          else if (tipoNovo === 'pessoal')    onCriarPessoal();
-          else if (tipoNovo === 'adversario') onCriarAdversario();
-        }, 50);
+        setTimeout(() => setMostraWizard(true), 80);
       }
 
       const fonteLabel = (f) => f === 'calibragem' ? 'calibragem'
@@ -841,17 +884,9 @@
 
       return (
         <div className="tela-container">
-          {/* Tagline (sempre presente) */}
-          <div className="card-soft mb-12 center">
-            <div className="mono fs-10 ls-2 txt-muted mb-4">REPETIÇÃO · VELOCIDADE · PADRÕES</div>
-            <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.6 }}>
-              Não é aprender. É gravar padrões táticos na memória de longo prazo.
-            </div>
-          </div>
-
-          {/* === STATUS DO RATING === */}
+          {/* === RATING === */}
           {temRating ? (
-            <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--primary)' }}>
+            <div className="card-soft mb-16" style={{ borderLeft: '3px solid var(--primary)' }}>
               <div className="between" style={{ flexWrap: 'wrap', gap: 8 }}>
                 <div>
                   <div className="mono fs-10 ls-2 txt-muted">SEU RATING</div>
@@ -868,15 +903,15 @@
                   <button className="btn btn-small ghost" onClick={onCalibrar}
                     title="Refazer calibragem (30 puzzles)">🎯 Calibrar</button>
                   <button className="btn btn-small ghost" onClick={() => setMostraImport(true)}
-                    title="Reimportar via chess.com">🔍 Atualizar</button>
+                    title="Importar/atualizar via chess.com">🔍 chess.com</button>
                 </div>
               </div>
             </div>
           ) : (
             <div className="card mb-16">
-              <div className="serif bold fs-15 mb-4">Defina seu rating pra começar</div>
+              <div className="serif bold fs-15 mb-4">Defina seu rating</div>
               <div className="serif fs-13 txt-muted mb-16" style={{ lineHeight: 1.55 }}>
-                O rating parametriza tudo: faixa de puzzles, plano pessoal, briefing contra adversário.
+                Rating parametriza tudo: faixa de puzzles, plano pessoal, conjunto contra adversário.
               </div>
               <div className="vstack gap-10">
                 <button className="choice-card" onClick={onCalibrar}>
@@ -885,7 +920,6 @@
                   <div className="choice-desc">
                     30 puzzles em faixa ampla. O app sugere o rating onde você rende mais.
                   </div>
-                  <div className="choice-action">→ CALIBRAR (30 puzzles)</div>
                 </button>
                 <button className="choice-card" onClick={() => setMostraImport(true)}>
                   <div className="choice-icon">🔍</div>
@@ -893,172 +927,86 @@
                   <div className="choice-desc">
                     Lê seu perfil. Rating ponderado por rapid, blitz e bullet — sem analisar partidas.
                   </div>
-                  <div className="choice-action">→ INFORMAR USERNAME</div>
                 </button>
               </div>
             </div>
           )}
 
-          {/* === BANNERS DE AÇÃO === */}
-          {prontosPraConcluir.length > 0 && (
-            <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--green)' }}>
-              <div className="mono fs-10 ls-2 txt-green mb-4">PRONTO PRA CONCLUIR</div>
-              {prontosPraConcluir.map(({ c, status }) => (
-                <div key={c.id} className="hstack gap-8 between mb-4" style={{ flexWrap: 'wrap' }}>
-                  <span className="serif fs-13">
-                    {c.nome}
-                    <span className="mono fs-10 txt-muted">
-                      {' · '}{status.motivo === 'halving' ? 'halving!' : 'meta atingida'}
-                    </span>
-                  </span>
-                  <button className="btn btn-small" onClick={() => onConcluirConjunto(c.id)}>
-                    ✓ Concluir
-                  </button>
-                </div>
-              ))}
-            </div>
+          {/* === CTA CRIAR CONJUNTO === */}
+          {temRating && (
+            <button className="btn btn-primary btn-block mb-16" onClick={abrirWizard}>
+              + Criar conjunto
+            </button>
           )}
 
-          {totalRevisao > 0 && (
-            <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--gold)' }}>
-              <div className="between mb-8" style={{ flexWrap: 'wrap', gap: 8 }}>
-                <div>
-                  <div className="mono fs-10 ls-2 txt-muted">REVISÃO DEVIDA</div>
-                  <div className="serif bold fs-15">
-                    {totalRevisao} puzzle{totalRevisao > 1 ? 's' : ''} teimoso{totalRevisao > 1 ? 's' : ''} aguardando
-                  </div>
-                </div>
-                <span className="mono fs-10 txt-muted">
-                  errados em {SRS_MIN_ERROS}+ ciclos · {SRS_DIAS_REVISAO}+ dias parado
-                </span>
-              </div>
-              <div className="vstack gap-6">
-                {revisaoEntries.slice(0, 3).map(e => (
-                  <div key={e.conjunto.id} className="hstack gap-8 between flex-wrap">
-                    <span className="serif fs-13">
-                      {e.conjunto.nome}
-                      <span className="mono fs-11 txt-muted"> ({e.devidos})</span>
-                    </span>
-                    {onTreinarApenasErros && (
-                      <button className="btn btn-small ghost"
-                        onClick={() => onTreinarApenasErros(e.conjunto)}>
-                        ▶ Revisar erros
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* === CONJUNTOS ATIVOS === */}
+          {/* === CONJUNTOS ATIVOS (com badges inline) === */}
           {ativos.length > 0 && (
             <div className="mb-16">
               <div className="between mb-8">
                 <div className="mono fs-10 ls-2 txt-muted">
-                  CONJUNTOS ATIVOS · {ativos.length}/{Conjunto.LIMITE_ATIVOS}
+                  CONJUNTOS · {ativos.length}/{Conjunto.LIMITE_ATIVOS}
                 </div>
-                {ativos.length > 0 && (
-                  <button className="btn btn-small ghost" onClick={onContinuar}
-                    title="Retoma sessão salva ou abre tela de conjuntos">
-                    ▶ Continuar
-                  </button>
-                )}
+                <button className="btn btn-small ghost" onClick={onContinuar}
+                  title="Retoma sessão salva ou abre tela de conjuntos">
+                  ▶ Continuar
+                </button>
               </div>
               <div className="vstack gap-8">
-                {ativos.map(c => (
-                  <div key={c.id} className="card-soft" style={{ padding: '12px 14px' }}>
-                    <div className="hstack gap-8 between" style={{ flexWrap: 'wrap' }}>
-                      <div className="hstack gap-8" style={{ flex: '1 1 200px', minWidth: 0 }}>
-                        <span className="serif fs-15" style={{
-                          minWidth: 22, color: 'var(--gold)',
-                        }}>
-                          {Conjunto.ICONES_TIPOS[Conjunto.tipoDe(c)] || '♞'}
-                        </span>
-                        <span className="serif fs-13 bold" style={{
-                          flex: 1, minWidth: 0, overflow: 'hidden',
-                          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {c.nome}
-                        </span>
+                {ativos.map(c => {
+                  const cs = ciclosDoConjunto(ciclos, c.id);
+                  const status = Conjunto.prontoPraConcluir(c, ciclos);
+                  const revC = revisao[c.id];
+                  const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)];
+                  const cicloLabel = cs.length === 0
+                    ? 'pronto pra Ciclo 1'
+                    : 'ciclo ' + cs[cs.length - 1].numero + (meta ? ' / ' + meta : '');
+                  return (
+                    <div key={c.id} className="card-soft" style={{ padding: '12px 14px' }}>
+                      <div className="hstack gap-8 between flex-wrap">
+                        <div className="hstack gap-8" style={{ flex: '1 1 220px', minWidth: 0 }}>
+                          <span className="serif fs-15" style={{ minWidth: 22, color: 'var(--gold)' }}>
+                            {Conjunto.ICONES_TIPOS[Conjunto.tipoDe(c)] || '♞'}
+                          </span>
+                          <span className="serif fs-13 bold" style={{
+                            flex: 1, minWidth: 0, overflow: 'hidden',
+                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {c.nome}
+                          </span>
+                          {status.pronto && <span className="badge green">PRONTO</span>}
+                          {revC && revC.devidos > 0 && (
+                            <span className="badge amber">{revC.devidos} revisão</span>
+                          )}
+                        </div>
+                        <div className="hstack gap-6 flex-wrap">
+                          {status.pronto && (
+                            <button className="btn btn-small" onClick={() => onConcluirConjunto(c.id)}>
+                              ✓ Concluir
+                            </button>
+                          )}
+                          {revC && revC.devidos > 0 && onTreinarApenasErros && (
+                            <button className="btn btn-small ghost"
+                              onClick={() => onTreinarApenasErros(c)}
+                              title="Treinar só os puzzles errados">
+                              ↻ Revisar
+                            </button>
+                          )}
+                          <button className="btn btn-small" onClick={() => onTreinar(c)}>▶ Treinar</button>
+                          <button className="btn btn-small ghost" onClick={() => onEvolucao(c)}>📊</button>
+                        </div>
                       </div>
-                      <div className="hstack gap-6 flex-wrap">
-                        <button className="btn btn-small" onClick={() => onTreinar(c)}>▶ Treinar</button>
-                        <button className="btn btn-small ghost" onClick={() => onEvolucao(c)}>📊</button>
+                      <div className="mono fs-10 txt-muted mt-4">
+                        {Conjunto.NOMES_TIPOS[Conjunto.tipoDe(c)] || 'Padrão'} · {cicloLabel}
                       </div>
                     </div>
-                    <div className="mono fs-10 txt-muted mt-4">
-                      {Conjunto.NOMES_TIPOS[Conjunto.tipoDe(c)] || 'Padrão'}
-                      {' · '}
-                      {(() => {
-                        const cs = ciclosDoConjunto(ciclos, c.id);
-                        const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)];
-                        const txt = cs.length === 0
-                          ? 'pronto pra Ciclo 1'
-                          : 'ciclo ' + cs[cs.length - 1].numero;
-                        return meta ? txt + ' / ' + meta : txt;
-                      })()}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* === CRIAR NOVO CONJUNTO === */}
-          {temRating && (
-            <div className="mb-16">
-              <div className="mono fs-10 ls-2 txt-muted mb-8">
-                {ativos.length === 0 ? 'CRIE SEU PRIMEIRO CONJUNTO' : 'CRIAR NOVO CONJUNTO'}
-              </div>
-              <div className="vstack gap-10">
-                <button className="choice-card"
-                  onClick={() => tentarCriar('padrao')}
-                  disabled={!podeNovo}
-                  style={!podeNovo ? { opacity: 0.5, cursor: 'not-allowed' } : null}>
-                  <div className="choice-icon">♞</div>
-                  <div className="choice-title">Padrão</div>
-                  <div className="choice-desc">
-                    Treino de manutenção. Puzzles aleatórios na sua faixa, sem foco em tema. Ideal pra aquecimento e ritmo.
-                  </div>
-                  <div className="choice-action">→ CRIAR PADRÃO</div>
-                </button>
-                <button className="choice-card"
-                  onClick={() => tentarCriar('pessoal')}
-                  disabled={!podeNovo || !temChesscom}
-                  style={(!podeNovo || !temChesscom) ? { opacity: 0.5, cursor: 'not-allowed' } : null}
-                  title={!temChesscom ? 'Defina seu rating via chess.com primeiro' : ''}>
-                  <div className="choice-icon">🎯</div>
-                  <div className="choice-title">Plano pessoal</div>
-                  <div className="choice-desc">
-                    Análise das suas partidas no chess.com. Conjunto focado nas suas fraquezas reais.
-                    {!temChesscom && <span className="txt-muted"> · requer rating via chess.com</span>}
-                  </div>
-                  <div className="choice-action">→ PLANO PESSOAL</div>
-                </button>
-                <button className="choice-card"
-                  onClick={() => tentarCriar('adversario')}
-                  disabled={!podeNovo || !temChesscom}
-                  style={(!podeNovo || !temChesscom) ? { opacity: 0.5, cursor: 'not-allowed' } : null}
-                  title={!temChesscom ? 'Defina seu rating via chess.com primeiro' : ''}>
-                  <div className="choice-icon">⚔</div>
-                  <div className="choice-title">Contra adversário</div>
-                  <div className="choice-desc">
-                    Análise das partidas de um oponente específico. Foca nos pontos cegos que ele expõe.
-                    {!temChesscom && <span className="txt-muted"> · requer rating via chess.com</span>}
-                  </div>
-                  <div className="choice-action">→ CONTRA ADVERSÁRIO</div>
-                </button>
-              </div>
-              {!podeNovo && (
-                <div className="mono fs-11 txt-muted mt-8 center">
-                  Limite de {Conjunto.LIMITE_ATIVOS} ativos. Marque um como concluído pra liberar vaga.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* === ATIVIDADE + STREAK === */}
+          {/* Atividade + streak ficam aqui temporariamente; movem pra
+              TelaEvolucao na onda 5. */}
           {atividade.total > 0 && (
             <div className="card-soft mb-12">
               <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'space-between' }}>
@@ -1081,52 +1029,34 @@
 
           {atividade.total > 0 && <CalendarioStreak ciclos={ciclos} dias={84} />}
 
-          {/* === COMO FUNCIONA (apenas se sem rating) === */}
-          {!temRating && (
-            <div className="card mb-12">
-              <div className="serif bold fs-15 mb-12">Como funciona o método</div>
-              <div className="vstack gap-10">
-                {[
-                  "Defina seu rating (calibragem ou chess.com)",
-                  "Crie um conjunto: padrão, pessoal ou contra adversário",
-                  "Complete o Ciclo 1 — esse é seu baseline",
-                  "Repita os mesmos puzzles mais rápido a cada ciclo",
-                  "O alvo é o halving: tempo total = 50% do Ciclo 1",
-                ].map((txt, i) => (
-                  <div key={i} className="hstack gap-10">
-                    <div style={{
-                      width: 24, height: 24, borderRadius: '50%',
-                      background: 'var(--primary)', color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 700, flexShrink: 0,
-                      fontFamily: 'var(--font-mono)',
-                    }}>{i+1}</div>
-                    <div className="serif fs-13">{txt}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <SecaoBackup onAposImport={onAposImport} />
 
-          {/* Modal: tentou criar com 3 ativos cheios */}
+          {/* === MODAIS === */}
+          {mostraWizard && (
+            <WizardCriarConjunto
+              temChesscom={temChesscom}
+              onCriarPadrao={onCriarPadrao}
+              onCriarPessoal={onCriarPessoal}
+              onCriarAdversario={onCriarAdversario}
+              onFechar={() => setMostraWizard(false)} />
+          )}
+
           {tentativaCriar && (
             <div className="modal-overlay" onClick={() => setTentativaCriar(null)}>
               <div className="modal-card" onClick={e => e.stopPropagation()}>
                 <div className="serif bold fs-17 mb-4">Limite de 3 conjuntos ativos</div>
                 <div className="serif fs-13 txt-mid mb-16" style={{ lineHeight: 1.55 }}>
-                  Pra criar um {Conjunto.NOMES_TIPOS[tentativaCriar]}, conclua um dos ativos abaixo:
+                  Marque um como concluído pra liberar vaga:
                 </div>
                 <div className="vstack gap-6 mb-16">
                   {ativos.map(c => (
                     <button key={c.id}
-                      className="card-soft"
-                      onClick={() => confirmarConcluirEAbrir(c, tentativaCriar)}
+                      onClick={() => confirmarConcluirEAbrir(c)}
                       style={{
                         textAlign: 'left', cursor: 'pointer',
                         background: 'var(--surface)',
                         border: '1px solid var(--border)',
+                        borderRadius: 6,
                         padding: '8px 12px',
                       }}>
                       <div className="hstack gap-6">
@@ -1136,7 +1066,7 @@
                         <span className="serif fs-13 bold">{c.nome}</span>
                       </div>
                       <div className="mono fs-10 txt-muted mt-4">
-                        Concluir e abrir {Conjunto.NOMES_TIPOS[tentativaCriar]} →
+                        Concluir e abrir wizard →
                       </div>
                     </button>
                   ))}
