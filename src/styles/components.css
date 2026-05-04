@@ -490,22 +490,24 @@
 
 /* === STATUS BAR (TelaTreinar) ===
    Linha única horizontal. Esquerda: progresso + clocks. Direita:
-   pace + ações. nowrap + overflow:hidden garantem 1 linha sempre. */
+   pace + ações. nowrap + overflow:hidden garantem 1 linha sempre.
+   Repaginação: hairline em vez de card, mono JetBrains com tnum. */
 .status-bar {
   display: flex;
   gap: 14px;
   flex-wrap: nowrap;
   align-items: center;
   font-family: var(--font-mono);
+  font-feature-settings: 'tnum';
   font-size: 12px;
-  color: var(--txt-mid);
-  padding: 10px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
+  color: var(--wp-text-2);
+  padding: 10px 14px;
+  border: 1px solid var(--wp-line-soft);
+  border-radius: var(--radius);
+  background: var(--wp-surface);
   overflow: hidden;
   white-space: nowrap;
-  min-height: 44px;
+  min-height: 42px;
 }
 .status-bar > * { flex-shrink: 0; }
 .status-bar .group {
@@ -519,33 +521,33 @@
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
   font-size: 15px;
-  color: var(--txt);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  color: var(--wp-text);
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 .status-bar .num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
-.status-bar .sep { color: var(--border-mid); opacity: 0.6; }
+.status-bar .sep { color: var(--wp-text-4); opacity: 0.7; }
 .status-bar .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px; height: 30px;
+  width: 32px; height: 32px;
   padding: 0;
-  border-radius: 6px;
+  border-radius: var(--radius);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--txt-mid);
-  font-size: 13px;
+  color: var(--wp-text-2);
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: background .15s, border-color .15s, color .15s;
 }
 .status-bar .icon-btn:hover {
-  background: var(--card);
-  border-color: var(--border);
-  color: var(--txt);
+  background: var(--wp-surface-2);
+  border-color: var(--wp-line-soft);
+  color: var(--wp-text);
 }
 @media (max-width: 480px) {
   .status-bar { padding: 8px 10px; gap: 10px; }
@@ -562,13 +564,13 @@
   align-items: center;
   justify-content: center;
   padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--txt-mid);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.05em;
+  border-radius: var(--radius);
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-line-soft);
+  color: var(--wp-text-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  letter-spacing: -0.005em;
   text-align: center;
 }
 .action-zone .turn-indicator {
@@ -577,14 +579,14 @@
   gap: 10px;
 }
 .action-zone .turn-dot {
-  width: 12px; height: 12px;
+  width: 10px; height: 10px;
   border-radius: 50%;
-  border: 1px solid var(--border-mid);
+  border: 1px solid var(--wp-line);
   display: inline-block;
 }
-.action-zone .turn-dot.white { background: #efe6cf; }
-.action-zone .turn-dot.black { background: #2a2a2a; }
-.action-zone .turn-label { color: var(--txt); font-weight: 600; letter-spacing: 0.04em; }
+.action-zone .turn-dot.white { background: var(--wp-board-light); border-color: var(--wp-board-edge); }
+.action-zone .turn-dot.black { background: var(--wp-board-dark);  border-color: var(--wp-board-edge); }
+.action-zone .turn-label { color: var(--wp-text); font-weight: 500; letter-spacing: -0.005em; }
 .action-zone.feedback-mode {
   align-items: stretch;
   text-align: left;
@@ -778,17 +780,74 @@
   100% { outline: 0px solid rgba(255, 110, 110, 0);   outline-offset: 8px; }
 }
 
-/* === BANNER FEEDBACK === */
+/* === BANNER FEEDBACK ===
+   4 estados visuais (handoff): idle (sem banner), correct (good musgo),
+   almost (warn ouro velho), wrong (bad argila). Animação leve fade-in
+   pra sensação zen — sem celebração. */
 .feedback-banner {
-  border-radius: 10px;
-  padding: 16px;
+  border-radius: var(--radius);
+  padding: 14px 16px;
   margin-top: 12px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wp-text);
+  border: 1px solid var(--wp-line-soft);
+  background: var(--wp-surface);
+  animation: feedback-fade-in .2s ease-out;
 }
-.feedback-banner.green { background: var(--green-bg); border: 1px solid var(--green-bdr); }
-.feedback-banner.red   { background: var(--red-bg);   border: 1px solid var(--red-bdr); }
-.feedback-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
-.feedback-banner.green .feedback-title { color: var(--green); }
-.feedback-banner.red   .feedback-title { color: var(--red); }
+@keyframes feedback-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.feedback-banner.green {
+  background: var(--wp-good-soft);
+  border-color: var(--wp-good-soft);
+  color: var(--wp-text);
+}
+.feedback-banner.red {
+  background: var(--wp-bad-soft);
+  border-color: var(--wp-bad-soft);
+  color: var(--wp-text);
+}
+.feedback-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  transition: color .25s;
+}
+.feedback-banner.green .feedback-title { color: var(--wp-good); }
+.feedback-banner.red   .feedback-title { color: var(--wp-bad); }
+/* Variante ámbar — banner red + borda esquerda --amber é usada hoje
+   pra estado "quase correto/incompleto". Trocamos pelo nosso warn. */
+.feedback-banner.red[style*="amber"],
+.feedback-banner.warn {
+  background: var(--wp-accent-tint);
+  border-color: var(--wp-accent-soft);
+  color: var(--wp-text);
+}
+.feedback-banner.warn .feedback-title { color: var(--wp-warn); }
+
+/* Pill de notação (Nxe6, Bxh7+ ?, Nf5 — bom mas há melhor).
+   Usado abaixo do banner pra mostrar o lance avaliado. */
+.wp-move-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  background: var(--wp-surface-2);
+  border: 1px solid var(--wp-line-soft);
+  color: var(--wp-text);
+}
+.wp-move-pill.good { color: var(--wp-good); border-color: var(--wp-good-soft); background: var(--wp-good-soft); }
+.wp-move-pill.warn { color: var(--wp-warn); border-color: var(--wp-accent-soft); background: var(--wp-accent-tint); }
+.wp-move-pill.bad  { color: var(--wp-bad);  border-color: var(--wp-bad-soft);  background: var(--wp-bad-soft); }
 
 /* === MODAL === */
 .modal-overlay {
@@ -798,32 +857,49 @@
   z-index: 100; padding: 16px;
 }
 .modal-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 32px;
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-line-soft);
+  border-radius: var(--radius);
+  padding: 28px;
   max-width: 440px; width: 100%;
 }
 
-/* === GRID DE MÉTRICAS (TelaConclusao) === */
-.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* === GRID DE MÉTRICAS (TelaConclusao) ===
+   Repaginado: cards quadradinhos sem accent border-top (radius 4),
+   label em eyebrow uppercase + valor mono grande. Hierarquia via
+   tipografia, não cor. */
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 640px) {
-  .metric-grid { gap: 8px; }
-  .metric-card { padding: 12px 14px; }
-  .metric-value { font-size: 18px; }
+  .metric-grid { gap: 10px; }
+  .metric-card { padding: 14px 16px; }
+  .metric-value { font-size: 22px; }
 }
 .metric-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--primary);
-  border-radius: 8px;
-  padding: 16px 18px;
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-line-soft);
+  border-radius: var(--radius);
+  padding: 18px 20px;
 }
-.metric-card.green { border-top-color: var(--green); }
-.metric-card.slate { border-top-color: var(--slate); }
-.metric-card.gold  { border-top-color: var(--gold); }
-.metric-label { font-family: var(--font-mono); font-size: 10px; color: var(--txt-muted); letter-spacing: 0.15em; }
-.metric-value { font-family: var(--font-serif); font-size: 22px; font-weight: 700; margin-top: 6px; }
+.metric-card.green { border-color: var(--wp-good-soft); }
+.metric-card.slate { border-color: var(--wp-line-soft); }
+.metric-card.gold  { border-color: var(--wp-accent-soft); }
+.metric-label {
+  font-family: var(--font-ui);
+  font-size: 10.5px; font-weight: 600;
+  color: var(--wp-text-3);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.metric-value {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum';
+  font-size: 28px; font-weight: 500;
+  letter-spacing: -0.04em;
+  margin-top: 8px;
+  color: var(--wp-text);
+}
+.metric-card.green .metric-value { color: var(--wp-good); }
+.metric-card.gold  .metric-value { color: var(--wp-warn); }
 
 /* === TABULEIRO === */
 .board-wrap {
