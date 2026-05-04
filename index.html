@@ -3688,7 +3688,7 @@
         setCarregandoSugestoes(true);
         setErroSugestoes(null);
         try {
-          const lista = await window.ChessAnalysis.topAdversarios(meuChesscom, { maxMonths: 3, top: 5 });
+          const lista = await window.ChessAnalysis.topAdversarios(meuChesscom, { maxMonths: 6, top: 5, minGames: 3 });
           setSugestoesAdv(lista);
         } catch (e) {
           setErroSugestoes(e.message || String(e));
@@ -3956,7 +3956,7 @@
                   ) : (
                     <div>
                       <div className="between mb-6">
-                        <div className="mono fs-10 ls-2 txt-muted">SUGESTÕES · MAIS ENFRENTADOS</div>
+                        <div className="mono fs-10 ls-2 txt-muted">SUGESTÕES · ONDE MAIS PERDI · 6 MESES</div>
                         <button className="btn btn-small ghost"
                           onClick={carregarSugestoesAdv}
                           disabled={carregandoSugestoes}
@@ -3972,7 +3972,7 @@
                       )}
                       {sugestoesAdv && sugestoesAdv.length === 0 && !carregandoSugestoes && (
                         <div className="mono fs-10 txt-muted">
-                          Nenhum adversário recorrente nos últimos 3 meses.
+                          Nenhum adversário com 3+ jogos e ao menos 1 derrota nos últimos 6 meses.
                         </div>
                       )}
                       {sugestoesAdv && sugestoesAdv.length > 0 && (
@@ -3992,10 +3992,7 @@
                                 <div className="hstack gap-8 between flex-wrap">
                                   <span className="serif fs-13 bold">@{s.username}</span>
                                   <span className="mono fs-10 txt-muted">
-                                    {s.total} {s.total === 1 ? 'partida' : 'partidas'}
-                                    {s.byTC.rapid ? ' · R' + s.byTC.rapid : ''}
-                                    {s.byTC.blitz ? ' · B' + s.byTC.blitz : ''}
-                                    {s.byTC.bullet ? ' · Bu' + s.byTC.bullet : ''}
+                                    {s.total}j · {s.W}W/{s.L}L/{s.D}D
                                   </span>
                                 </div>
                               </button>
