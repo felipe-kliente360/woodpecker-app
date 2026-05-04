@@ -670,6 +670,50 @@
   background-color: rgba(192, 80, 80, 0.18) !important;
   box-shadow: inset 0 0 0 3px rgba(220, 100, 100, 0.85) !important;
 }
+/* Lance correto (final do puzzle): borda verde marcando onde o lance
+   vencedor caiu. Aparece junto do feedback de acerto. */
+.highlight-success-to {
+  background-color: rgba(106, 159, 139, 0.18) !important;
+  box-shadow: inset 0 0 0 3px rgba(120, 180, 155, 0.85) !important;
+}
+
+/* === ANIMAÇÕES DE FEEDBACK NO TABULEIRO ===
+   A: pulso na borda externa do .board-wrap (700ms one-shot).
+   B: pulso na casa de destino (sobre highlight-success-to/error-to). */
+.board-wrap { position: relative; border-radius: 4px; }
+.board-wrap.is-correct {
+  animation: pulseBorderGreen 700ms ease-out 1;
+}
+.board-wrap.is-wrong {
+  animation: pulseBorderRed 700ms ease-out 1;
+}
+@keyframes pulseBorderGreen {
+  0%   { box-shadow: 0 0 0 0   rgba(106, 159, 139, 0.65); }
+  60%  { box-shadow: 0 0 0 10px rgba(106, 159, 139, 0); }
+  100% { box-shadow: 0 0 0 10px rgba(106, 159, 139, 0); }
+}
+@keyframes pulseBorderRed {
+  0%   { box-shadow: 0 0 0 0   rgba(192, 80, 80, 0.65); }
+  60%  { box-shadow: 0 0 0 10px rgba(192, 80, 80, 0); }
+  100% { box-shadow: 0 0 0 10px rgba(192, 80, 80, 0); }
+}
+/* Pulso na casa: amplifica brevemente a saturação da borda existente. */
+.board-wrap.is-correct .highlight-success-to {
+  animation: pulseSquareGreen 700ms ease-out 1;
+}
+.board-wrap.is-wrong .highlight-error-to {
+  animation: pulseSquareRed 700ms ease-out 1;
+}
+@keyframes pulseSquareGreen {
+  0%   { box-shadow: inset 0 0 0 4px rgba(120, 200, 165, 1.0)   !important; }
+  60%  { box-shadow: inset 0 0 0 4px rgba(120, 200, 165, 0.85) !important; }
+  100% { box-shadow: inset 0 0 0 3px rgba(120, 180, 155, 0.85) !important; }
+}
+@keyframes pulseSquareRed {
+  0%   { box-shadow: inset 0 0 0 4px rgba(255, 110, 110, 1.0)   !important; }
+  60%  { box-shadow: inset 0 0 0 4px rgba(255, 110, 110, 0.85) !important; }
+  100% { box-shadow: inset 0 0 0 3px rgba(220, 100, 100, 0.85) !important; }
+}
 
 /* === BANNER FEEDBACK === */
 .feedback-banner {

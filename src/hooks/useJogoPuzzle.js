@@ -51,6 +51,9 @@
     // Casas do lance errado: ficam destacadas em vermelho enquanto o
     // feedback de erro está visível. Reset ao trocar puzzle.
     const [ultimoLanceErradoCoords, setUltimoLanceErradoCoords] = useState(null);
+    // Destino do lance vencedor do jogador (capturado em cada acerto;
+    // exibido em verde com pulso quando o puzzle conclui correto).
+    const [ultimoLanceJogadorTo, setUltimoLanceJogadorTo] = useState(null);
     const [ultimoLanceAdv, setUltimoLanceAdv] = useState(null);
     const [promoPicker, setPromoPicker]   = useState(null);
     const [casaSelecionada, setCasaSelecionada] = useState(null);
@@ -134,6 +137,7 @@
         setUciInput("");
         setUltimoLanceErrado(null);
         setUltimoLanceErradoCoords(null);
+        setUltimoLanceJogadorTo(null);
         setErroPuzzle(null);
         setPromoPicker(null);
         setCasaSelecionada(null);
@@ -235,6 +239,9 @@
       expectedIdxRef.current += 1;
       setFenAtual(c.fen());
       setUltimoLanceAdv(null);
+      // Marca o destino do lance correto. Em puzzles multi-lance o último
+      // setter (lance final) é o que sobrevive — exibido em verde no fim.
+      setUltimoLanceJogadorTo(to);
 
       const respIdx = expectedIdxRef.current;
       if (lances[respIdx]) {
@@ -415,6 +422,7 @@
       ultimoLanceAdv: ultimoLanceAdv,
       ultimoLanceErrado: ultimoLanceErrado,
       ultimoLanceErradoCoords: ultimoLanceErradoCoords,
+      ultimoLanceJogadorTo: ultimoLanceJogadorTo,
       erroPuzzle: erroPuzzle,
       // Timer
       seg: seg,

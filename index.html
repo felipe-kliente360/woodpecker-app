@@ -328,7 +328,7 @@
     /* lanceUciParaSan, aplicarLanceSilencioso, sequenciaSan: src/domain/puzzle.js */
 
     /* === COMPONENTE ChessBoard (wrapper Chessboard.js) === */
-    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, draggable, highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo }) {
+    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, draggable, highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, successTo }) {
       const onDropRef = useRef(onDrop);
       const onSquareClickRef = useRef(onSquareClick);
       const draggableRef = useRef(draggable !== false);
@@ -351,16 +351,18 @@
             $root.find('.selected-square').removeClass('selected-square');
             $root.find('.highlight-error-from').removeClass('highlight-error-from');
             $root.find('.highlight-error-to').removeClass('highlight-error-to');
+            $root.find('.highlight-success-to').removeClass('highlight-success-to');
             if (highlightFrom) $root.find('.square-' + highlightFrom).addClass('highlight-last-from');
             if (highlightTo)   $root.find('.square-' + highlightTo).addClass('highlight-last-to');
             if (selectedSquare) $root.find('.square-' + selectedSquare).addClass('selected-square');
             if (errorFrom)     $root.find('.square-' + errorFrom).addClass('highlight-error-from');
             if (errorTo)       $root.find('.square-' + errorTo).addClass('highlight-error-to');
+            if (successTo)     $root.find('.square-' + successTo).addClass('highlight-success-to');
           } catch (e) {}
         };
         const t = setTimeout(apply, 60);
         return () => clearTimeout(t);
-      }, [highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, fen, boardId]);
+      }, [highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, successTo, fen, boardId]);
 
       useEffect(() => {
         const cfg = {
@@ -1970,10 +1972,21 @@
         idx, total, puzzle, fenAtual, orientacao,
         resultados, tempoAcumulado, paceVsPuzzleBaseline, dicaVisao,
         estado, feedback, promoPicker, casaSelecionada,
-        ultimoLanceAdv, ultimoLanceErradoCoords, erroPuzzle, seg, pausado,
+        ultimoLanceAdv, ultimoLanceErradoCoords, ultimoLanceJogadorTo,
+        erroPuzzle, seg, pausado,
         onDrop, onSquareClick, escolherPromocao, cancelarPromocao,
         pular, avancar, setPausado, pularPuzzleErro,
       } = j;
+
+      // Pulso 700ms na borda do tabuleiro + na casa de destino quando
+      // o feedback aparece. Reset entre puzzles via dependência em feedback.
+      const [boardPulse, setBoardPulse] = useState(null);
+      useEffect(() => {
+        if (estado !== 'feedback' || !feedback) { setBoardPulse(null); return; }
+        setBoardPulse(feedback.correto ? 'correct' : 'wrong');
+        const t = setTimeout(() => setBoardPulse(null), 700);
+        return () => clearTimeout(t);
+      }, [estado, feedback]);
 
       // Companion áudio — toca som no feedback se Chaves.AUDIO_ON.
       useEffect(() => {
@@ -2089,7 +2102,7 @@
           </div>
 
           {/* === TABULEIRO === */}
-          <div className="board-wrap" style={{ margin: '0 auto' }}>
+          <div className={'board-wrap' + (boardPulse ? ' is-' + boardPulse : '')} style={{ margin: '0 auto' }}>
             <ChessBoardView
               key={boardId}
               boardId={boardId}
@@ -2103,6 +2116,7 @@
               selectedSquare={casaSelecionada}
               errorFrom={ultimoLanceErradoCoords ? ultimoLanceErradoCoords.from : null}
               errorTo={ultimoLanceErradoCoords ? ultimoLanceErradoCoords.to : null}
+              successTo={estado === 'feedback' && feedback && feedback.correto ? ultimoLanceJogadorTo : null}
             />
           </div>
 
