@@ -834,4 +834,228 @@
 /* === CONTAINER DO TABULEIRO ===
    A chessboardjs gera um div com id="board-..." que precisa ocupar
    100% do .board-host pra preservar aspect ratio. */
-[id^="board-"] { width: 100%; }
+[id^="board-"] {
+  width: 100%;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,.4), 0 0 0 1px var(--wp-board-edge);
+}
+
+/* === TABULEIRO — TEMA WOOD (Woodpecker) ===
+   Override das cores default da chessboardjs. Casas em maple/walnut
+   (oklch board light/dark dos tokens) pra alinhar com o sistema warm.
+   Coordenadas em mono dessaturado. */
+.white-1e1d7 { background-color: var(--wp-board-light) !important; color: var(--wp-board-dark) !important; }
+.black-3c85d { background-color: var(--wp-board-dark)  !important; color: var(--wp-board-light) !important; }
+.notation-322f9 {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum';
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+/* ==========================================================================
+   === DESIGN SYSTEM WP — botões, cards, inputs, tabbar, sidebar ===
+   Componentes da repaginação. Nomes prefixados wp- pra coexistir com o
+   sistema antigo (.btn, .card, .nav-item) durante a migração.
+   ========================================================================== */
+
+/* === Botões === */
+.wp-btn {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  border: 1px solid var(--wp-line);
+  background: transparent;
+  color: var(--wp-text);
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.wp-btn:hover { background: var(--wp-surface-2); }
+.wp-btn:focus-visible {
+  outline: 2px solid var(--wp-accent);
+  outline-offset: 2px;
+}
+.wp-btn--primary {
+  background: var(--wp-accent);
+  color: oklch(0.18 0.02 50);
+  border-color: var(--wp-accent);
+  font-weight: 600;
+}
+.wp-btn--primary:hover { background: oklch(0.78 0.13 55); }
+.wp-btn--ghost { border-color: transparent; color: var(--wp-text-2); }
+.wp-btn--ghost:hover { color: var(--wp-text); background: var(--wp-surface); }
+.wp-btn--full { width: 100%; }
+.wp-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+/* === Input === */
+.wp-input {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-line);
+  color: var(--wp-text);
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  width: 100%;
+  outline: none;
+  transition: border-color .15s;
+}
+.wp-input:focus { border-color: var(--wp-accent); }
+.wp-input::placeholder { color: var(--wp-text-4); }
+.wp-input-wrap { position: relative; }
+.wp-input-prefix {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--wp-text-3);
+  font-size: 15px;
+  pointer-events: none;
+}
+.wp-input--prefixed { padding-left: 32px; }
+
+/* === Card === */
+.wp-card {
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-line-soft);
+  border-radius: var(--radius);
+  padding: 18px;
+  transition: background .15s, border-color .15s;
+}
+.wp-card--button { cursor: pointer; }
+.wp-card--button:hover { background: var(--wp-surface-2); border-color: var(--wp-line); }
+.wp-card--selected {
+  border-color: var(--wp-accent);
+  background: var(--wp-accent-tint);
+}
+.wp-card--selected:hover { background: var(--wp-accent-tint); border-color: var(--wp-accent); }
+
+/* === Big number === */
+.wp-bignum {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum';
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  color: var(--wp-text);
+}
+
+/* === Logo (4 tally marks + WOODPECKER) === */
+.wp-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.wp-logo-text {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--wp-text);
+}
+
+/* === Screen wrapper / TabBar / Sidebar ===
+   Mobile-first: tab bar em rodapé fixo, conteúdo max-width 440px centrado.
+   ≥768px: sidebar 240px à esquerda, conteúdo central ~520px max, tab bar
+   esconde. */
+.wp-screen {
+  min-height: 100vh;
+  display: flex;
+  background: var(--wp-bg);
+  color: var(--wp-text);
+}
+.wp-screen-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-bottom: 72px; /* espaço p/ tab bar fixa */
+}
+.wp-screen--no-tabs .wp-screen-body { padding-bottom: 0; }
+
+.wp-tabbar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--wp-line-soft);
+  background: var(--wp-bg);
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 40;
+}
+.wp-tabbar .wp-tab {
+  background: none; border: 0;
+  color: var(--wp-text-3);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.wp-tabbar .wp-tab.active { color: var(--wp-text); }
+.wp-tabbar .wp-tab .dot {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: transparent;
+  margin-top: 2px;
+}
+.wp-tabbar .wp-tab.active .dot { background: var(--wp-accent); }
+.wp-tab-label { line-height: 1; }
+
+.wp-sidebar {
+  display: none;
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--wp-line-soft);
+  padding: 28px 18px;
+  flex-direction: column;
+  gap: 22px;
+  background: var(--wp-bg);
+}
+.wp-sidebar-brand { padding-left: 10px; }
+.wp-sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
+.wp-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  color: var(--wp-text-2);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+.wp-sidebar-item:hover { background: var(--wp-surface); color: var(--wp-text); }
+.wp-sidebar-item.active { background: var(--wp-accent-tint); color: var(--wp-text); }
+
+@media (min-width: 768px) {
+  .wp-sidebar { display: flex; }
+  .wp-tabbar { display: none; }
+  .wp-screen-body { padding-bottom: 0; max-width: 560px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+}
+
+/* Em mobile <480px: tela ocupa todo o viewport.
+   Em 480–768px: max-width 440px centrado pra evitar campo de leitura largo. */
+@media (min-width: 480px) and (max-width: 767px) {
+  .wp-screen-body {
+    max-width: 440px;
+    margin: 0 auto;
+  }
+}

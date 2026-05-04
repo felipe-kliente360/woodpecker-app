@@ -388,7 +388,9 @@
           draggable: true,
           position: fen || 'start',
           orientation: orientation || 'white',
-          pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+          // Peças cburnett (Lichess) em SVG: legibilidade muito superior aos
+          // PNGs Wikipedia da chessboardjs default. Servidos pelo CDN do Lichess.
+          pieceTheme: 'https://lichess1.org/assets/piece/cburnett/{piece}.svg',
           // Animações mais ágeis pra sensação de fluidez no toque/drag
           moveSpeed: 140,
           snapbackSpeed: 80,
@@ -513,6 +515,174 @@
       }, [orientation]);
 
       return <div id={boardId} className="board-host"></div>;
+    }
+
+    /* ==========================================================================
+       === COMPONENTES WP — DESIGN SYSTEM DA REPAGINAÇÃO ===
+       Design tokens em src/styles/tokens.css; classes auxiliares em base.css
+       (.wp-mono, .wp-display, .wp-eyebrow, .wp-tally, .wp-divider) e
+       components.css (.wp-btn*, .wp-card, .wp-tabbar). Todos sem emoji
+       (handoff é zen — ícones são SVG via WpIcon).
+       ========================================================================== */
+
+    function WpButton({ variant = 'outline', full, children, className = '', ...rest }) {
+      const cls = 'wp-btn' +
+        (variant === 'primary' ? ' wp-btn--primary' : '') +
+        (variant === 'ghost'   ? ' wp-btn--ghost'   : '') +
+        (full ? ' wp-btn--full' : '') +
+        (className ? ' ' + className : '');
+      return <button className={cls} {...rest}>{children}</button>;
+    }
+
+    function WpInput({ prefix, mono, className = '', ...rest }) {
+      const cls = 'wp-input' +
+        (mono ? ' wp-mono' : '') +
+        (prefix ? ' wp-input--prefixed' : '') +
+        (className ? ' ' + className : '');
+      if (!prefix) return <input className={cls} {...rest} />;
+      return (
+        <div className="wp-input-wrap">
+          <span className="wp-input-prefix wp-mono">{prefix}</span>
+          <input className={cls} {...rest} />
+        </div>
+      );
+    }
+
+    function WpCard({ selected, onClick, children, as: Tag = 'div', className = '', ...rest }) {
+      const cls = 'wp-card' +
+        (selected ? ' wp-card--selected' : '') +
+        (onClick ? ' wp-card--button' : '') +
+        (className ? ' ' + className : '');
+      return <Tag className={cls} onClick={onClick} {...rest}>{children}</Tag>;
+    }
+
+    /* Marcas verticais (motivo pica-pau). total marcas, primeiras `done` opacas. */
+    function WpTally({ total = 10, done = 0, height, gap, color, style }) {
+      const marks = [];
+      for (let i = 0; i < total; i++) {
+        const on = i < done;
+        marks.push(<i key={i} className={on ? 'on' : ''} style={height ? { height: height + 'px' } : undefined} />);
+      }
+      const wrapStyle = { ...style };
+      if (gap !== undefined) wrapStyle.gap = gap + 'px';
+      if (color) wrapStyle.color = color;
+      return <span className="wp-tally" style={wrapStyle}>{marks}</span>;
+    }
+
+    function WpEyebrow({ children, className = '', ...rest }) {
+      return <div className={'wp-eyebrow' + (className ? ' ' + className : '')} {...rest}>{children}</div>;
+    }
+
+    function WpBigNumber({ value, size = 64, color, className = '', style }) {
+      const s = { fontSize: size + 'px', lineHeight: 0.95, ...(color ? { color } : {}), ...(style || {}) };
+      return <span className={'wp-bignum wp-mono' + (className ? ' ' + className : '')} style={s}>{value}</span>;
+    }
+
+    /* Set de ícones SVG stroke 1.6 (handoff). Não usa lucide-react porque o
+       app é zero-build; melhor inline pra controle e zero rede extra. */
+    const WP_ICON_PATHS = {
+      'arrow-left':   <path d="M15 6l-6 6 6 6" />,
+      'chevron-right':<path d="M9 6l6 6-6 6" />,
+      'chevron-down': <path d="M6 9l6 6 6-6" />,
+      'close':        <g><path d="M6 6l12 12" /><path d="M18 6l-12 12" /></g>,
+      'plus':         <g><path d="M12 5v14" /><path d="M5 12h14" /></g>,
+      'check':        <path d="M5 12l4 4 10-10" />,
+      'home':         <path d="M4 11l8-7 8 7v9a1 1 0 01-1 1h-4v-6h-6v6H5a1 1 0 01-1-1z" />,
+      'list':         <g><path d="M8 6h12" /><path d="M8 12h12" /><path d="M8 18h12" /><circle cx="4" cy="6" r="0.6" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="0.6" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="0.6" fill="currentColor" stroke="none"/></g>,
+      'chart':        <g><path d="M4 20V8" /><path d="M10 20V4" /><path d="M16 20v-8" /><path d="M22 20H2" /></g>,
+      'user':         <g><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" /></g>,
+      'clock':        <g><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></g>,
+      'play':         <path d="M8 5v14l11-7z" />,
+      'pause':        <g><path d="M9 5v14" /><path d="M15 5v14" /></g>,
+      'flame':        <path d="M12 3c1 4 5 5 5 10a5 5 0 11-10 0c0-3 2-4 2-7 1 1 2 2 3 4z" />,
+      'target':       <g><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" /></g>,
+      'settings':     <g><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" /></g>,
+      'board':        <g><rect x="3" y="3" width="18" height="18" rx="1" /><path d="M3 9h18M3 15h18M9 3v18M15 3v18" /></g>,
+      'hint':         <g><path d="M12 3a6 6 0 016 6c0 2.5-1.5 4-2.5 5.2-.5.6-.8 1.1-.8 1.8H9.3c0-.7-.3-1.2-.8-1.8C7.5 13 6 11.5 6 9a6 6 0 016-6z" /><path d="M10 21h4" /></g>,
+      'x':            <g><path d="M6 6l12 12" /><path d="M18 6l-12 12" /></g>,
+    };
+    function WpIcon({ name, size = 18, strokeWidth = 1.6, className = '', style }) {
+      const inner = WP_ICON_PATHS[name] || null;
+      return (
+        <svg
+          width={size} height={size} viewBox="0 0 24 24"
+          fill="none" stroke="currentColor"
+          strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+          className={className} style={style} aria-hidden="true"
+        >{inner}</svg>
+      );
+    }
+
+    /* Logo do Woodpecker: 4 marcas tally + nome em mono caps. */
+    function WpLogo({ size = 14 }) {
+      return (
+        <span className="wp-logo">
+          <span className="wp-tally" style={{ color: 'var(--wp-accent)' }}>
+            <i className="on" /><i className="on" /><i className="on" /><i className="on" />
+          </span>
+          <span className="wp-logo-text wp-mono">WOODPECKER</span>
+        </span>
+      );
+    }
+
+    /* Tab bar mobile / Sidebar desktop — 4 entradas: treino, conjuntos, stats, perfil.
+       Renderização única que vira sidebar via @media ≥768px (regra em components.css). */
+    const WP_NAV_ITENS = [
+      { id: 'inicio',    label: 'Treino',    icon: 'home'  },
+      { id: 'conjuntos', label: 'Conjuntos', icon: 'list'  },
+      { id: 'evolucao',  label: 'Análises',  icon: 'chart' },
+      { id: 'perfil',    label: 'Perfil',    icon: 'user'  },
+    ];
+    function WpTabBar({ active, onTab }) {
+      return (
+        <nav className="wp-tabbar">
+          {WP_NAV_ITENS.map(it => (
+            <button
+              key={it.id}
+              className={'wp-tab' + (active === it.id ? ' active' : '')}
+              onClick={() => onTab && onTab(it.id)}
+              aria-label={it.label}
+            >
+              <WpIcon name={it.icon} size={18} />
+              <span className="wp-tab-label">{it.label}</span>
+              <span className="dot" aria-hidden="true" />
+            </button>
+          ))}
+        </nav>
+      );
+    }
+    function WpSidebar({ active, onTab }) {
+      return (
+        <aside className="wp-sidebar">
+          <div className="wp-sidebar-brand"><WpLogo /></div>
+          <nav className="wp-sidebar-nav">
+            {WP_NAV_ITENS.map(it => (
+              <button
+                key={it.id}
+                className={'wp-sidebar-item' + (active === it.id ? ' active' : '')}
+                onClick={() => onTab && onTab(it.id)}
+              >
+                <WpIcon name={it.icon} size={18} />
+                <span>{it.label}</span>
+              </button>
+            ))}
+          </nav>
+        </aside>
+      );
+    }
+
+    /* Wrapper de tela: max-width 440px, padding lateral 24px, mobile-first.
+       hideTabBar omite a barra (usado em onboarding e puzzle). */
+    function WpScreen({ children, hideTabBar, active, onTab, className = '' }) {
+      return (
+        <div className={'wp-screen' + (hideTabBar ? ' wp-screen--no-tabs' : '') + (className ? ' ' + className : '')}>
+          <WpSidebar active={active} onTab={onTab} />
+          <div className="wp-screen-body">
+            {children}
+            {!hideTabBar && <WpTabBar active={active} onTab={onTab} />}
+          </div>
+        </div>
+      );
     }
 
     /* === HEADER === */
