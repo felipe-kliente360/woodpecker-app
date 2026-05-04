@@ -793,59 +793,8 @@
     }
 
     /* === HEADER === */
-    function Header({ onAbrirConfig }) {
-      return (
-        <div className="wp-header">
-          <div className="wp-header-brand">
-            <span className="wp-tally" style={{ color: 'var(--wp-accent)' }}>
-              <i className="on" /><i className="on" /><i className="on" /><i className="on" />
-            </span>
-            <span className="wp-mono wp-header-title">WOODPECKER</span>
-          </div>
-          <button
-            className="wp-header-cog"
-            onClick={onAbrirConfig}
-            title="Configurações"
-            aria-label="Configurações">
-            <WpIcon name="settings" size={18} />
-          </button>
-        </div>
-      );
-    }
-
-    /* === SIDEBAR (mobile drawer + desktop fixed) ===
-       Mantém o nome `Sidebar` por compat com App; agora usa nav items
-       padronizados (treino/conjuntos/análises/perfil) e ícones SVG. */
-    function Sidebar({ tela, onNav, mobile }) {
-      const itens = [
-        { id: 'inicio',    icon: 'home',  label: 'Treino'    },
-        { id: 'conjuntos', icon: 'list',  label: 'Conjuntos' },
-        { id: 'evolucao',  icon: 'chart', label: 'Análises'  },
-      ];
-      return (
-        <div className={mobile ? 'mobile-menu' : 'sidebar'}>
-          {itens.map(it => (
-            <button
-              key={it.id}
-              className={'nav-item' + (tela === it.id ? ' active' : '')}
-              onClick={() => onNav(it.id)}
-            >
-              <span className="nav-icon"><WpIcon name={it.icon} size={18} /></span>
-              <span>{it.label}</span>
-            </button>
-          ))}
-        </div>
-      );
-    }
-
-    /* === FOOTER === */
-    function Footer() {
-      return (
-        <div className="footer">
-          WOODPECKER · PUZZLES: LICHESS CC0 · OFFLINE READY
-        </div>
-      );
-    }
+    /* Header/Sidebar/Footer legados removidos na Fase 14 — substituídos por
+       WpScreen (que renderiza WpSidebar + WpTabBar) na Fase 7. */
 
     /* === MODAL DE RETOMADA === */
     function ModalRetomada({ sessao, conjunto, onRetomar, onDescartar }) {
@@ -5845,6 +5794,18 @@
       );
     }
 
+
+    /* === WP_FLAGS — features extras ocultas na repaginação ===
+       Reativar via console: localStorage.setItem('wp_flags', JSON.stringify({srs:1, vi_de_cara:1, dica_visao:1, modo_confirmar:1, notas:1, reflexao_bloco:1}))
+       Lidos uma vez na inicialização do App pra evitar re-render. */
+    const WP_FLAGS = (function () {
+      try {
+        const raw = localStorage.getItem('wp_flags');
+        if (!raw) return {};
+        return JSON.parse(raw) || {};
+      } catch (e) { return {}; }
+    })();
+    function flag(k) { return !!WP_FLAGS[k]; }
 
     /* === APP ROOT === */
     function App() {
