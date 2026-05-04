@@ -328,15 +328,17 @@
     /* lanceUciParaSan, aplicarLanceSilencioso, sequenciaSan: src/domain/puzzle.js */
 
     /* === COMPONENTE ChessBoard (wrapper Chessboard.js) === */
-    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, onPickPiece, draggable, highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, successTo, possibleMoves, possibleCaptures }) {
+    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, onPickPiece, onDragEnd, draggable, highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, successTo, possibleMoves, possibleCaptures }) {
       const onDropRef = useRef(onDrop);
       const onSquareClickRef = useRef(onSquareClick);
       const onPickPieceRef = useRef(onPickPiece);
+      const onDragEndRef = useRef(onDragEnd);
       const draggableRef = useRef(draggable !== false);
       const boardRef = useRef(null);
       useEffect(() => { onDropRef.current = onDrop; }, [onDrop]);
       useEffect(() => { onSquareClickRef.current = onSquareClick; }, [onSquareClick]);
       useEffect(() => { onPickPieceRef.current = onPickPiece; }, [onPickPiece]);
+      useEffect(() => { onDragEndRef.current = onDragEnd; }, [onDragEnd]);
       useEffect(() => { draggableRef.current = draggable !== false; }, [draggable]);
 
       // Aplica/remove highlights. 4 tipos: origem/destino do último lance
@@ -392,6 +394,12 @@
             }
           },
           onDrop: (source, target) => {
+            // Drag terminou (drop válido ou snapback). Limpa o arrastando
+            // pra sumir as bolinhas. Acontece SEMPRE, mesmo no caso de tap
+            // que terminou em snapback.
+            if (onDragEndRef.current) {
+              try { onDragEndRef.current(); } catch (e) {}
+            }
             if (source === target) return 'snapback';
             const r = onDropRef.current && onDropRef.current(source, target);
             if (r === false) return 'snapback';
@@ -1988,7 +1996,8 @@
         estado, feedback, promoPicker, casaSelecionada, lancesPossiveis,
         ultimoLanceAdv, ultimoLanceErradoCoords, ultimoLanceJogadorTo,
         erroPuzzle, seg, pausado,
-        onDrop, onSquareClick, aoIniciarDrag, escolherPromocao, cancelarPromocao,
+        onDrop, onSquareClick, aoIniciarDrag, aoEncerrarDrag,
+        escolherPromocao, cancelarPromocao,
         pular, avancar, setPausado, pularPuzzleErro,
       } = j;
 
@@ -2125,6 +2134,7 @@
               onDrop={onDrop}
               onSquareClick={onSquareClick}
               onPickPiece={aoIniciarDrag}
+              onDragEnd={aoEncerrarDrag}
               draggable={estado === 'jogando' && !pausado}
               highlightFrom={ultimoLanceAdv ? ultimoLanceAdv.from : null}
               highlightTo={ultimoLanceAdv ? ultimoLanceAdv.to : null}

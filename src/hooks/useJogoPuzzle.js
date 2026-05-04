@@ -40,11 +40,6 @@
     const [seg, resetTimer] = useTimerComPausa(rodando, pausado);
 
     const chessRef = useRef(null);
-    // Marca o último square em que aoIniciarDrag rodou (mousedown via
-    // chessboard.js). Usado pra distinguir tap de seleção-via-drag-start
-    // no onSquareClick — se o tap chega na mesma casa logo após o
-    // pickPiece, NÃO destoggla, mantém a seleção ativa.
-    const ultimoPickRef = useRef({ sq: null, t: 0 });
     // Tempo (em segundos via seg) em que começou a vez ATUAL do jogador.
     // Reseta no init de cada puzzle e após cada resposta do adversário.
     // Usado pra calcular delta por lance pra detecção de "vi de cara".
@@ -68,6 +63,11 @@
     const [ultimoLanceAdv, setUltimoLanceAdv] = useState(null);
     const [promoPicker, setPromoPicker]   = useState(null);
     const [casaSelecionada, setCasaSelecionada] = useState(null);
+    // arrastando: source da peça em drag ATIVO via chessboard.js. Estado
+    // separado de casaSelecionada (que é só do tap-to-move) pra que o
+    // drag não brigue com a lógica de seleção. Apenas alimenta as
+    // bolinhas de lances possíveis durante o drag.
+    const [arrastando, setArrastando] = useState(null);
     const [erroPuzzle, setErroPuzzle] = useState(null);
 
     const puzzle = puzzles && puzzles[idx];
@@ -123,12 +123,14 @@
       return { casa: resp.slice(0, 2), erros: n };
     }, [puzzles, idx, ciclosAnteriores]);
 
-    // Lances possíveis a partir da casa selecionada — bolinhas no
-    // tabuleiro. Recalcula quando casaSelecionada ou fenAtual muda.
+    // Lances possíveis: bolinhas a partir da peça selecionada (tap) OU
+    // da peça sendo arrastada (drag). Recalcula quando qualquer um dos
+    // dois muda, ou quando o fen muda.
     const lancesPossiveis = useMemo(() => {
-      if (!casaSelecionada || !chessRef.current) return { dots: [], captures: [] };
+      const sq = casaSelecionada || arrastando;
+      if (!sq || !chessRef.current) return { dots: [], captures: [] };
       try {
-        const moves = chessRef.current.moves({ square: casaSelecionada, verbose: true });
+        const moves = chessRef.current.moves({ square: sq, verbose: true });
         const dots = [], captures = [];
         for (const m of moves) {
           if (m.captured || m.flags.indexOf("e") >= 0) captures.push(m.to);
@@ -138,7 +140,7 @@
       } catch (_) {
         return { dots: [], captures: [] };
       }
-    }, [casaSelecionada, fenAtual]);
+    }, [casaSelecionada, arrastando, fenAtual]);
 
     // Inicia/recarrega cada puzzle
     useEffect(() => {
@@ -170,6 +172,7 @@
         setPromoPicker(null);
         setCasaSelecionada(null);
         setPausado(false);
+        setArrastando(null);
         segRef.current = 0;
         segLanceIniciadoRef.current = 0;
         temposPorLanceRef.current = [];
@@ -389,31 +392,27 @@
       return processarLance(source, target);
     };
 
-    // Disparado pelo chessboard.js no início do drag — também marca a
-    // casa como selecionada pra mostrar bolinhas de lance possível.
+    // Disparado pelo chessboard.js no início do drag. Marca a peça como
+    // ARRASTANDO (estado separado de casaSelecionada). Não interfere com
+    // o tap-to-move — tap segue passando exclusivamente pelo onSquareClick.
     const aoIniciarDrag = (square) => {
       if (estado !== "jogando" || pausado) return;
       const c = chessRef.current;
       if (!c) return;
       const piece = c.get(square);
       if (!piece || piece.color !== c.turn()) return;
-      setCasaSelecionada(square);
-      ultimoPickRef.current = { sq: square, t: Date.now() };
+      setArrastando(square);
+    };
+    // Disparado pelo chessboard.js ao final do drag (drop ou snapback).
+    // Limpa o arrastando — as bolinhas somem.
+    const aoEncerrarDrag = () => {
+      setArrastando(null);
     };
 
     const onSquareClick = (sq) => {
       if (estado !== "jogando" || pausado || promoPicker) return;
       const c = chessRef.current;
       if (!c) return;
-      // Se o tap acabou de chegar logo após um pickPiece (mousedown da
-      // chessboard.js que disparou aoIniciarDrag), pular o toggle-off.
-      // Sem isso, tap-to-select destoggla na hora porque casaSelecionada
-      // já foi setada pelo onDragStart.
-      const recente = ultimoPickRef.current;
-      if (recente && recente.sq === sq && Date.now() - recente.t < 400) {
-        ultimoPickRef.current = { sq: null, t: 0 };
-        return;
-      }
       if (!casaSelecionada) {
         const piece = c.get(sq);
         if (!piece || piece.color !== c.turn()) return;
@@ -491,6 +490,7 @@
       onDrop: onDrop,
       onSquareClick: onSquareClick,
       aoIniciarDrag: aoIniciarDrag,
+      aoEncerrarDrag: aoEncerrarDrag,
       escolherPromocao: escolherPromocao,
       cancelarPromocao: cancelarPromocao,
       pular: pular,
