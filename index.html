@@ -996,7 +996,7 @@
       onContinuar, onTreinar, onEvolucao, onTreinarApenasErros,
       onConcluirConjunto, onConcluir,
       onCriarPadrao, onCriarPessoal, onCriarAdversario,
-      onCalibrar, onSetRatingChesscom, onOnboardingConcluir,
+      onCalibrar, onSetRatingChesscom, onSetChesscomUsername, onOnboardingConcluir,
       onIrParaConjuntos,
     }) {
       const Conjunto = window.WP.Conjunto;
@@ -1007,6 +1007,9 @@
       const [mostraImport, setMostraImport] = useState(false);
       const [mostraWizard, setMostraWizard] = useState(false);
       const [tentativaCriar, setTentativaCriar] = useState(null);
+      // Edição inline do username chess.com (parâmetro persistente).
+      const [editandoChesscom, setEditandoChesscom] = useState(false);
+      const [chesscomDraft, setChesscomDraft] = useState('');
 
       // Onboarding: primeira visita = sem rating + sem conjuntos + sem
       // ciclos + nunca dispensado.
@@ -1087,6 +1090,76 @@
                     Lê seu perfil. Rating ponderado por rapid, blitz e bullet — sem analisar partidas.
                   </div>
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* === CHESS.COM USERNAME (parâmetro definitivo) === */}
+          {temRating && (
+            <div className="card-soft mb-16">
+              <div className="between" style={{ flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ minWidth: 0, flex: '1 1 200px' }}>
+                  <div className="mono fs-10 ls-2 txt-muted">USUÁRIO CHESS.COM</div>
+                  {!editandoChesscom ? (
+                    <div className="hstack gap-8" style={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+                      <div className="serif fs-15 bold" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {temChesscom ? '@' + ratingUsuario.chesscom : '— (não definido)'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="hstack gap-6 mt-4" style={{ flexWrap: 'wrap' }}>
+                      <input type="text"
+                        value={chesscomDraft}
+                        onChange={e => setChesscomDraft(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            if (onSetChesscomUsername) onSetChesscomUsername(chesscomDraft);
+                            setEditandoChesscom(false);
+                          } else if (e.key === 'Escape') {
+                            setEditandoChesscom(false);
+                          }
+                        }}
+                        autoFocus
+                        placeholder="seu_usuario"
+                        spellCheck={false}
+                        autoCapitalize="none"
+                        style={{
+                          flex: '1 1 160px', background: 'var(--surface)', color: 'var(--txt)',
+                          border: '1px solid var(--border)', borderRadius: 6,
+                          padding: '6px 10px', fontFamily: "'Courier New', monospace", fontSize: 13,
+                          outline: 'none',
+                        }} />
+                      <button className="btn btn-small"
+                        onClick={() => {
+                          if (onSetChesscomUsername) onSetChesscomUsername(chesscomDraft);
+                          setEditandoChesscom(false);
+                        }}>
+                        Salvar
+                      </button>
+                      <button className="btn btn-small ghost"
+                        onClick={() => setEditandoChesscom(false)}>
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                  <div className="mono fs-10 txt-muted mt-4">
+                    {temChesscom
+                      ? 'Usado pra puxar rating, criar Plano pessoal e Adversário.'
+                      : 'Defina pra desbloquear Plano pessoal / Adversário.'}
+                  </div>
+                </div>
+                {!editandoChesscom && (
+                  <div className="vstack gap-4" style={{ alignItems: 'flex-end' }}>
+                    <button className="btn btn-small ghost"
+                      onClick={() => {
+                        setChesscomDraft(temChesscom ? ratingUsuario.chesscom : '');
+                        setEditandoChesscom(true);
+                      }}
+                      title={temChesscom ? 'Trocar de conta' : 'Adicionar username chess.com'}>
+                      ✏ {temChesscom ? 'Trocar' : 'Adicionar'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -3461,22 +3534,32 @@
     }
 
     function TelaAnalisarJogador({ onCriarComTemas, ratingUsuario, tipoInicial }) {
-      // tipo='auto' → username do próprio jogador (Mode 3 default + toggle Mode 1)
-      // tipo='adversario' → username de um oponente específico (Mode 2)
+      // tipo='auto' → username do próprio jogador (vem do parâmetro
+      // persistente ratingUsuario.chesscom). Mode 3 default + toggle Mode 1.
+      // tipo='adversario' → username de um oponente. Sugestões via top
+      // enfrentados nos últimos meses do chess.com.
+      const meuChesscom = (ratingUsuario && ratingUsuario.chesscom) || '';
       const [tipo, setTipo] = useState(tipoInicial || 'auto');
-      const [username, setUsername] = useState(() => Store.get(Chaves.ANALISE_USERNAME, ''));
+      const [username, setUsername] = useState(() => {
+        const a = Store.get(Chaves.ANALISE_USERNAME, '');
+        return a || meuChesscom;
+      });
       const [analisando, setAnalisando] = useState(false);
       const [progresso, setProgresso] = useState({ stage: '', message: '', current: 0, total: 0 });
       const [erro, setErro] = useState(null);
       const [programa, setPrograma] = useState(null);
       const [cobertura, setCobertura] = useState(null);
       const [verificandoCob, setVerificandoCob] = useState(false);
+      // Sugestões de adversários (top enfrentados, ponderado por modalidade).
+      const [sugestoesAdv, setSugestoesAdv] = useState(null);
+      const [carregandoSugestoes, setCarregandoSugestoes] = useState(false);
+      const [erroSugestoes, setErroSugestoes] = useState(null);
       const wakeLockRef = useRef(null);
 
       // Carregar último programa do IndexedDB ao abrir (sempre o auto)
       useEffect(() => {
         (async () => {
-          const u = (Store.get(Chaves.ANALISE_USERNAME, '') || '').trim();
+          const u = (Store.get(Chaves.ANALISE_USERNAME, '') || meuChesscom || '').trim();
           if (!u || !window.ChessAnalysis) return;
           try {
             const p = await window.ChessAnalysis.loadProgram(u);
@@ -3484,6 +3567,23 @@
           } catch (e) { /* silencioso */ }
         })();
       }, []);
+
+      // Carrega sugestões de adversário sob demanda. Cache em-memória do
+      // componente — fica até trocar de tipo. Requer meuChesscom setado.
+      async function carregarSugestoesAdv() {
+        if (!meuChesscom || !window.ChessAnalysis) return;
+        setCarregandoSugestoes(true);
+        setErroSugestoes(null);
+        try {
+          const lista = await window.ChessAnalysis.topAdversarios(meuChesscom, { maxMonths: 3, top: 5 });
+          setSugestoesAdv(lista);
+        } catch (e) {
+          setErroSugestoes(e.message || String(e));
+          setSugestoesAdv([]);
+        } finally {
+          setCarregandoSugestoes(false);
+        }
+      }
 
       // Trocar entre tipo auto / adversario reseta programa e cobertura.
       // Se voltar pra auto, recarrega username e programa salvos.
@@ -3493,13 +3593,16 @@
         setPrograma(null);
         setCobertura(null);
         setErro(null);
+        if (meuChesscom && sugestoesAdv === null && !carregandoSugestoes) {
+          carregarSugestoesAdv();
+        }
       }
 
       async function voltarParaAuto() {
         setTipo('auto');
         setCobertura(null);
         setErro(null);
-        const u = (Store.get(Chaves.ANALISE_USERNAME, '') || '').trim();
+        const u = (Store.get(Chaves.ANALISE_USERNAME, '') || meuChesscom || '').trim();
         setUsername(u);
         if (u && window.ChessAnalysis) {
           try {
@@ -3510,6 +3613,15 @@
           setPrograma(null);
         }
       }
+
+      // Se já entra em modo adversario via prop tipoInicial, dispara o
+      // load de sugestões na primeira render (idempotente via state guard).
+      useEffect(() => {
+        if (tipo === 'adversario' && meuChesscom && sugestoesAdv === null && !carregandoSugestoes) {
+          carregarSugestoesAdv();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [tipo, meuChesscom]);
 
       // Liberar wake lock ao desmontar
       useEffect(() => {
@@ -3710,6 +3822,78 @@
                   border: '1px solid var(--border)', borderRadius: 6,
                   fontFamily: 'Courier New, monospace', fontSize: 14, outline: 'none'
                 }} />
+              {ehAuto && meuChesscom && username !== meuChesscom && (
+                <div className="mono fs-10 txt-muted mb-8">
+                  Configurado: <span className="bold txt-mid">@{meuChesscom}</span>
+                  <button onClick={() => setUsername(meuChesscom)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--primary)', font: 'inherit', padding: 0, marginLeft: 6,
+                    }}>
+                    usar
+                  </button>
+                </div>
+              )}
+              {!ehAuto && (
+                <div className="mb-12">
+                  {!meuChesscom ? (
+                    <div className="mono fs-10 txt-muted">
+                      Configure seu chess.com na home pra ver sugestões de adversários.
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="between mb-6">
+                        <div className="mono fs-10 ls-2 txt-muted">SUGESTÕES · MAIS ENFRENTADOS</div>
+                        <button className="btn btn-small ghost"
+                          onClick={carregarSugestoesAdv}
+                          disabled={carregandoSugestoes}
+                          style={{ padding: '2px 8px' }}>
+                          {carregandoSugestoes ? '...' : '↻'}
+                        </button>
+                      </div>
+                      {erroSugestoes && (
+                        <div className="mono fs-10 txt-red mb-6">✗ {erroSugestoes}</div>
+                      )}
+                      {carregandoSugestoes && !sugestoesAdv && (
+                        <div className="mono fs-10 txt-muted">Buscando partidas recentes...</div>
+                      )}
+                      {sugestoesAdv && sugestoesAdv.length === 0 && !carregandoSugestoes && (
+                        <div className="mono fs-10 txt-muted">
+                          Nenhum adversário recorrente nos últimos 3 meses.
+                        </div>
+                      )}
+                      {sugestoesAdv && sugestoesAdv.length > 0 && (
+                        <div className="vstack gap-4">
+                          {sugestoesAdv.map(s => {
+                            const ativo = username.trim().toLowerCase() === s.username.toLowerCase();
+                            return (
+                              <button key={s.username}
+                                onClick={() => { setUsername(s.username); setCobertura(null); }}
+                                style={{
+                                  textAlign: 'left', cursor: 'pointer',
+                                  background: ativo ? 'var(--primary-bg)' : 'var(--surface)',
+                                  border: '1px solid ' + (ativo ? 'var(--primary)' : 'var(--border)'),
+                                  borderRadius: 6,
+                                  padding: '6px 10px',
+                                }}>
+                                <div className="hstack gap-8 between flex-wrap">
+                                  <span className="serif fs-13 bold">@{s.username}</span>
+                                  <span className="mono fs-10 txt-muted">
+                                    {s.total} {s.total === 1 ? 'partida' : 'partidas'}
+                                    {s.byTC.rapid ? ' · R' + s.byTC.rapid : ''}
+                                    {s.byTC.blitz ? ' · B' + s.byTC.blitz : ''}
+                                    {s.byTC.bullet ? ' · Bu' + s.byTC.bullet : ''}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="hstack gap-8 mb-12 flex-wrap">
                 <button className="btn btn-primary"
                   onClick={iniciarAnalise}
@@ -4092,6 +4276,14 @@
         Store.set(Chaves.ONBOARDING_VISTO, true);
         Store.set(Chaves.RATING_DATA, novo.data);
         if (novo.chesscom) Store.set(Chaves.RATING_CHESSCOM_USERNAME, novo.chesscom);
+      }
+      // Editar/setar só o username chess.com (parâmetro independente de
+      // rating). Usado pra trocar de conta sem reimportar rating.
+      function setChesscomUsername(u) {
+        const limpo = (u || '').trim();
+        setRatingUsuarioState(prev => ({ ...prev, chesscom: limpo || null }));
+        if (limpo) Store.set(Chaves.RATING_CHESSCOM_USERNAME, limpo);
+        else Store.remove(Chaves.RATING_CHESSCOM_USERNAME);
       }
 
       const [conjuntoAtivo, setConjuntoAtivo] = useState(null);
@@ -4493,6 +4685,7 @@
                   onSetRatingChesscom={(rating, username) => {
                     if (rating && rating >= 600 && rating <= 2800) setRatingUsuario(rating, 'chesscom', username);
                   }}
+                  onSetChesscomUsername={setChesscomUsername}
                   onOnboardingConcluir={aoConcluirOnboarding}
                   onCriarPadrao={() => {
                     setPresetCriar({ tipo: 'padrao', rating: ratingUsuario.valor });
