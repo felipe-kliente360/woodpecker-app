@@ -3101,16 +3101,30 @@
                     </span>
                   </div>
                   {feedback.correto ? (
-                    <div style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>
-                      {feedback.sans && feedback.sans.length > 0 ? (
-                        <>
-                          Solução:{' '}
-                          <span className="wp-mono" style={{ color: 'var(--wp-text)' }}>
-                            {feedback.sans.join(' ')}
-                          </span>
-                        </>
-                      ) : 'Próximo puzzle.'}
-                    </div>
+                    <>
+                      <div style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>
+                        {feedback.sans && feedback.sans.length > 0 ? (
+                          <>
+                            Solução:{' '}
+                            <span className="wp-mono" style={{ color: 'var(--wp-text)' }}>
+                              {feedback.sans.join(' ')}
+                            </span>
+                          </>
+                        ) : 'Próximo puzzle.'}
+                      </div>
+                      {(() => {
+                        const ts = (puzzle && (puzzle.temas || puzzle.themes)) || [];
+                        if (ts.length === 0) return null;
+                        const labels = ts.slice(0, 4).map(t => traduzirTema(t));
+                        return (
+                          <div className="hstack gap-6 flex-wrap" style={{ marginTop: 8 }}>
+                            {labels.map((l, i) => (
+                              <span key={i} className="wp-tema-tag">{l}</span>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </>
                   ) : feedback.mostrar_solucao ? (
                     <div style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>
                       Solução:{' '}

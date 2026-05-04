@@ -156,15 +156,12 @@
             console.warn("Lance inicial inválido:", lances[0], e);
           }
         }
-        // Highlight do lance que ABRIU o puzzle (opponent move antes da
-        // vez do jogador). Sem isso, o jogador entra na posição sem
-        // pista visual de "o que acabou de acontecer". UCI = "e2e4"
-        // (4 chars) ou "e7e8q" (5 chars com promoção).
-        if (lances[0] && lances[0].length >= 4) {
-          setUltimoLanceAdv({ from: lances[0].slice(0, 2), to: lances[0].slice(2, 4) });
-        } else {
-          setUltimoLanceAdv(null);
-        }
+        // Lance de abertura (lances[0]) NÃO é highlitado — é a posição
+        // pré-construída do puzzle, não conta como "último lance da
+        // partida do jogador". Highlight passa a aparecer a partir do
+        // primeiro lance do usuário, e depois alterna com a resposta da
+        // engine.
+        setUltimoLanceAdv(null);
         chessRef.current = c;
         expectedIdxRef.current = 1;
         fenInicialJogadorRef.current = c.fen();
@@ -286,9 +283,13 @@
 
       expectedIdxRef.current += 1;
       setFenAtual(c.fen());
-      setUltimoLanceAdv(null);
-      // Marca o destino do lance correto. Em puzzles multi-lance o último
-      // setter (lance final) é o que sobrevive — exibido em verde no fim.
+      // Highlight pastel da PRÓPRIA jogada do usuário (from + to). Quando
+      // a engine respondesse, o setTimeout abaixo sobrescreve com o lance
+      // dela. Em puzzles single-move (sem resposta), o highlight do
+      // jogador permanece.
+      setUltimoLanceAdv({ from: from, to: to });
+      // Marca o destino do lance correto pra ganhar borda verde animada
+      // (highlight-success-to) — coexiste com o fill pastel do lance.
       setUltimoLanceJogadorTo(to);
       // Tempo decidido pelo jogador neste lance (segundos desde o início
       // da vez dele). Usado pra detectar "vi de cara" — cada lance ≤ 3s.
