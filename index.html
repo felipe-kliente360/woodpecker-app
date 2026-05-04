@@ -1566,10 +1566,11 @@
     function ScreenHome({
       conjuntos, ciclos, ratingUsuario,
       onContinuar, onTreinar, onEvolucao, onCriar, onIrParaPerfil,
-      onCalibrar, onConectarChesscom,
+      onCalibrar, onConectarChesscom, onExcluir,
     }) {
       const Conjunto = window.WP.Conjunto;
       const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
+      const podeNovo = ativos.length < Conjunto.LIMITE_ATIVOS;
       const streak = window.WP.Ciclo.streakAtual(ciclos);
       const semana = useMemo(() => window.WP.Ciclo.streakPorDia(ciclos, 7), [ciclos]);
       const inicial = ratingUsuario && ratingUsuario.chesscom
@@ -1771,29 +1772,64 @@
                 {ativos.slice(emAndamento ? 1 : 0).map((c, i) => {
                   const cs = ciclosDoConjunto(ciclos, c.id);
                   const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)] || 5;
+                  const idx = i + (emAndamento ? 2 : 1);
                   return (
-                    <button key={c.id} className="wp-row wp-row--button wp-home-conjunto" onClick={() => onTreinar(c)}>
-                      <span className="wp-mono wp-home-conjunto-idx">
-                        {String(i + (emAndamento ? 2 : 1)).padStart(2, '0')}
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="wp-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
-                        <div className="wp-home-conjunto-meta">
-                          {(c.tamanho || '?')} puzzles · ciclo {cs.length}/{meta}
+                    <div key={c.id} className="wp-row wp-home-conjunto"
+                      style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <button className="wp-row--button"
+                        onClick={() => onTreinar(c)}
+                        style={{
+                          flex: 1, display: 'flex', alignItems: 'center', gap: 12,
+                          background: 'transparent', border: 0, padding: 0,
+                          color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer',
+                          minWidth: 0,
+                        }}>
+                        <span className="wp-mono wp-home-conjunto-idx">
+                          {String(idx).padStart(2, '0')}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="wp-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
+                          <div className="wp-home-conjunto-meta">
+                            {(c.tamanho || '?')} puzzles · ciclo {cs.length}/{meta}
+                          </div>
                         </div>
-                      </div>
-                      <span style={{ color: 'var(--wp-accent)' }}>
-                        <WpTally total={meta} done={cs.length} />
-                      </span>
-                      <WpIcon name="chevron-right" size={14} />
-                    </button>
+                        <span style={{ color: 'var(--wp-accent)' }}>
+                          <WpTally total={meta} done={cs.length} />
+                        </span>
+                      </button>
+                      {onExcluir && (
+                        <button
+                          className="wp-icon-btn"
+                          aria-label="Excluir conjunto"
+                          title="Excluir conjunto"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const cs = ciclosDoConjunto(ciclos, c.id);
+                            const concluidos = cs.filter(x => x.data_fim).length;
+                            const aviso = concluidos >= 2
+                              ? '\n\nObs: como esse conjunto tem ' + concluidos + ' ciclos concluídos, os dados de ciclo permanecem nas Análises.'
+                              : '';
+                            if (confirm('Excluir o conjunto "' + c.nome + '"? Os puzzles deste conjunto saem da rotina.' + aviso)) {
+                              onExcluir(c.id);
+                            }
+                          }}>
+                          <WpIcon name="trash" size={14} />
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
-                <button className="wp-row wp-row--button wp-home-novo" onClick={onCriar}>
+                <button className="wp-row wp-row--button wp-home-novo"
+                  onClick={onCriar}
+                  disabled={!podeNovo}
+                  style={!podeNovo ? { opacity: 0.45, cursor: 'not-allowed' } : null}
+                  title={!podeNovo ? 'Limite de ' + Conjunto.LIMITE_ATIVOS + ' conjuntos ativos atingido' : ''}>
                   <span className="wp-mono wp-home-conjunto-idx">
                     {String(ativos.length + 1).padStart(2, '0')}
                   </span>
-                  <span className="wp-row-label" style={{ color: 'var(--wp-text-3)' }}>+ Novo conjunto</span>
+                  <span className="wp-row-label" style={{ color: 'var(--wp-text-3)' }}>
+                    {podeNovo ? '+ Novo conjunto' : 'Limite ' + Conjunto.LIMITE_ATIVOS + '/' + Conjunto.LIMITE_ATIVOS + ' atingido'}
+                  </span>
                 </button>
               </div>
             </>
@@ -2299,7 +2335,12 @@
                           <button
                             className="wp-icon-btn wp-set-delete"
                             onClick={() => {
-                              if (confirm('Excluir o conjunto "' + c.nome + '"? Os ciclos e o histórico desse conjunto serão apagados.')) {
+                              const csConj = ciclosDoConjunto(ciclos, c.id);
+                              const concluidos = csConj.filter(x => x.data_fim).length;
+                              const aviso = concluidos >= 2
+                                ? '\n\nObs: como esse conjunto tem ' + concluidos + ' ciclos concluídos, os dados de ciclo permanecem nas Análises.'
+                                : '';
+                              if (confirm('Excluir o conjunto "' + c.nome + '"? Os puzzles deste conjunto saem da rotina.' + aviso)) {
                                 onExcluir(c.id);
                               }
                             }}
@@ -2775,7 +2816,7 @@
       // Mapeia priority pra score visual (sem dado real de %; é indicador).
       const SCORE_BY_PRIORITY = { alta: 38, media: 58, baixa: 75 };
       const fraquezas = (programa && programa.themes ? programa.themes : [])
-        .slice(0, 3)
+        .slice(0, 5)
         .map(t => ({
           theme: t.theme,
           score: SCORE_BY_PRIORITY[t.priority] || 70,
@@ -2987,8 +3028,8 @@
                 <div style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>Aguardando primeiras detecções…</div>
               ) : detected.map((p, i) => (
                 <div key={i} className="wp-row" style={{ padding: '8px 0', border: 0 }}>
-                  <span style={{ flex: 1, fontSize: 13, color: 'var(--wp-text-2)' }}>{p.label}</span>
-                  <span className="wp-mono" style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>{p.meta}</span>
+                  <span style={{ flex: 1, fontSize: 13, color: 'var(--wp-text-2)' }}>{TEMAS[p.theme] || p.theme || p.label}</span>
+                  <span className="wp-mono" style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>{p.count != null ? (p.count + ' vezes') : p.meta}</span>
                 </div>
               ))}
             </div>
@@ -3126,6 +3167,13 @@
               if (info.stage === 'analyze' && info.total) {
                 setAnaliseProgresso({ current: info.current || 0, total: info.total });
               }
+              if (info.partialThemes) {
+                const arr = Object.entries(info.partialThemes)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 5)
+                  .map(([theme, count]) => ({ theme, count }));
+                setDetected(arr);
+              }
             });
             setPrograma(p);
             setAnaliseEmCurso(false);
@@ -3149,6 +3197,13 @@
             const p = await window.ChessAnalysis.analyzePlayer(foeHandle, (info) => {
               if (info.stage === 'analyze' && info.total) {
                 setAnaliseProgresso({ current: info.current || 0, total: info.total });
+              }
+              if (info.partialThemes) {
+                const arr = Object.entries(info.partialThemes)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 5)
+                  .map(([theme, count]) => ({ theme, count }));
+                setDetected(arr);
               }
             });
             setFoePrograma(p);
@@ -6737,8 +6792,15 @@
       }
 
       function excluirConjunto(id) {
+        // Se o conjunto teve >= 2 ciclos concluídos, preserva os ciclos —
+        // dados ficam nas Análises (rotação histórica, halving cumulativo).
+        // Caso contrário (0 ou 1), apaga junto com o conjunto.
+        const csDoConj = ciclos.filter(c => c.conjunto_id === id);
+        const concluidos = csDoConj.filter(c => c.data_fim).length;
         setConjuntos(cs => cs.filter(c => c.id !== id));
-        setCiclos(cs => cs.filter(c => c.conjunto_id !== id));
+        if (concluidos < 2) {
+          setCiclos(cs => cs.filter(c => c.conjunto_id !== id));
+        }
         delete memCache.puzzlesPorConjunto[id];
       }
 
@@ -7135,6 +7197,7 @@
                   onIrParaPerfil={() => setTela('perfil')}
                   onCalibrar={() => setTela('calibrar')}
                   onConectarChesscom={() => setTela('calibrar-user')}
+                  onExcluir={excluirConjunto}
                 />
               )}
               {!carregando && tela === 'conjuntos' && (
@@ -7208,7 +7271,7 @@
                 <ScreenPackComplete
                   conjunto={conjuntoAtivo}
                   ciclo={cicloAtual}
-                  ciclosAnteriores={ciclosDoConjunto(ciclos, conjuntoAtivo.id)}
+                  ciclosAnteriores={ciclosDoConjunto(ciclos, conjuntoAtivo.id).filter(c => c.id !== cicloAtual.id)}
                   onProximoCiclo={aoProximoCiclo}
                   onApenasErros={aoApenasErros}
                   onEvolucao={() => { setEvolucaoConjunto(conjuntoAtivo); setTela('evolucao'); }}
