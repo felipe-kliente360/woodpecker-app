@@ -17,19 +17,76 @@
 <div id="root"></div>
 
 <script type="text/babel" src="design-canvas.jsx"></script>
-<!-- tweaks-panel.jsx não incluso no handoff exportado -->
+<script type="text/babel" src="tweaks-panel.jsx"></script>
 <script type="text/babel" src="wp-ui.jsx"></script>
 <script type="text/babel" src="screens-onboarding.jsx"></script>
 <script type="text/babel" src="screens-home.jsx"></script>
 <script type="text/babel" src="screens-train.jsx"></script>
 <script type="text/babel" src="screens-stats.jsx"></script>
+<script type="text/babel" src="screens-wizards.jsx"></script>
 
 <script type="text/babel">
 const FRAME_W = 390;
 const FRAME_H = 760;
 
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "boardTheme": "mahogany"
+}/*EDITMODE-END*/;
+
+const BOARD_THEMES = {
+  walnut: {
+    label: "Nogueira (atual)",
+    desc: "Madeira escura clássica. Contraste mais baixo com peças pretas.",
+    light: "oklch(0.78 0.06 75)",
+    dark:  "oklch(0.42 0.07 50)",
+    edge:  "oklch(0.30 0.05 50)",
+  },
+  mahogany: {
+    label: "Mogno claro",
+    desc: "Madeira mais clara. Mantém identidade quente, abre o contraste.",
+    light: "oklch(0.82 0.05 75)",
+    dark:  "oklch(0.55 0.055 50)",
+    edge:  "oklch(0.34 0.05 50)",
+  },
+  olive: {
+    label: "Oliva quente",
+    desc: "Verde-oliva. Excelente leitura de peças pretas, casa com o ocre.",
+    light: "oklch(0.84 0.05 95)",
+    dark:  "oklch(0.55 0.05 110)",
+    edge:  "oklch(0.34 0.04 110)",
+  },
+  sand: {
+    label: "Areia escandinava",
+    desc: "Bege escuro neutro. Mais arejado, menos 'dois marrons'.",
+    light: "oklch(0.84 0.04 80)",
+    dark:  "oklch(0.58 0.04 75)",
+    edge:  "oklch(0.36 0.03 75)",
+  },
+};
+
 function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const theme = BOARD_THEMES[t.boardTheme] || BOARD_THEMES.walnut;
+  React.useEffect(() => {
+    const r = document.documentElement.style;
+    r.setProperty('--wp-board-light', theme.light);
+    r.setProperty('--wp-board-dark',  theme.dark);
+    r.setProperty('--wp-board-edge',  theme.edge);
+  }, [t.boardTheme]);
   return (
+    <React.Fragment>
+    <TweaksPanel>
+      <TweakSection label="Tabuleiro" />
+      <TweakRadio
+        label="Estilo"
+        value={t.boardTheme}
+        options={Object.entries(BOARD_THEMES).map(([k, v]) => ({ value: k, label: v.label.split(' ')[0] }))}
+        onChange={(v) => setTweak('boardTheme', v)}
+      />
+      <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'rgba(41,38,27,.6)', padding: '2px 0 4px' }}>
+        {theme.desc}
+      </div>
+    </TweaksPanel>
     <DesignCanvas>
       <DCSection id="onboarding" title="Onboarding & Calibração" subtitle="Boas-vindas, conexão chess.com, calibração por 30 puzzles">
         <DCArtboard id="welcome" label="01 · Boas-vindas" width={FRAME_W} height={FRAME_H}>
@@ -61,6 +118,39 @@ function App() {
         </DCArtboard>
       </DCSection>
 
+      <DCSection id="wiz-std" title="Wizard · Padrão" subtitle="Fluxo de 1 passo: escolha do tamanho do conjunto.">
+        <DCArtboard id="std-size" label="01 · Tamanho do conjunto" width={FRAME_W} height={FRAME_H}>
+          <ScreenWizStandard />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="wiz-plan" title="Wizard · Plano de melhoria" subtitle="Análise das partidas do jogador → escolha do tamanho.">
+        <DCArtboard id="plan-status" label="01 · Última análise" width={FRAME_W} height={FRAME_H}>
+          <ScreenWizPlanStatus />
+        </DCArtboard>
+        <DCArtboard id="plan-running" label="02 · Análise em andamento" width={FRAME_W} height={FRAME_H}>
+          <ScreenWizPlanAnalyzing />
+        </DCArtboard>
+        <DCArtboard id="plan-size" label="03 · Tamanho do conjunto" width={FRAME_W} height={FRAME_H}>
+          <ScreenWizPlanSize />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="wiz-foe" title="Wizard · vs. Adversário" subtitle="Top adversários ou username → análise das partidas dele → tamanho.">
+        <DCArtboard id="foe-choose" label="01 · Escolher adversário" width={FRAME_W} height={FRAME_H}>
+          <ScreenWizFoeChoose />
+        </DCArtboard>
+        <DCArtboard id="foe-running" label="02 · Análise em andamento" width={FRAME_W} height={FRAME_H}>
+          <ScreenWizFoeAnalyzing />
+        </DCArtboard>
+        <DCArtboard id="foe-ready" label="03 · Análise pronta" width={FRAME_W} height={FRAME_H}>
+          <ScreenWizFoeReady />
+        </DCArtboard>
+        <DCArtboard id="foe-size" label="04 · Tamanho do conjunto" width={FRAME_W} height={FRAME_H}>
+          <ScreenWizFoeSize />
+        </DCArtboard>
+      </DCSection>
+
       <DCSection id="train" title="Treino — Resolver puzzle" subtitle="A tela mais usada. Tempo do puzzle vs ciclo anterior é o coração.">
         <DCArtboard id="puz-idle" label="01 · Resolvendo" width={FRAME_W} height={FRAME_H}>
           <ScreenPuzzle state="idle" />
@@ -88,6 +178,7 @@ function App() {
         </DCArtboard>
       </DCSection>
     </DesignCanvas>
+    </React.Fragment>
   );
 }
 

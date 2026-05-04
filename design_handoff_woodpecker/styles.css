@@ -30,10 +30,10 @@
   --wp-bad-soft: oklch(0.28 0.05 28);
   --wp-warn: oklch(0.78 0.12 80);         /* aged gold */
 
-  /* Board — classic wood */
-  --wp-board-light: oklch(0.78 0.06 75);  /* maple */
-  --wp-board-dark:  oklch(0.42 0.07 50);  /* walnut */
-  --wp-board-edge:  oklch(0.30 0.05 50);
+  /* Board — mogno claro (chosen via Tweaks) */
+  --wp-board-light: oklch(0.82 0.05 75);  /* maple claro */
+  --wp-board-dark:  oklch(0.55 0.055 50); /* mogno */
+  --wp-board-edge:  oklch(0.34 0.05 50);
 
   /* Type */
   --font-ui: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif;
