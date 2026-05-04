@@ -2478,16 +2478,12 @@
 
       // Padrão: forma simplificada — sem temas, sem variação custom, sem
       // edição de nome. Conjunto cobre TODOS os temas táticos por default
-      // (temas=[] no domain = sem filtro de tema). Disclosure só aparece
-      // pra Pessoal/Adversário (presets de análise vêm com temas específicos
-      // que o usuário pode querer revisar).
+      // (temas=[] no domain = sem filtro de tema). Pessoal/Adversário
+      // ganham 5 temas auto-selecionados pelo abrirCriarComTemas (top
+      // da análise + fallback se < 5). Não há editor de temas em nenhum
+      // dos casos — só protocolo (tamanho).
       const tipoConjunto = (preset && preset.tipo) || 'padrao';
       const ehPadrao = tipoConjunto === 'padrao';
-      const presetEhCustom = preset && (
-        (preset.temas && preset.temas.length > 0) ||
-        (preset.variacao && preset.variacao !== 200)
-      );
-      const [personalizarAberto, setPersonalizarAberto] = useState(!ehPadrao && !!presetEhCustom);
 
       function aceitarESalvar(treinar) {
         const novo = {
@@ -2574,49 +2570,20 @@
                   })}
                 </div>
 
-                {/* Personalização (colapsável) — só pra Pessoal/Adversário,
-                    onde a análise gera presets que o usuário pode querer revisar.
-                    Padrão é "tudo, sortido" sem editor. */}
-                {!ehPadrao && (
-                  <React.Fragment>
-                    <div className="mono fs-10 ls-2 txt-muted mb-8">
-                      <button onClick={() => setPersonalizarAberto(a => !a)}
-                        style={{
-                          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                          color: 'var(--txt-muted)', font: 'inherit', letterSpacing: 'inherit'
-                        }}>
-                        {personalizarAberto ? '▾' : '▸'} PERSONALIZAR
-                      </button>
+                {/* Pessoal/Adversário: 5 temas auto-selecionados (top da
+                    análise + fallback se < 5). Não-editáveis — apenas
+                    exibidos pra o usuário ver o que vai treinar. */}
+                {!ehPadrao && temas.length > 0 && (
+                  <div className="card-soft mb-20" style={{ padding: '12px 14px' }}>
+                    <div className="mono fs-10 ls-2 txt-muted mb-6">
+                      {tipoConjunto === 'adversario'
+                        ? ('5 PONTOS CEGOS · @' + ((preset && preset.username_referencia) || '').toUpperCase())
+                        : '5 TEMAS DA SUA ANÁLISE'}
                     </div>
-                    {personalizarAberto && (
-                      <div className="card-soft mb-16" style={{ padding: '14px 16px' }}>
-                        <div className="input-label">Variação ±{variacao}</div>
-                        <input className="slider mb-4" type="range" min="50" max="400" step="50"
-                          value={variacao} onChange={e => setVariacao(parseInt(e.target.value))} />
-                        <div className="mono fs-11 txt-muted mb-16">
-                          Faixa: {formatarNumero(rating - variacao)} a {formatarNumero(rating + variacao)}
-                        </div>
-
-                        <div className="input-label">
-                          Temas táticos {temas.length > 0 ? '(' + temas.length + ' selecionados)' : '· vazio = todos'}
-                        </div>
-                        <div className="tema-grid mb-16">
-                          {Object.keys(TEMAS).map(k => (
-                            <div key={k}
-                              className={'tema-pill' + (temas.includes(k) ? ' active' : '')}
-                              onClick={() => toggleTema(k)}>
-                              {TEMAS[k]}
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="input-label">Nome do conjunto</div>
-                        <input className="input-text" type="text"
-                          value={nome} placeholder={nomeDefault}
-                          onChange={e => setNome(e.target.value)} />
-                      </div>
-                    )}
-                  </React.Fragment>
+                    <div className="serif fs-13" style={{ lineHeight: 1.6 }}>
+                      {temas.slice(0, 5).map(t => TEMAS[t] || t).join(' · ')}
+                    </div>
+                  </div>
                 )}
 
                 <button className="btn btn-primary btn-block" onClick={montar}>
@@ -5425,8 +5392,12 @@
       function abrirCriarComTemas(programaExibido) {
         const p = programaExibido || programa;
         if (!p) return;
-        const temas = (p.themes || []).map(t => t.theme).slice(0, 5);
-        if (temas.length === 0) return;
+        // Sempre 5 temas: top da análise + fallback de temas comuns se
+        // a análise rendeu menos. Não-editáveis na próxima tela.
+        const detectados = (p.themes || []).map(t => t.theme);
+        const temas = (window.WP_HELPERS && window.WP_HELPERS.completarTemas)
+          ? window.WP_HELPERS.completarTemas(detectados, 5)
+          : detectados.slice(0, 5);
         const ehAdv = p.modo === 'adversario';
         const prefix = ehAdv ? 'Vs ' + p.username + ' · pontos cegos'
                      : p.modo === 'chances-perdidas' ? 'Erros · ' + p.username
@@ -5437,7 +5408,7 @@
           rating:   ratingDoUsuario,
           variacao: 200,
           temas:    temas,
-          tamanho:  ehAdv ? 200 : 300,
+          tamanho:  300,
           nome:     prefix,
         });
       }
@@ -5901,33 +5872,23 @@
                     padding: '10px 12px',
                     opacity: semPuzzles ? 0.55 : 1,
                   }}>
-                    <div className="between mb-4" style={{ flexWrap: 'wrap', gap: 8 }}>
-                      <div>
-                        <span className="serif bold fs-13">{TEMAS[t.theme] || t.label || t.theme}</span>
-                        {' '}
+                    <div className="hstack gap-8 flex-wrap mb-4" style={{ alignItems: 'baseline' }}>
+                      <span className="serif bold fs-13">{TEMAS[t.theme] || t.label || t.theme}</span>
+                      <span className="badge" style={{
+                        background: t.priority === 'alta' ? 'var(--red-bg)' : 'var(--gold-bg)',
+                        color:      t.priority === 'alta' ? 'var(--red)'    : 'var(--gold)',
+                        borderColor: t.priority === 'alta' ? 'var(--red)'    : 'var(--gold)',
+                        textTransform: 'uppercase', letterSpacing: 1
+                      }}>{t.priority}</span>
+                      {n != null && (
                         <span className="badge" style={{
-                          background: t.priority === 'alta' ? 'var(--red-bg)' : 'var(--gold-bg)',
-                          color:      t.priority === 'alta' ? 'var(--red)'    : 'var(--gold)',
-                          borderColor: t.priority === 'alta' ? 'var(--red)'    : 'var(--gold)',
-                          marginLeft: 6, textTransform: 'uppercase', letterSpacing: 1
-                        }}>{t.priority}</span>
-                        {n != null && (
-                          <span className="badge" style={{
-                            marginLeft: 6,
-                            background: semPuzzles ? 'var(--red-bg)' : 'var(--surface)',
-                            color:      semPuzzles ? 'var(--red)'    : 'var(--txt-mid)',
-                            borderColor: semPuzzles ? 'var(--red)'   : 'var(--border)',
-                          }}>
-                            {semPuzzles ? '⚠ 0 puzzles' : (n + ' puzzles')}
-                          </span>
-                        )}
-                      </div>
-                      <button className="btn btn-small"
-                        onClick={() => onCriarComTema(t.theme, programaView)}
-                        disabled={semPuzzles}
-                        title={semPuzzles ? 'Sem puzzles disponíveis na faixa' : ''}>
-                        ▶ Treinar
-                      </button>
+                          background: semPuzzles ? 'var(--red-bg)' : 'var(--surface)',
+                          color:      semPuzzles ? 'var(--red)'    : 'var(--txt-mid)',
+                          borderColor: semPuzzles ? 'var(--red)'   : 'var(--border)',
+                        }}>
+                          {semPuzzles ? '⚠ 0 puzzles' : (n + ' puzzles')}
+                        </span>
+                      )}
                     </div>
                     <div className="mono fs-10 txt-muted">{fonteLabel(t.source)}</div>
                   </div>
