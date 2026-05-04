@@ -2810,17 +2810,48 @@
       return <ScreenWizSize flowName="Padrão" step={1} total={1} {...props} />;
     }
 
+    /* Extrai pontos fracos com dados reais (score% relativo + contagem
+       absoluta) a partir do programa salvo. Visual: bar 0-100; <50 vermelho,
+       50-75 ouro, ≥75 accent. Como score weighted ALTO = mais erro
+       (=fraqueza), invertemos: top da lista (pior) vira menor visual.
+       Fallback (sem dados reais): posição na lista. */
+    function derivarFraquezasReais(programa, n) {
+      n = n || 5;
+      if (!programa || !programa.themes) return [];
+      const profile = programa.profile || {};
+      const weighted = profile.weighted_top || [];
+      const breakdown = profile.breakdown || profile.raw_breakdown || {};
+      const scoreByTheme = {};
+      for (const w of weighted) scoreByTheme[w.theme] = w.score || 0;
+      const scores = Object.values(scoreByTheme);
+      const minS = scores.length ? Math.min(...scores) : 0;
+      const maxS = scores.length ? Math.max(...scores) : 1;
+      const range = maxS - minS;
+      const FALLBACK_ERR = { alta: 9, 'média': 6, baixa: 4 };
+      return programa.themes.slice(0, n).map((t, i) => {
+        const sc = scoreByTheme[t.theme];
+        let visual;
+        if (sc != null && range > 0) {
+          // norm 0..1: 0 = score mínimo (menos erro), 1 = máximo (mais erro)
+          const norm = (sc - minS) / range;
+          visual = Math.round(100 - norm * 70);  // 30-100
+        } else {
+          // Fallback por posição: 1º (pior) = 30%, escala +15 por posição
+          visual = Math.min(90, 30 + i * 15);
+        }
+        const bd = breakdown[t.theme] || {};
+        const totalReal = (bd.A || 0) + (bd.B || 0) + (bd.C || 0);
+        return {
+          theme: t.theme,
+          score: visual,
+          erros: totalReal > 0 ? totalReal : (FALLBACK_ERR[t.priority] || 5),
+        };
+      });
+    }
+
     /* Plano · Última análise — quando programa salvo existe. */
     function ScreenWizPlanStatus({ programa, idadeMs, onAtualizar, onAvancar, onBack, onClose }) {
-      // Mapeia priority pra score visual (sem dado real de %; é indicador).
-      const SCORE_BY_PRIORITY = { alta: 38, media: 58, baixa: 75 };
-      const fraquezas = (programa && programa.themes ? programa.themes : [])
-        .slice(0, 5)
-        .map(t => ({
-          theme: t.theme,
-          score: SCORE_BY_PRIORITY[t.priority] || 70,
-          erros: t.priority === 'alta' ? 9 : t.priority === 'media' ? 6 : 4,
-        }));
+      const fraquezas = derivarFraquezasReais(programa, 5);
       const idadeStr = formatarIdadeRelativaWiz(idadeMs);
       const totalGames = programa && programa.games_analyzed;
       return (
@@ -3040,46 +3071,59 @@
       );
     }
 
-    /* Adversário · Análise pronta — stats + foco. */
-    function ScreenWizFoeReady({ handle, gamesAnalyzed, openings, patterns, focus, onAvancar, onBack, onClose }) {
+    /* Adversário · Análise pronta — mesmo layout do plano (idade, fraquezas
+       com barras), só sem botão "Atualizar análise". Headline traz o
+       handle do adversário em mono ocre. */
+    function ScreenWizFoeReady({ programa, idadeMs, onAvancar, onBack, onClose }) {
+      const handle = (programa && programa.username) || '';
+      const fraquezas = derivarFraquezasReais(programa, 5);
+      const idadeStr = formatarIdadeRelativaWiz(idadeMs);
+      const totalGames = programa && programa.games_analyzed;
       return (
         <div className="wp-wiz">
           <WizHeader step={2} total={3} title="Novo conjunto · vs. Adversário" onBack={onBack} onClose={onClose} />
           <div className="wp-wiz-body">
             <h2 className="wp-display" style={{ fontSize: 26, fontWeight: 500, margin: 0, lineHeight: 1.15, color: 'var(--wp-text)' }}>
-              Análise pronta
+              Análise de<br />
+              <span className="wp-mono" style={{ fontSize: 22, color: 'var(--wp-accent)', letterSpacing: '-0.02em' }}>@{handle}</span>
             </h2>
-            <p style={{ fontSize: 13, color: 'var(--wp-text-3)', marginTop: 10 }}>
-              <span className="wp-mono">@{handle}</span> · {gamesAnalyzed || 0} partidas analisadas
+            <p style={{ fontSize: 13, color: 'var(--wp-text-3)', marginTop: 10, lineHeight: 1.5 }}>
+              Padrões que ele expõe quando erra. O conjunto vai te treinar a puni-los.
             </p>
 
-            <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--wp-line-soft)' }}>
-              <div style={{ background: 'var(--wp-bg)', padding: '18px 16px' }}>
-                <WpEyebrow style={{ marginBottom: 8 }}>Aberturas</WpEyebrow>
-                <div className="wp-mono" style={{ fontSize: 22, fontWeight: 500 }}>{openings || 0}</div>
-                <div className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)' }}>frequentes</div>
+            <div className="wp-card" style={{ padding: 18, marginTop: 24 }}>
+              <div className="hstack between" style={{ alignItems: 'baseline' }}>
+                <WpEyebrow>Última análise</WpEyebrow>
+                <span className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-good)' }}>● completa</span>
               </div>
-              <div style={{ background: 'var(--wp-bg)', padding: '18px 16px' }}>
-                <WpEyebrow style={{ marginBottom: 8 }}>Padrões</WpEyebrow>
-                <div className="wp-mono" style={{ fontSize: 22, fontWeight: 500 }}>{patterns || 0}</div>
-                <div className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)' }}>recorrentes</div>
+              <div className="wp-mono" style={{ fontSize: 22, fontWeight: 500, marginTop: 10 }}>{idadeStr}</div>
+              <div style={{ fontSize: 12, color: 'var(--wp-text-3)', marginTop: 4 }}>
+                <span className="wp-mono">{totalGames || '—'} partidas</span> · <span className="wp-mono">@{handle}</span>
               </div>
-            </div>
-
-            <div className="wp-card" style={{ padding: 16, marginTop: 12 }}>
-              <WpEyebrow style={{ marginBottom: 12 }}>Foco do conjunto</WpEyebrow>
-              {(focus || []).slice(0, 5).map((t, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-                  <span className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-4)', width: 20 }}>
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span style={{ fontSize: 13 }}>{TEMAS[t] || t}</span>
+              <div className="wp-divider" style={{ margin: '16px 0' }} />
+              <WpEyebrow style={{ marginBottom: 10 }}>Pontos fracos detectados</WpEyebrow>
+              {fraquezas.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>Sem pontos fracos detectados — análise inconclusiva.</div>
+              ) : fraquezas.map(p => (
+                <div key={p.theme} style={{ marginBottom: 10 }}>
+                  <div className="hstack between" style={{ alignItems: 'baseline', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13 }}>{TEMAS[p.theme] || p.theme}</span>
+                    <span className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)' }}>
+                      {p.score}% · {p.erros} erros
+                    </span>
+                  </div>
+                  <div style={{ height: 2, background: 'var(--wp-surface-2)' }}>
+                    <div style={{
+                      height: '100%', width: p.score + '%',
+                      background: p.score < 50 ? 'var(--wp-bad)' : p.score < 75 ? 'var(--wp-warn)' : 'var(--wp-accent)',
+                    }} />
+                  </div>
                 </div>
               ))}
             </div>
           </div>
           <div style={{ padding: '0 24px 24px' }}>
-            <WpButton variant="primary" full onClick={onAvancar}>Avançar — escolher tamanho</WpButton>
+            <WpButton variant="primary" full onClick={onAvancar}>Avançar</WpButton>
           </div>
         </div>
       );
@@ -3275,19 +3319,6 @@
         ? (Date.now() - new Date(programa.analyzed_at).getTime())
         : null;
 
-      // Mock de "padrões detectados" pra adversário (analyzePlayer não retorna openings ainda)
-      const foeOpeningsCount = foePrograma && foePrograma.profile
-        ? Object.keys(foePrograma.profile.openings || {}).length
-        : 0;
-      const foePatternsCount = foePrograma && foePrograma.themes
-        ? foePrograma.themes.length
-        : 0;
-      const foeFocus = foePrograma && foePrograma.themes
-        ? (window.WP_HELPERS && window.WP_HELPERS.completarTemas)
-          ? window.WP_HELPERS.completarTemas(foePrograma.themes.map(t => t.theme), 5)
-          : foePrograma.themes.map(t => t.theme).slice(0, 5)
-        : [];
-
       // === Render por step ===
       const stepProps = { onBack: () => goBack(), onClose: onCancelar };
       function goBack() {
@@ -3362,13 +3393,12 @@
         );
       }
       if (step === 'foe-ready') {
+        const foeIdadeMs = (foePrograma && foePrograma.analyzed_at)
+          ? (Date.now() - new Date(foePrograma.analyzed_at).getTime()) : 0;
         return (
           <ScreenWizFoeReady
-            handle={foeHandle}
-            gamesAnalyzed={(foePrograma && foePrograma.games_analyzed) || 0}
-            openings={foeOpeningsCount}
-            patterns={foePatternsCount}
-            focus={foeFocus}
+            programa={foePrograma}
+            idadeMs={foeIdadeMs}
             onAvancar={() => setStep('size')}
             {...stepProps} />
         );
