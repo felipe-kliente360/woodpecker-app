@@ -1148,57 +1148,75 @@
       const labelTC = { rapid: 'Rapid', blitz: 'Blitz', bullet: 'Bullet' };
 
       return (
-        <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: 480 }}>
-            <div className="mono fs-10 ls-2 txt-muted mb-4">BEM-VINDO</div>
-            <div className="serif bold fs-22 mb-12" style={{ lineHeight: 1.25 }}>
-              Repetição massiva de padrões táticos
-            </div>
-            <div className="serif fs-13 txt-mid mb-16" style={{ lineHeight: 1.55 }}>
-              Você resolve o mesmo conjunto de puzzles várias vezes. O alvo é
-              cortar o tempo total pela metade — <span className="bold">halving</span> — a cada repetição.
-              Padrões que demoravam minutos viram reconhecimento instantâneo.
+        <div className="modal-overlay wp-onboarding-overlay">
+          <div className="modal-card wp-onboarding-card">
+            <div className="wp-onboarding-brand">
+              <span className="wp-tally" style={{ color: 'var(--wp-accent)', gap: 4 }}>
+                <i className="on" style={{ width: 3, height: 22 }} />
+                <i className="on" style={{ width: 3, height: 22 }} />
+                <i className="on" style={{ width: 3, height: 22 }} />
+                <i className="on" style={{ width: 3, height: 22 }} />
+              </span>
+              <span className="wp-mono wp-onboarding-mark">WOODPECKER</span>
             </div>
 
-            <div className="mono fs-10 ls-2 txt-muted mb-8">SEU USUÁRIO CHESS.COM</div>
-            <div className="hstack gap-8 mb-8">
-              <input
-                type="text"
-                value={u}
-                onChange={e => { setU(e.target.value); setResultado(null); setErro(null); }}
-                onKeyDown={e => { if (e.key === 'Enter') buscar(); }}
-                autoFocus
-                placeholder="seu_usuario"
-                spellCheck={false}
-                autoCapitalize="none"
-                style={{
-                  flex: 1, background: 'var(--surface)', color: 'var(--txt)',
-                  border: '1px solid var(--border)', borderRadius: 6,
-                  padding: '10px 12px', fontFamily: "'Courier New', monospace", fontSize: 14,
-                  outline: 'none',
-                }} />
+            <h1 className="wp-display wp-onboarding-hero">
+              Repetir <span style={{ color: 'var(--wp-accent)' }}>até reconhecer.</span><br />
+              <span style={{ color: 'var(--wp-text-3)' }}>Reconhecer até dominar.</span>
+            </h1>
+            <p className="wp-onboarding-lede">
+              Você resolve o mesmo conjunto várias vezes. O alvo é cortar o tempo
+              pela metade — <span style={{ color: 'var(--wp-text)' }}>halving</span> — a cada ciclo.
+              Padrões que demoravam minutos viram reconhecimento instantâneo.
+            </p>
+
+            <WpEyebrow style={{ marginTop: 24, marginBottom: 8 }}>Seu usuário chess.com</WpEyebrow>
+            <div className="wp-onboarding-input-row">
+              <div style={{ flex: 1 }}>
+                <WpInput
+                  prefix="@"
+                  mono
+                  value={u}
+                  onChange={e => { setU(e.target.value); setResultado(null); setErro(null); }}
+                  onKeyDown={e => { if (e.key === 'Enter') buscar(); }}
+                  autoFocus
+                  placeholder="seu_usuario"
+                  spellCheck={false}
+                  autoCapitalize="none"
+                />
+              </div>
               {!resultado && (
-                <button className="btn btn-small" onClick={buscar} disabled={carregando || !u.trim()}>
-                  {carregando ? 'Buscando…' : 'Buscar'}
-                </button>
+                <WpButton
+                  variant="outline"
+                  onClick={buscar}
+                  disabled={carregando || !u.trim()}>
+                  {carregando ? 'Buscando' : 'Buscar'}
+                </WpButton>
               )}
             </div>
-            <div className="mono fs-10 txt-muted mb-12" style={{ lineHeight: 1.6 }}>
-              Puxamos seu rating ponderado em rapid/blitz/bullet — fica como parâmetro do app.
-            </div>
+            <p className="wp-onboarding-meta">
+              Rating ponderado em rapid, blitz e bullet — usado como parâmetro do app.
+            </p>
 
-            {erro && <div className="mono fs-11 txt-red mb-12">✗ {erro}</div>}
+            {erro && (
+              <div className="feedback-banner red" style={{ marginTop: 4 }}>
+                <div className="feedback-title">Erro</div>
+                <div>{erro}</div>
+              </div>
+            )}
 
             {resultado && (
-              <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--green)' }}>
-                <div className="mono fs-10 ls-2 txt-muted mb-4">RATING PONDERADO</div>
-                <div className="serif bold num-display fs-22 mb-8">{resultado.rating}</div>
+              <div className="wp-card wp-onboarding-result">
+                <WpEyebrow>Rating ponderado</WpEyebrow>
+                <div style={{ marginTop: 8, marginBottom: 16 }}>
+                  <WpBigNumber value={resultado.rating} size={48} color="var(--wp-accent)" />
+                </div>
                 <div className="vstack gap-4">
                   {resultado.fontes.map(f => (
-                    <div key={f.time_class} className="hstack gap-8">
-                      <span className="mono fs-11 txt-mid" style={{ width: 60 }}>{labelTC[f.time_class]}</span>
-                      <span className="num fs-12 bold">{f.rating}</span>
-                      <span className="mono fs-10 txt-muted" style={{ marginLeft: 'auto' }}>peso ×{f.peso}</span>
+                    <div key={f.time_class} className="hstack gap-8 wp-mono" style={{ fontSize: 12 }}>
+                      <span style={{ color: 'var(--wp-text-2)', width: 60 }}>{labelTC[f.time_class]}</span>
+                      <span style={{ color: 'var(--wp-text)', fontWeight: 600 }}>{f.rating}</span>
+                      <span style={{ color: 'var(--wp-text-3)', marginLeft: 'auto', fontSize: 11 }}>peso ×{f.peso}</span>
                     </div>
                   ))}
                 </div>
@@ -1206,19 +1224,19 @@
             )}
 
             {resultado ? (
-              <div className="vstack gap-8">
-                <div className="serif fs-13 txt-mid mb-4" style={{ lineHeight: 1.55 }}>
-                  Vamos começar com um conjunto de <span className="bold">5 puzzles na sua faixa</span>.
-                  Em 3 ciclos você sente o método na pele.
-                </div>
-                <button className="btn btn-primary btn-block" onClick={comecar}>
-                  ▶ Começar com 5 puzzles
-                </button>
+              <div className="vstack gap-12" style={{ marginTop: 24 }}>
+                <p className="wp-onboarding-meta" style={{ color: 'var(--wp-text-2)' }}>
+                  Vamos começar com um conjunto de 5 puzzles na sua faixa.
+                  Em 3 ciclos você sente o método.
+                </p>
+                <WpButton variant="primary" full onClick={comecar}>
+                  Começar com 5 puzzles
+                </WpButton>
               </div>
             ) : (
-              <button className="btn btn-ghost btn-block" onClick={onPular}>
-                Pular por enquanto
-              </button>
+              <WpButton variant="ghost" full onClick={onPular} style={{ marginTop: 16 }}>
+                Já tenho conta · pular
+              </WpButton>
             )}
           </div>
         </div>
