@@ -1,61 +1,94 @@
-/* === DESIGN TOKENS — paleta única (midnight + aço) ===
-   Não há tema light. App é dark-only por design. Cores foram escolhidas
-   pra contraste mínimo cromático com hierarquia via espaçamento e
-   tipografia, não via cor. Acento principal é o azul-aço dessaturado;
-   verde/vermelho/gold só aparecem em sinalização semântica.
+/* === DESIGN TOKENS — Woodpecker (dark-only, oklch warm charcoals) ===
+   Repaginação completa baseada em design_handoff_woodpecker/. Paleta
+   warm charcoals (heartwood do pica-pau) + ocre (bico/coração da
+   madeira) + semânticas terrosas (musgo / argila / ouro velho).
+   Tudo em oklch pra preservar curva perceptual.
 
-   Convenção:
-   --bg            fundo da página (atrás de tudo)
-   --surface       fundo de cards-soft, sidebar, inputs sutis
-   --card          fundo de cards principais (mais elevado)
-   --border        borda neutra padrão (linha 1px)
-   --border-mid    borda intermediária (sliders, dividers)
-   --primary       acento de ação (botões, focus, links)
-   --primary-bg    derivado translúcido (badges, tiles ativos)
-   --green/red/gold/amber  semáforo (acerto/erro/destaque/aviso)
-   --*-bg / --*-bdr        tons pra banners e badges semafóricos
-   --txt           texto primário (corpo de prosa)
-   --txt-mid       texto secundário (labels, descrições)
-   --txt-muted     texto terciário (timestamps, meta)
-   --header-bg     fundo do header (dark uniforme com bg)
+   Convenção --wp-* é a fonte da verdade. Aliases legados (--bg,
+   --primary, --green, etc.) mapeiam pros tokens novos enquanto a UI
+   antiga é portada nas fases seguintes da repaginação. Aliases caem
+   ao final da Fase 5.
 
-   Texto principal `#e7e9ee` em vez de `#fff` puro reduz fadiga visual.
-   Saturação baixa em todos os acentos: cores são marcadores semânticos,
-   nunca chamam atenção a si mesmas. */
+   Tipografia (carregada no <head> via Google Fonts):
+   - Inter Tight  → UI principal (botões, body, labels)
+   - JetBrains Mono → números, ratings, tempos, usernames (tnum)
+   - Fraunces     → display (headlines, hero) */
 
 :root {
-  --font-serif:
-    'Iowan Old Style', 'Charter', 'Source Serif Pro',
-    Georgia, 'Times New Roman', serif;
-  --font-mono:
-    ui-monospace, 'SF Mono', Menlo, 'Cascadia Code', Consolas,
-    'Liberation Mono', 'DejaVu Sans Mono', 'Courier New', monospace;
+  /* === SURFACES — warm charcoals === */
+  --wp-bg: oklch(0.16 0.008 60);          /* deepest */
+  --wp-surface: oklch(0.20 0.010 60);     /* cards */
+  --wp-surface-2: oklch(0.235 0.012 60);  /* raised, hover */
+  --wp-surface-3: oklch(0.28 0.014 60);   /* inputs, avatar borders */
+  --wp-line: oklch(0.32 0.012 60);        /* hairlines fortes */
+  --wp-line-soft: oklch(0.26 0.010 60);   /* divisores sutis */
 
-  --bg:           #0a0c10;
-  --surface:      #13161c;
-  --card:         #1a1e26;
-  --border:       #242933;
-  --border-mid:   #333a47;
+  /* === FOREGROUND === */
+  --wp-text: oklch(0.94 0.012 80);        /* warm cream */
+  --wp-text-2: oklch(0.78 0.012 70);      /* muted */
+  --wp-text-3: oklch(0.58 0.014 65);      /* tertiary, meta */
+  --wp-text-4: oklch(0.42 0.012 60);      /* faint, placeholders */
 
-  --primary:      #8c9fc7;
-  --primary-bg:   #1a2030;
+  /* === ACCENT — ocre pica-pau === */
+  --wp-accent: oklch(0.72 0.13 55);       /* CTAs, ativo */
+  --wp-accent-2: oklch(0.62 0.14 45);     /* terracotta deeper */
+  --wp-accent-soft: oklch(0.40 0.08 50);  /* dim ochre */
+  --wp-accent-tint: oklch(0.25 0.04 55);  /* wash de fundo */
 
-  --green:        #6a9f8b;
-  --green-bg:     #14201a;
-  --green-bdr:    #2a3d33;
+  /* === SEMÂNTICAS — terrosas, nunca neon === */
+  --wp-good: oklch(0.72 0.10 145);        /* musgo */
+  --wp-good-soft: oklch(0.30 0.04 145);
+  --wp-bad: oklch(0.62 0.14 28);          /* argila */
+  --wp-bad-soft: oklch(0.28 0.05 28);
+  --wp-warn: oklch(0.78 0.12 80);         /* ouro velho */
 
-  --red:          #b06b6b;
-  --red-bg:       #1f1414;
-  --red-bdr:      #3d2828;
+  /* === TABULEIRO === */
+  --wp-board-light: oklch(0.78 0.06 75);  /* maple */
+  --wp-board-dark:  oklch(0.42 0.07 50);  /* walnut */
+  --wp-board-edge:  oklch(0.30 0.05 50);
 
-  --gold:         #c9a458;
-  --gold-bg:      #2a220e;
-  --amber:        #c9a458;
-  --slate:        #5e6571;
+  /* === TIPOGRAFIA === */
+  --font-ui: 'Inter Tight', -apple-system, BlinkMacSystemFont,
+             'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo,
+               'Cascadia Code', Consolas, 'Liberation Mono', monospace;
+  --font-display: 'Fraunces', 'Inter Tight', Georgia, serif;
 
-  --txt:          #e7e9ee;
-  --txt-mid:      #969ba6;
-  --txt-muted:    #5e6571;
+  /* Compatibilidade com base.css (--font-serif/--font-mono já existiam) */
+  --font-serif: var(--font-display);
 
-  --header-bg:    #0a0c10;
+  --radius: 4px;
+  --radius-lg: 8px;
+
+  /* === ALIASES LEGADOS — removidos no fim da Fase 5 ===
+     Mantêm a UI antiga (header, cards, btns, badges, evolução) viva
+     enquanto cada Tela* é portada. Mapeiam para os tokens --wp-* novos.
+  */
+  --bg:           var(--wp-bg);
+  --surface:      var(--wp-surface);
+  --card:         var(--wp-surface-2);
+  --border:       var(--wp-line-soft);
+  --border-mid:   var(--wp-line);
+
+  --primary:      var(--wp-accent);
+  --primary-bg:   var(--wp-accent-tint);
+
+  --green:        var(--wp-good);
+  --green-bg:     var(--wp-good-soft);
+  --green-bdr:    var(--wp-good-soft);
+
+  --red:          var(--wp-bad);
+  --red-bg:       var(--wp-bad-soft);
+  --red-bdr:      var(--wp-bad-soft);
+
+  --gold:         var(--wp-warn);
+  --gold-bg:      var(--wp-accent-tint);
+  --amber:        var(--wp-accent-2);
+  --slate:        var(--wp-text-3);
+
+  --txt:          var(--wp-text);
+  --txt-mid:      var(--wp-text-2);
+  --txt-muted:    var(--wp-text-3);
+
+  --header-bg:    var(--wp-bg);
 }

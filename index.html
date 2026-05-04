@@ -3,16 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no" />
-  <meta name="theme-color" content="#0d1520" />
+  <meta name="theme-color" content="#1a1612" />
   <title>Woodpecker · Método Tático</title>
 
-  <!-- Favicon SVG inline: cavalo dourado com marca de strike vermelha
+  <!-- Favicon SVG inline: cavalo ocre com marca de strike vermelha
        (peck do pica-pau). Funciona em todos os browsers modernos. -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='5' fill='%230d1520'/><text x='16' y='25' text-anchor='middle' font-family='Georgia, serif' font-size='24' fill='%23d4a843'>%E2%99%9E</text><circle cx='25' cy='8' r='2.5' fill='%23e05252'/></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='5' fill='%231a1612'/><text x='16' y='25' text-anchor='middle' font-family='Georgia, serif' font-size='24' fill='%23c98f3f'>%E2%99%9E</text><circle cx='25' cy='8' r='2.5' fill='%23b06b6b'/></svg>" />
+
+  <!-- Tipografia Woodpecker: Inter Tight (UI), JetBrains Mono (números),
+       Fraunces (display). Carregadas antes dos stylesheets pra que o
+       FCP já use as fontes finais. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
 
   <!-- Stylesheets carregados antes dos scripts pra evitar FOUC.
-       tokens.css = variáveis dos temas; base.css = reset + utilitários;
-       components.css = tudo com visual próprio (header, cards, btn, etc). -->
+       tokens.css = variáveis (oklch warm + ocre, dark-only);
+       base.css = reset + utilitários; components.css = visuais próprios. -->
   <link rel="stylesheet" href="src/styles/tokens.css" />
   <link rel="stylesheet" href="src/styles/base.css" />
   <link rel="stylesheet" href="src/styles/components.css" />

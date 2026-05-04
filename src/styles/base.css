@@ -1,44 +1,74 @@
 /* === RESET / BASE ===
-   Reset minimalista + tipografia raiz + utilitários globais (.mono,
-   .serif, .num, .num-display, helpers de margin/gap/cor/tamanho).
+   Reset minimalista + tipografia raiz + utilitários globais.
    Componentes específicos vão em components.css.
 
-   Stacks de fonte:
-   - Serif (corpo): preferimos formas modernas em sistemas que têm
-     (Iowan Old Style no iOS/macOS, Charter no Apple, Source Serif Pro
-     em alguns Linuxes), com Georgia como fallback universal.
-   - Mono (dados): system mono (ui-monospace, SF Mono, Menlo, Cascadia
-     Code, Consolas, Liberation Mono) primeiro — Courier New só como
-     último recurso. Mono moderna tem leitura significativamente melhor
-     em ratings e tempos do que Courier.
+   Stacks de fonte (definidas em tokens.css):
+   - --font-ui      → Inter Tight (UI principal)
+   - --font-mono    → JetBrains Mono (números, ratings, tempos, com tnum)
+   - --font-display → Fraunces (display, headlines, hero)
+
+   `.mono` continua mapeada pra var(--font-mono) e `.serif` agora aponta
+   pro display Fraunces (compat com classes legadas que usavam serif
+   pra prosa de destaque). Nova classe `.ui` força Inter Tight quando
+   necessário sobre um pai mono/display.
 */
 
 * { box-sizing: border-box; }
 html, body { margin:0; padding:0; height:100%; overflow-x: hidden; }
 body {
-  background: var(--bg);
-  color: var(--txt);
-  font-family:
-    var(--font-serif);
+  background: var(--wp-bg);
+  color: var(--wp-text);
+  font-family: var(--font-ui);
   font-size: 14px;
   line-height: 1.5;
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
 }
-a { color: var(--primary); text-decoration: none; }
+a { color: var(--wp-accent); text-decoration: none; }
 button { font-family: inherit; }
-input, select { font-family: inherit; color: var(--txt); }
+input, select { font-family: inherit; color: var(--wp-text); }
 
 .mono {
-  font-family:
-    var(--font-mono);
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum';
+  letter-spacing: -0.02em;
 }
 .serif {
-  font-family:
-    var(--font-serif);
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
 }
+.ui { font-family: var(--font-ui); }
+
+/* === Utilitários WP === */
+.wp-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum';
+  letter-spacing: -0.02em;
+}
+.wp-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+}
+.wp-eyebrow {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--wp-text-3);
+}
+.wp-tally { display: inline-flex; gap: 3px; align-items: flex-end; line-height: 0; }
+.wp-tally i {
+  display: block;
+  width: 2px; height: 14px;
+  background: currentColor;
+  opacity: 0.5;
+}
+.wp-tally i.on { opacity: 1; }
+.wp-divider { height: 1px; background: var(--wp-line-soft); width: 100%; }
 
 /* === FOCUS VISIBLE (acessibilidade) ===
    Anel discreto em foco por teclado para todas interações relevantes.
