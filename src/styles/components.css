@@ -643,41 +643,62 @@
 }
 
 /* === HIGHLIGHTS DAS CASAS ===
-   Filosofia: SEM fill (peça permanece nítida) + borda colorida grossa
-   via inset box-shadow. A casa é demarcada pela moldura, não pelo
-   sombreado — assim funciona igual em casa clara e escura. */
-.highlight-last-from {
-  background-color: transparent !important;
-  box-shadow: inset 0 0 0 3px rgba(230, 195, 100, 0.70) !important;
+   Filosofia: cor única amarela (chess.com style) pra origem + destino do
+   último lance, sem borda. Mistura bem em casa clara e escura. Borda fica
+   reservada pra estados que merecem destaque animado (erro, acerto). */
+.highlight-last-from,
+.highlight-last-to,
+.highlight-error-from,
+.highlight-error-to,
+.highlight-success-to {
+  background-color: rgba(247, 220, 90, 0.55) !important;
 }
-.highlight-last-to {
-  background-color: transparent !important;
-  box-shadow: inset 0 0 0 4px rgba(240, 205, 110, 0.95) !important;
-}
-/* Casa selecionada (tap-to-move): borda azul nítida, sem fill. */
+/* Casa selecionada (tap-to-move): amarelo mais saturado pra distinguir
+   sem precisar de borda. Bolinhas nas casas-destino fazem o resto. */
 .selected-square {
   position: relative;
-  background-color: transparent !important;
-  box-shadow: inset 0 0 0 4px rgba(150, 185, 230, 0.95) !important;
+  background-color: rgba(255, 215, 90, 0.78) !important;
 }
-/* Lance errado: borda vermelha. */
-.highlight-error-from {
-  background-color: transparent !important;
-  box-shadow: inset 0 0 0 3px rgba(220, 100, 100, 0.70) !important;
-}
+/* Borda no destino do lance ERRADO/CORRETO — coexiste com o fill amarelo
+   e ganha pulso animado via outline. Borda inset 4px é o "estático". */
 .highlight-error-to {
-  background-color: transparent !important;
   box-shadow: inset 0 0 0 4px rgba(240, 110, 110, 0.95) !important;
 }
-/* Lance correto (final do puzzle): borda verde no destino vencedor. */
 .highlight-success-to {
-  background-color: transparent !important;
   box-shadow: inset 0 0 0 4px rgba(140, 210, 175, 0.95) !important;
+}
+/* Origem do lance errado: marca discreta sem borda (só o fill amarelo já
+   identifica origem). Mantemos o fill comum, sem destaque extra. */
+
+/* === LANCES POSSÍVEIS (ao selecionar peça) ===
+   Bolinha central pra casa vazia. Anel pra casa com captura (peça
+   inimiga). pointer-events: none pra não bloquear o clique/drag. */
+[class*="square-"] { position: relative; }
+.possible-move::before,
+.possible-capture::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.possible-move::before {
+  background: radial-gradient(circle at center,
+    rgba(0, 0, 0, 0.22) 0,
+    rgba(0, 0, 0, 0.22) 14%,
+    transparent 16%);
+}
+.possible-capture::before {
+  background: radial-gradient(circle at center,
+    transparent 0,
+    transparent 67%,
+    rgba(0, 0, 0, 0.28) 69%,
+    rgba(0, 0, 0, 0.28) 80%,
+    transparent 82%);
 }
 
 /* === ANIMAÇÕES DE FEEDBACK NO TABULEIRO ===
-   A: outline pulsa pra fora do .board-wrap (não conflita com overflow
-      dos parents, mas tomamos cuidado).
+   A: outline pulsa pra fora do .board-wrap (feedback periférico).
    B: outline pulsa na casa de destino — outline é separado de
       box-shadow, então não fica refém do !important do highlight estático. */
 .board-wrap { position: relative; border-radius: 4px; }

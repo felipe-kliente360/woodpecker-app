@@ -328,13 +328,15 @@
     /* lanceUciParaSan, aplicarLanceSilencioso, sequenciaSan: src/domain/puzzle.js */
 
     /* === COMPONENTE ChessBoard (wrapper Chessboard.js) === */
-    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, draggable, highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, successTo }) {
+    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, onPickPiece, draggable, highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, successTo, possibleMoves, possibleCaptures }) {
       const onDropRef = useRef(onDrop);
       const onSquareClickRef = useRef(onSquareClick);
+      const onPickPieceRef = useRef(onPickPiece);
       const draggableRef = useRef(draggable !== false);
       const boardRef = useRef(null);
       useEffect(() => { onDropRef.current = onDrop; }, [onDrop]);
       useEffect(() => { onSquareClickRef.current = onSquareClick; }, [onSquareClick]);
+      useEffect(() => { onPickPieceRef.current = onPickPiece; }, [onPickPiece]);
       useEffect(() => { draggableRef.current = draggable !== false; }, [draggable]);
 
       // Aplica/remove highlights. 4 tipos: origem/destino do último lance
@@ -352,17 +354,25 @@
             $root.find('.highlight-error-from').removeClass('highlight-error-from');
             $root.find('.highlight-error-to').removeClass('highlight-error-to');
             $root.find('.highlight-success-to').removeClass('highlight-success-to');
+            $root.find('.possible-move').removeClass('possible-move');
+            $root.find('.possible-capture').removeClass('possible-capture');
             if (highlightFrom) $root.find('.square-' + highlightFrom).addClass('highlight-last-from');
             if (highlightTo)   $root.find('.square-' + highlightTo).addClass('highlight-last-to');
             if (selectedSquare) $root.find('.square-' + selectedSquare).addClass('selected-square');
             if (errorFrom)     $root.find('.square-' + errorFrom).addClass('highlight-error-from');
             if (errorTo)       $root.find('.square-' + errorTo).addClass('highlight-error-to');
             if (successTo)     $root.find('.square-' + successTo).addClass('highlight-success-to');
+            if (possibleMoves) {
+              for (const sq of possibleMoves) $root.find('.square-' + sq).addClass('possible-move');
+            }
+            if (possibleCaptures) {
+              for (const sq of possibleCaptures) $root.find('.square-' + sq).addClass('possible-capture');
+            }
           } catch (e) {}
         };
         const t = setTimeout(apply, 60);
         return () => clearTimeout(t);
-      }, [highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, successTo, fen, boardId]);
+      }, [highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, successTo, possibleMoves, possibleCaptures, fen, boardId]);
 
       useEffect(() => {
         const cfg = {
@@ -376,6 +386,10 @@
           snapSpeed: 30,
           onDragStart: (source, piece) => {
             if (!draggableRef.current) return false;
+            // Avisa o hook pra mostrar bolinhas de lances possíveis durante o drag.
+            if (onPickPieceRef.current) {
+              try { onPickPieceRef.current(source); } catch (e) {}
+            }
           },
           onDrop: (source, target) => {
             if (source === target) return 'snapback';
@@ -1971,10 +1985,10 @@
       const {
         idx, total, puzzle, fenAtual, orientacao,
         resultados, tempoAcumulado, paceVsPuzzleBaseline, dicaVisao,
-        estado, feedback, promoPicker, casaSelecionada,
+        estado, feedback, promoPicker, casaSelecionada, lancesPossiveis,
         ultimoLanceAdv, ultimoLanceErradoCoords, ultimoLanceJogadorTo,
         erroPuzzle, seg, pausado,
-        onDrop, onSquareClick, escolherPromocao, cancelarPromocao,
+        onDrop, onSquareClick, aoIniciarDrag, escolherPromocao, cancelarPromocao,
         pular, avancar, setPausado, pularPuzzleErro,
       } = j;
 
@@ -2110,6 +2124,7 @@
               orientation={orientacao}
               onDrop={onDrop}
               onSquareClick={onSquareClick}
+              onPickPiece={aoIniciarDrag}
               draggable={estado === 'jogando' && !pausado}
               highlightFrom={ultimoLanceAdv ? ultimoLanceAdv.from : null}
               highlightTo={ultimoLanceAdv ? ultimoLanceAdv.to : null}
@@ -2117,6 +2132,8 @@
               errorFrom={ultimoLanceErradoCoords ? ultimoLanceErradoCoords.from : null}
               errorTo={ultimoLanceErradoCoords ? ultimoLanceErradoCoords.to : null}
               successTo={estado === 'feedback' && feedback && feedback.correto ? ultimoLanceJogadorTo : null}
+              possibleMoves={lancesPossiveis ? lancesPossiveis.dots : null}
+              possibleCaptures={lancesPossiveis ? lancesPossiveis.captures : null}
             />
           </div>
 

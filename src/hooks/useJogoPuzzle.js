@@ -112,6 +112,23 @@
       return { casa: resp.slice(0, 2), erros: n };
     }, [puzzles, idx, ciclosAnteriores]);
 
+    // Lances possíveis a partir da casa selecionada — bolinhas no
+    // tabuleiro. Recalcula quando casaSelecionada ou fenAtual muda.
+    const lancesPossiveis = useMemo(() => {
+      if (!casaSelecionada || !chessRef.current) return { dots: [], captures: [] };
+      try {
+        const moves = chessRef.current.moves({ square: casaSelecionada, verbose: true });
+        const dots = [], captures = [];
+        for (const m of moves) {
+          if (m.captured || m.flags.indexOf("e") >= 0) captures.push(m.to);
+          else dots.push(m.to);
+        }
+        return { dots: dots, captures: captures };
+      } catch (_) {
+        return { dots: [], captures: [] };
+      }
+    }, [casaSelecionada, fenAtual]);
+
     // Inicia/recarrega cada puzzle
     useEffect(() => {
       if (!puzzle) return;
@@ -352,6 +369,17 @@
       return processarLance(source, target);
     };
 
+    // Disparado pelo chessboard.js no início do drag — também marca a
+    // casa como selecionada pra mostrar bolinhas de lance possível.
+    const aoIniciarDrag = (square) => {
+      if (estado !== "jogando" || pausado) return;
+      const c = chessRef.current;
+      if (!c) return;
+      const piece = c.get(square);
+      if (!piece || piece.color !== c.turn()) return;
+      setCasaSelecionada(square);
+    };
+
     const onSquareClick = (sq) => {
       if (estado !== "jogando" || pausado || promoPicker) return;
       const c = chessRef.current;
@@ -419,6 +447,7 @@
       feedback: feedback,
       promoPicker: promoPicker,
       casaSelecionada: casaSelecionada,
+      lancesPossiveis: lancesPossiveis,
       ultimoLanceAdv: ultimoLanceAdv,
       ultimoLanceErrado: ultimoLanceErrado,
       ultimoLanceErradoCoords: ultimoLanceErradoCoords,
@@ -431,6 +460,7 @@
       // Ações
       onDrop: onDrop,
       onSquareClick: onSquareClick,
+      aoIniciarDrag: aoIniciarDrag,
       escolherPromocao: escolherPromocao,
       cancelarPromocao: cancelarPromocao,
       pular: pular,
