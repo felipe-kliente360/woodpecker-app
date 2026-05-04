@@ -156,7 +156,15 @@
             console.warn("Lance inicial inválido:", lances[0], e);
           }
         }
-        setUltimoLanceAdv(null);
+        // Highlight do lance que ABRIU o puzzle (opponent move antes da
+        // vez do jogador). Sem isso, o jogador entra na posição sem
+        // pista visual de "o que acabou de acontecer". UCI = "e2e4"
+        // (4 chars) ou "e7e8q" (5 chars com promoção).
+        if (lances[0] && lances[0].length >= 4) {
+          setUltimoLanceAdv({ from: lances[0].slice(0, 2), to: lances[0].slice(2, 4) });
+        } else {
+          setUltimoLanceAdv(null);
+        }
         chessRef.current = c;
         expectedIdxRef.current = 1;
         fenInicialJogadorRef.current = c.fen();
