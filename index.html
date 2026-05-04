@@ -4276,10 +4276,12 @@
         ? (baseline.tempo_total_s / ciclo.tempo_total_s) : 1;
       const ratioFmt = ratio.toFixed(1).replace('.', ',') + '×';
 
-      const anterior = ciclosAnteriores[ciclosAnteriores.length - 1] || null;
-      const deltaAcertos = anterior ? acertos - anterior.acertos : 0;
-      const deltaTempoPct = anterior && anterior.tempo_total_s
-        ? Math.round((1 - ciclo.tempo_total_s / anterior.tempo_total_s) * 100)
+      // Toda comparação no resumo de ciclo é vs Ciclo 1 (baseline do
+      // método). "vs ciclo anterior" não diz nada sobre progresso de
+      // padrões — Ciclo 1 é a referência fixa.
+      const deltaAcertos = baseline ? acertos - baseline.acertos : null;
+      const deltaTempoPct = baseline && baseline.tempo_total_s
+        ? Math.round((1 - ciclo.tempo_total_s / baseline.tempo_total_s) * 100)
         : null;
 
       // Mais rápido / a revisitar (puzzles do ciclo)
@@ -4328,9 +4330,9 @@
               <div className="wp-stat-value wp-mono">
                 {acertos}<span style={{ color: 'var(--wp-text-3)', fontSize: 14 }}> / {total}</span>
               </div>
-              {anterior && (
+              {deltaAcertos !== null && (
                 <div className={'wp-mono wp-stat-sub ' + (deltaAcertos >= 0 ? 'wp-good-text' : 'wp-bad-text')}>
-                  {deltaAcertos >= 0 ? '+' : ''}{deltaAcertos} vs ciclo {anterior.numero}
+                  {deltaAcertos >= 0 ? '+' : ''}{deltaAcertos} vs ciclo {baseline.numero}
                 </div>
               )}
             </div>
@@ -4339,7 +4341,7 @@
               <div className="wp-stat-value wp-mono">{formatarTempo(ciclo.tempo_total_s)}</div>
               {deltaTempoPct !== null && (
                 <div className={'wp-mono wp-stat-sub ' + (deltaTempoPct > 0 ? 'wp-good-text' : 'wp-bad-text')}>
-                  {deltaTempoPct > 0 ? '−' : '+'}{Math.abs(deltaTempoPct)}% vs ciclo {anterior.numero}
+                  {deltaTempoPct > 0 ? '−' : '+'}{Math.abs(deltaTempoPct)}% vs ciclo {baseline.numero}
                 </div>
               )}
             </div>
