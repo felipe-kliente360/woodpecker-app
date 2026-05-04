@@ -478,12 +478,8 @@
     /* === SIDEBAR === */
     function Sidebar({ tela, onNav, mobile }) {
       const itens = [
-        { id: 'inicio',    icon: '🏠', label: 'Início' },
-        { id: 'conjuntos', icon: '♟', label: 'Meus Conjuntos' },
-        { id: 'criar',     icon: '＋', label: 'Criar Conjunto' },
-        { id: 'analisar',  icon: '🔍', label: 'Analisar Jogador' },
-        { id: 'flash',     icon: '🎴', label: 'Pattern Flash' },
-        { id: 'evolucao',  icon: '📊', label: 'Evolução' }
+        { id: 'inicio',   icon: '🏠', label: 'Início' },
+        { id: 'evolucao', icon: '📊', label: 'Evolução' }
       ];
       return (
         <div className={mobile ? 'mobile-menu' : 'sidebar'}>
@@ -3951,324 +3947,6 @@
       );
     }
 
-    /* === PATTERN FLASH ===
-     * Modo paralelo de treino tático: posição visível por N segundos,
-     * tela em branco, usuário digita o lance esperado em SAN ou UCI.
-     * Calibra reconhecimento instantâneo (intuição de padrão) — não
-     * substitui ciclo, complementa. */
-    function TelaPatternFlash({ conjuntos, onCarregarPuzzles, onSair }) {
-      const ChessLib = window.Chess;
-      const Puzzle = window.WP && window.WP.Puzzle;
-      const conjuntosOk = conjuntos.filter(c => (c.puzzle_ids || []).length > 0);
-      const [estado, setEstado] = useState('setup');
-      const [conjuntoId, setConjuntoId] = useState(conjuntosOk[0] ? conjuntosOk[0].id : '');
-      const [flashSec, setFlashSec] = useState(2);
-      const [tamanho, setTamanho] = useState(20);
-      const [carregando, setCarregando] = useState(false);
-      const [carregandoMsg, setCarregandoMsg] = useState('');
-      const [erro, setErro] = useState(null);
-      const [puzzles, setPuzzles] = useState(null);
-      const [idx, setIdx] = useState(0);
-      const [resultados, setResultados] = useState([]);
-      const [inputLance, setInputLance] = useState('');
-      const [feedback, setFeedback] = useState(null);
-      const [boardId] = useState(() => 'flash-board-' + Math.random().toString(36).slice(2, 8));
-
-      // Computa posição inicial do jogador (após lance 0 do oponente)
-      // e SAN esperado pra comparação.
-      const puzzleAtual = puzzles && puzzles[idx];
-      const dadosPuzzle = useMemo(() => {
-        if (!puzzleAtual || !ChessLib || !Puzzle) return null;
-        try {
-          const c = new ChessLib(puzzleAtual.fen);
-          const lances = puzzleAtual.lances || puzzleAtual.moves || [];
-          if (lances[0]) {
-            try { Puzzle.aplicarLanceSilencioso(c, lances[0]); } catch (_) {}
-          }
-          const fenJogador = c.fen();
-          const sans = Puzzle.sequenciaSan(puzzleAtual.fen, [lances[0] || '', lances[1] || '']);
-          const expectedSan = sans[1] || '';
-          const expectedUci = lances[1] || '';
-          return {
-            fen: fenJogador,
-            orientacao: Puzzle.corDoTabuleiro(fenJogador),
-            corLabel: Puzzle.determinaCorJogador(fenJogador),
-            expectedSan: expectedSan,
-            expectedUci: expectedUci,
-          };
-        } catch (_) { return null; }
-      }, [puzzleAtual]);
-
-      // State machine de display
-      useEffect(() => {
-        if (estado === 'aguardando') {
-          const t = setTimeout(() => setEstado('mostrando'), 700);
-          return () => clearTimeout(t);
-        }
-        if (estado === 'mostrando') {
-          const t = setTimeout(() => setEstado('respondendo'), flashSec * 1000);
-          return () => clearTimeout(t);
-        }
-      }, [estado, idx, flashSec]);
-
-      async function comecar() {
-        const conj = conjuntos.find(c => c.id === conjuntoId);
-        if (!conj) { setErro('Conjunto inválido'); return; }
-        setCarregando(true);
-        setCarregandoMsg('Carregando puzzles...');
-        setErro(null);
-        try {
-          const todos = await onCarregarPuzzles(conj, setCarregandoMsg);
-          if (!todos || todos.length === 0) {
-            setErro('Nenhum puzzle disponível neste conjunto');
-            return;
-          }
-          const sample = embaralhar(todos).slice(0, Math.min(tamanho, todos.length));
-          setPuzzles(sample);
-          setIdx(0);
-          setResultados([]);
-          setInputLance('');
-          setFeedback(null);
-          setEstado('aguardando');
-        } catch (e) {
-          setErro(e.message || String(e));
-        } finally {
-          setCarregando(false);
-        }
-      }
-
-      function avaliar() {
-        if (!dadosPuzzle) return;
-        const norm = (s) => (s || '').replace(/[+#x=!?\s]/g, '').toLowerCase();
-        const i = norm(inputLance);
-        const ok = i.length > 0 && (i === norm(dadosPuzzle.expectedSan) || i === norm(dadosPuzzle.expectedUci));
-        setFeedback({ correto: ok, expectedSan: dadosPuzzle.expectedSan, expectedUci: dadosPuzzle.expectedUci });
-        setResultados(rs => rs.concat([{ correto: ok }]));
-        setEstado('feedback');
-        if (Store.get(Chaves.AUDIO_ON, false) && window.WP && window.WP.Audio) {
-          if (ok) window.WP.Audio.acerto();
-          else window.WP.Audio.erro();
-        }
-      }
-
-      function proximo() {
-        setInputLance('');
-        setFeedback(null);
-        if (idx + 1 >= puzzles.length) {
-          setEstado('fim');
-        } else {
-          setIdx(idx + 1);
-          setEstado('aguardando');
-        }
-      }
-
-      function reiniciar() {
-        setPuzzles(null);
-        setIdx(0);
-        setResultados([]);
-        setInputLance('');
-        setFeedback(null);
-        setEstado('setup');
-      }
-
-      // Render do tabuleiro só quando 'mostrando'
-      const acertos = resultados.filter(r => r.correto).length;
-      const total = puzzles ? puzzles.length : 0;
-
-      // SETUP
-      if (estado === 'setup') {
-        return (
-          <div className="tela-container">
-            <div className="mb-16">
-              <div className="serif bold fs-22 mb-4">🎴 Pattern Flash</div>
-              <div className="serif fs-13 txt-mid" style={{ lineHeight: 1.6 }}>
-                Posição visível por alguns segundos, depois tela em branco. Você digita o lance esperado.
-                Treina reconhecimento imediato — não dá tempo de calcular.
-              </div>
-            </div>
-
-            {conjuntosOk.length === 0 ? (
-              <div className="card center">
-                <div className="serif fs-13 txt-mid">
-                  Você precisa de pelo menos um conjunto criado pra usar o Pattern Flash.
-                </div>
-                <button className="btn btn-ghost mt-12" onClick={onSair}>← Voltar</button>
-              </div>
-            ) : (
-              <div className="card">
-                <div className="input-label">Conjunto base</div>
-                <select value={conjuntoId} onChange={e => setConjuntoId(e.target.value)}
-                  style={{
-                    width: '100%', background: 'var(--surface)', color: 'var(--txt)',
-                    border: '1px solid var(--border)', borderRadius: 6,
-                    padding: '8px 10px', fontFamily: 'var(--font-mono)', fontSize: 13,
-                    marginBottom: 16,
-                  }}>
-                  {conjuntosOk.map(c => (
-                    <option key={c.id} value={c.id}>{c.nome} ({(c.puzzle_ids || []).length} puzzles)</option>
-                  ))}
-                </select>
-
-                <div className="input-label">Tempo de exibição</div>
-                <div className="hstack gap-8 mb-16">
-                  {[1, 1.5, 2, 3, 5].map(v => (
-                    <button key={v}
-                      onClick={() => setFlashSec(v)}
-                      className="btn btn-small ghost"
-                      style={flashSec === v ? {
-                        background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)'
-                      } : null}>
-                      {v}s
-                    </button>
-                  ))}
-                </div>
-
-                <div className="input-label">Quantidade de puzzles</div>
-                <div className="hstack gap-8 mb-16">
-                  {[10, 20, 30, 50].map(v => (
-                    <button key={v}
-                      onClick={() => setTamanho(v)}
-                      className="btn btn-small ghost"
-                      style={tamanho === v ? {
-                        background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)'
-                      } : null}>
-                      {v}
-                    </button>
-                  ))}
-                </div>
-
-                {erro && (
-                  <div className="feedback-banner red mb-12">
-                    <div className="feedback-title">⚠ {erro}</div>
-                  </div>
-                )}
-
-                <button className="btn btn-primary btn-block"
-                  onClick={comecar} disabled={carregando}>
-                  {carregando ? carregandoMsg : '▶ Começar'}
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      }
-
-      // FIM
-      if (estado === 'fim') {
-        const taxa = total > 0 ? Math.round((acertos / total) * 100) : 0;
-        return (
-          <div className="tela-container">
-            <div className="card center" style={{ borderTop: '3px solid var(--primary)' }}>
-              <div className="mono fs-10 ls-2 txt-muted mb-4">SESSÃO FLASH CONCLUÍDA</div>
-              <div className="num-display num-xl txt-primary mb-4">{taxa}%</div>
-              <div className="serif fs-15 mb-16">
-                {acertos} acertos de {total} sob {flashSec}s de exibição
-              </div>
-              <div className="vstack gap-8">
-                <button className="btn btn-primary btn-block" onClick={reiniciar}>
-                  ↻ Nova sessão
-                </button>
-                <button className="btn btn-ghost btn-block" onClick={onSair}>
-                  ← Voltar
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      }
-
-      // SESSÃO ATIVA (aguardando | mostrando | respondendo | feedback)
-      return (
-        <div className="tela-container">
-          <div className="between mb-12">
-            <div className="mono fs-12 txt-muted">
-              {idx + 1} / {total} · {flashSec}s
-            </div>
-            <div className="hstack gap-12">
-              <span className="mono fs-11 txt-green">✓ {acertos}</span>
-              <span className="mono fs-11 txt-red">✗ {resultados.length - acertos}</span>
-              <button className="btn btn-small ghost" onClick={onSair}>✕ Sair</button>
-            </div>
-          </div>
-
-          <div className="board-wrap" style={{ margin: '0 auto', position: 'relative' }}>
-            {(estado === 'mostrando' && dadosPuzzle) ? (
-              <ChessBoardView
-                key={boardId + '-' + idx}
-                boardId={boardId + '-' + idx}
-                fen={dadosPuzzle.fen}
-                orientation={dadosPuzzle.orientacao}
-                onDrop={() => false}
-                draggable={false}
-                highlightFrom={null}
-                highlightTo={null}
-                selectedSquare={null}
-              />
-            ) : (
-              <div style={{
-                width: '100%', aspectRatio: '1 / 1',
-                background: 'var(--card)',
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <div className="serif fs-22 txt-muted">
-                  {estado === 'aguardando' && '...'}
-                  {estado === 'respondendo' && '?'}
-                  {estado === 'feedback' && (feedback && feedback.correto ? '✓' : '✗')}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {dadosPuzzle && estado !== 'aguardando' && (
-            <div className="mt-12 mono fs-12 center" style={{ color: 'var(--primary)' }}>
-              ● {dadosPuzzle.corLabel}
-            </div>
-          )}
-
-          <div className="mt-16">
-            {estado === 'respondendo' && (
-              <div className="vstack gap-10">
-                <div className="input-label">Lance (SAN ou UCI)</div>
-                <input
-                  type="text"
-                  value={inputLance}
-                  onChange={e => setInputLance(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && inputLance.trim()) avaliar(); }}
-                  autoFocus
-                  placeholder="ex: Nf3 ou g1f3"
-                  style={{
-                    width: '100%', padding: '10px 12px',
-                    background: 'var(--surface)', color: 'var(--txt)',
-                    border: '1px solid var(--primary)', borderRadius: 6,
-                    fontFamily: 'var(--font-mono)', fontSize: 16,
-                    outline: 'none',
-                  }} />
-                <button className="btn btn-primary btn-block"
-                  onClick={avaliar}
-                  disabled={!inputLance.trim()}>
-                  ✓ Confirmar
-                </button>
-              </div>
-            )}
-
-            {estado === 'feedback' && feedback && (
-              <div className="vstack gap-10">
-                <div className={'feedback-banner ' + (feedback.correto ? 'green' : 'red')} style={{ marginTop: 0 }}>
-                  <div className="feedback-title">
-                    {feedback.correto ? '✓ ' + feedback.expectedSan : '✗ — solução: ' + feedback.expectedSan}
-                  </div>
-                </div>
-                <button className="btn btn-primary btn-block" onClick={proximo} autoFocus>
-                  {idx + 1 >= total ? '🏁 Finalizar' : '→ Próximo'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
 
     /* === APP ROOT === */
     function App() {
@@ -4339,11 +4017,7 @@
         if (e.key === '?') { e.preventDefault(); setMostraHelp(h => !h); return; }
         if (e.key === 'Escape' && mostraHelp) { e.preventDefault(); setMostraHelp(false); return; }
         if (e.key === '1') { e.preventDefault(); setTela('inicio'); }
-        else if (e.key === '2') { e.preventDefault(); setTela('conjuntos'); }
-        else if (e.key === '3') { e.preventDefault(); setTela('criar'); }
-        else if (e.key === '4') { e.preventDefault(); setTela('analisar'); }
-        else if (e.key === '5') { e.preventDefault(); setTela('flash'); }
-        else if (e.key === '6') { e.preventDefault(); setTela('evolucao'); }
+        else if (e.key === '2') { e.preventDefault(); setTela('evolucao'); }
       }, [tela, mostraHelp]);
 
       // Companion áudio: opt-in. Persistido em Chaves.AUDIO_ON.
@@ -4773,12 +4447,6 @@
                   }}
                 />
               )}
-              {!carregando && tela === 'flash' && (
-                <TelaPatternFlash
-                  conjuntos={conjuntos}
-                  onCarregarPuzzles={carregarPuzzlesDoConjunto}
-                  onSair={() => setTela('inicio')} />
-              )}
             </div>
           </div>
 
@@ -4791,11 +4459,7 @@
                 <div className="vstack gap-6">
                   {[
                     ['1', 'Início'],
-                    ['2', 'Meus Conjuntos'],
-                    ['3', 'Criar Conjunto'],
-                    ['4', 'Analisar Jogador'],
-                    ['5', 'Pattern Flash'],
-                    ['6', 'Evolução'],
+                    ['2', 'Evolução'],
                     ['?', 'Mostrar/esconder esta ajuda'],
                     ['Esc', 'Fechar overlays'],
                   ].map(([k, label]) => (
