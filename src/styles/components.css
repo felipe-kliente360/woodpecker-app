@@ -563,22 +563,29 @@
 }
 
 /* === HIGHLIGHTS DAS CASAS ===
-   Filosofia: cor única amarela suave (LED quente) pra origem + destino do
-   último lance, sem borda. Mistura bem em casa clara e escura. Borda fica
-   reservada pra estados que merecem destaque animado (erro, acerto). */
-.highlight-last-from,
-.highlight-last-to,
+   Filosofia: amarelo pastel quente (oklch ~0.88 chroma 0.09 hue ~95) pra
+   origem + destino do último lance, sem borda. Encaixa na paleta warm
+   charcoals + ocre — tom puxado pra amarelo pastel mas dessaturado o
+   bastante pra não competir com o ocre dos CTAs. Mistura bem em casa
+   clara (maple) e escura (walnut). Borda fica reservada pra estados que
+   merecem destaque animado (erro, acerto). */
+.highlight-last-from {
+  background-color: oklch(0.88 0.085 95 / 0.32) !important;
+}
+.highlight-last-to {
+  background-color: oklch(0.88 0.085 95 / 0.46) !important;
+}
 .highlight-error-from,
 .highlight-error-to,
 .highlight-success-to {
-  background-color: rgba(255, 245, 130, 0.45) !important;
+  background-color: oklch(0.88 0.085 95 / 0.46) !important;
 }
-/* Casa selecionada (tap-to-move): mesmo amarelo, alpha um pouco maior
-   pra firmar a seleção sem virar laranja. Bolinhas dos lances possíveis
+/* Casa selecionada (tap-to-move): pastel um pouco mais saturado pra
+   firmar a seleção sem virar ocre. Bolinhas dos lances possíveis
    identificam o que vai acontecer. */
 .selected-square {
   position: relative;
-  background-color: rgba(255, 240, 110, 0.65) !important;
+  background-color: oklch(0.86 0.10 92 / 0.62) !important;
 }
 /* Borda no destino do lance ERRADO/CORRETO — coexiste com o fill amarelo
    e ganha pulso animado via outline. Borda inset 4px é o "estático". */
