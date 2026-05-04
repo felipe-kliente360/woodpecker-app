@@ -450,20 +450,24 @@
 
 /* === STATUS BAR (TelaTreinar) ===
    Linha única horizontal: nro/total · puzzle · total · pace coach.
-   Sem cards aninhados, sem labels redundantes. */
+   Sem cards aninhados, sem labels redundantes. nowrap garante 1 linha
+   mesmo com pause visível. */
 .status-bar {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-wrap: nowrap;
   align-items: baseline;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--txt-mid);
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface);
+  overflow: hidden;
+  white-space: nowrap;
 }
+.status-bar > * { flex-shrink: 0; }
 .status-bar .num-display {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

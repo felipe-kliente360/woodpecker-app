@@ -1998,30 +1998,29 @@
 
       return (
         <div className="tela-container narrow">
-          {/* === STATUS BAR ÚNICA === */}
+          {/* === STATUS BAR ÚNICA (1 linha sempre) === */}
           <div className="status-bar mb-12">
             <span className="num-display">{idx + 1}<span className="txt-muted">/{total}</span></span>
             <span className="sep">·</span>
-            <span className="num-display" style={{ opacity: pausado ? 0.4 : 1 }}>
+            <span className="num-display" title="Tempo no puzzle atual"
+              style={{ opacity: pausado ? 0.4 : 1 }}>
               {formatarTempo(seg)}
             </span>
-            <span className="txt-muted fs-10">puzzle</span>
             <span className="sep">·</span>
-            <span className="num" style={{ color: 'var(--txt-mid)' }}>
+            <span className="num" title="Tempo total acumulado no ciclo"
+              style={{ color: 'var(--txt-mid)' }}>
               {formatarTempo(tempoAcumulado)}
             </span>
-            <span className="txt-muted fs-10">total</span>
             {paceVsPuzzleBaseline !== null && estado === 'jogando' && !pausado && (
               <>
                 <span className="sep">·</span>
-                <span className="num" style={{
+                <span className="num" title="vs Ciclo 1 neste puzzle" style={{
                   color: paceVsPuzzleBaseline > 5
                     ? 'var(--red)'
                     : (paceVsPuzzleBaseline < -2 ? 'var(--green)' : 'var(--txt-muted)'),
                 }}>
                   {paceVsPuzzleBaseline >= 0 ? '+' : '−'}{Math.abs(paceVsPuzzleBaseline)}s
                 </span>
-                <span className="txt-muted fs-10">vs C1</span>
               </>
             )}
             <div style={{ marginLeft: 'auto' }} className="hstack gap-6">
@@ -2078,51 +2077,51 @@
 
           {estado === 'feedback' && feedback && (
             <div className="vstack gap-10 mt-16">
+              {/* Botão Próximo SEMPRE acima do feedback */}
+              <button className="btn btn-primary btn-block" onClick={avancar}>
+                {idx + 1 >= total ? '🏁 Finalizar ciclo' : '→ Próximo'}
+              </button>
+
+              {/* Feedback em no máximo 2 linhas */}
               {feedback.correto ? (
-                /* === ACERTO: mostra tema tático === */
+                /* === ACERTO === Linha 1: ✓ [★] tema · Linha 2: SANs */
                 <div className="feedback-banner green" style={{ marginTop: 0 }}>
-                  <div className="hstack gap-8 flex-wrap" style={{ alignItems: 'baseline' }}>
-                    <div className="feedback-title">
-                      ✓ {feedback.tempo_s >= 60 && (puzzle.rating || 0) <= 1500
-                        ? formatarTempoLongo(feedback.tempo_s) + ' · longo'
-                        : feedback.tempo_s + 's'}
-                    </div>
+                  <div className="feedback-title hstack gap-8 flex-wrap" style={{ alignItems: 'baseline' }}>
+                    <span>✓</span>
                     {feedback.visao_instantanea && (
-                      <span className="badge amber" title="Acerto em ≤5s — reconhecimento instantâneo">
-                        ★ vi de cara
+                      <span className="badge amber" title="Acerto em ≤5s">★ vi de cara</span>
+                    )}
+                    {explicacaoTema && (
+                      <span className="serif fs-13 txt-mid" style={{ fontWeight: 'normal' }}>
+                        {explicacaoTema}
                       </span>
                     )}
                   </div>
-                  {explicacaoTema && (
-                    <div className="serif fs-13 txt-mid mt-8" style={{ lineHeight: 1.5 }}>
-                      {explicacaoTema}
+                  {(feedback.sans || []).length > 0 && (
+                    <div className="hstack gap-6 flex-wrap mt-4">
+                      {(feedback.sans || []).map((s, i) => (
+                        <span key={i} className="badge">{s}</span>
+                      ))}
                     </div>
                   )}
-                  <div className="hstack gap-6 flex-wrap mt-8">
-                    {(feedback.sans || []).map((s, i) => (
-                      <span key={i} className="badge">{s}</span>
-                    ))}
-                  </div>
                 </div>
               ) : feedback.mostrar_solucao ? (
-                /* === ERRO 3+: revela solução + tema === */
+                /* === ERRO 3+ === Linha 1: ✗ Nº erro — solução SANs · Linha 2: tema */
                 <div className="feedback-banner red" style={{ marginTop: 0, borderLeft: '3px solid var(--amber)' }}>
-                  <div className="feedback-title">
-                    {feedback.pulado ? '⏭ pulado' : '✗ erro'} · {feedback.total_erros}º erro — solução:
-                  </div>
-                  <div className="hstack gap-6 flex-wrap mt-8">
+                  <div className="feedback-title hstack gap-6 flex-wrap" style={{ alignItems: 'baseline' }}>
+                    <span>{feedback.pulado ? '⏭' : '✗'} {feedback.total_erros}º erro · solução:</span>
                     {(feedback.sans || []).map((s, i) => (
                       <span key={i} className="badge">{s}</span>
                     ))}
                   </div>
                   {explicacaoTema && (
-                    <div className="serif fs-13 txt-mid mt-8" style={{ lineHeight: 1.5 }}>
+                    <div className="serif fs-13 txt-mid mt-4" style={{ lineHeight: 1.4 }}>
                       {explicacaoTema}
                     </div>
                   )}
                 </div>
               ) : (
-                /* === ERRO 1-2: só mensagem curta, sem solução === */
+                /* === ERRO 1-2 === Linha 1: ✗ errou — próximo · Linha 2: Nº erro · solução no 3º */
                 <div className="feedback-banner red" style={{ marginTop: 0 }}>
                   <div className="feedback-title">
                     {feedback.pulado ? '⏭ pulado' : '✗ errou'} — próximo
@@ -2132,22 +2131,6 @@
                   </div>
                 </div>
               )}
-
-              {!feedback.correto && !feedback.pulado && ciclo.numero >= 5 && (
-                <div className="mono fs-11 txt-muted" style={{
-                  padding: '6px 10px', lineHeight: 1.5,
-                  borderLeft: '3px solid var(--border)',
-                }}>
-                  Errar a partir do ciclo 5 é normal — você está indo mais rápido. Continue.
-                </div>
-              )}
-
-              <button className="btn btn-primary btn-block" onClick={avancar}>
-                {idx + 1 >= total ? '🏁 Finalizar ciclo' : '→ Próximo'}
-              </button>
-              <div className="mono fs-9 txt-muted center" style={{ letterSpacing: '0.05em' }}>
-                Enter ou → avança
-              </div>
             </div>
           )}
 
