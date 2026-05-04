@@ -602,6 +602,7 @@
       'hint':         <g><path d="M12 3a6 6 0 016 6c0 2.5-1.5 4-2.5 5.2-.5.6-.8 1.1-.8 1.8H9.3c0-.7-.3-1.2-.8-1.8C7.5 13 6 11.5 6 9a6 6 0 016-6z" /><path d="M10 21h4" /></g>,
       'x':            <g><path d="M6 6l12 12" /><path d="M18 6l-12 12" /></g>,
       'trash':        <g><path d="M4 7h16" /><path d="M9 7V4h6v3" /><path d="M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13" /><path d="M10 11v6" /><path d="M14 11v6" /></g>,
+      'sparkle':      <path d="M12 3l2 5.5L20 11l-6 2.5L12 19l-2-5.5L4 11l6-2.5L12 3z" />,
     };
     function WpIcon({ name, size = 18, strokeWidth = 1.6, className = '', style }) {
       const inner = WP_ICON_PATHS[name] || null;
@@ -2649,6 +2650,676 @@
 
         </div>
       );
+    }
+
+    /* ==========================================================================
+       WIZARDS DE CRIAÇÃO DE CONJUNTO (handoff)
+       8 telas em 3 fluxos (Padrão / Plano de melhoria / vs. Adversário). Os 3
+       terminam na mesma tela compartilhada de protocolo (ScreenWizSize).
+       Componentes base (WpButton, WpInput, WpCard, WpEyebrow, WpIcon, wp-pulse)
+       já estão definidos acima. Não duplicar design system.
+       ========================================================================== */
+
+    /* Header padrão de todos os passos: [← back] EYEBROW [×] + barra segmentada. */
+    function WizHeader({ step, total, title, onBack, onClose }) {
+      return (
+        <div style={{ padding: '14px 24px 0' }}>
+          <div className="hstack between" style={{ alignItems: 'center' }}>
+            <button className="wp-btn wp-btn--ghost"
+              style={{ padding: '6px 8px', border: 0 }}
+              onClick={onBack} aria-label="Voltar">
+              <WpIcon name="arrow-left" size={18} />
+            </button>
+            <span className="wp-eyebrow">{title}</span>
+            <button className="wp-btn wp-btn--ghost"
+              style={{ padding: '6px 8px', border: 0 }}
+              onClick={onClose} aria-label="Fechar">
+              <WpIcon name="close" size={16} />
+            </button>
+          </div>
+          <div style={{ marginTop: 14, display: 'flex', gap: 4 }}>
+            {Array.from({ length: total }).map((_, i) => (
+              <div key={i} style={{
+                flex: 1, height: 2, borderRadius: 1,
+                background: i < step ? 'var(--wp-accent)' : 'var(--wp-line-soft)',
+              }} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    /* Tela final compartilhada — Tamanho do conjunto + CTA Montar. */
+    function ScreenWizSize({ flowName, step, total, rating, sizeId, onSelectSize, onMontar, onBack, onClose, montando, progresso }) {
+      const protocols = [
+        { id: 'mini', label: 'Mini',     size: '100×6',  desc: 'Pré-treino. Conjunto de aquecimento.',      meta: '~2h por ciclo'   },
+        { id: 'red',  label: 'Reduzido', size: '300×7',  desc: 'Mínimo útil pra ver o efeito do método.',  meta: '~6h por ciclo'   },
+        { id: 'std',  label: 'Standard', size: '500×7',  desc: 'Recomendado para profissionais.',           meta: '~10h por ciclo', recommended: true },
+        { id: 'full', label: 'Full',     size: '1000×8', desc: 'Protocolo do livro Woodpecker Method.',     meta: '~20h por ciclo'  },
+      ];
+      const min = formatarNumero(rating - 200);
+      const max = formatarNumero(rating + 200);
+      const nivel = nivelDoRating(rating);
+      return (
+        <div className="wp-wiz">
+          <WizHeader step={step} total={total} title={'Novo conjunto · ' + flowName} onBack={onBack} onClose={onClose} />
+          <div className="wp-wiz-body">
+            <WpEyebrow style={{ marginBottom: 8 }}>Seu rating</WpEyebrow>
+            <div className="hstack" style={{ alignItems: 'baseline', gap: 10 }}>
+              <span className="wp-mono" style={{
+                fontSize: 44, fontWeight: 500, letterSpacing: '-0.04em', color: 'var(--wp-accent)', lineHeight: 1,
+              }}>{formatarNumero(rating)}</span>
+              <span style={{ fontSize: 14, color: 'var(--wp-text-2)' }}>{nivel}</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--wp-text-3)', marginTop: 4 }}>
+              Puzzles de <span className="wp-mono">{min}</span> a <span className="wp-mono">{max}</span> · todos os temas táticos
+            </div>
+
+            <WpEyebrow style={{ marginTop: 24, marginBottom: 10 }}>Protocolo</WpEyebrow>
+            <div className="vstack gap-8">
+              {protocols.map(p => {
+                const isSel = p.id === sizeId;
+                return (
+                  <button key={p.id}
+                    className={'wp-card wp-card--button' + (isSel ? ' wp-card--selected' : '')}
+                    style={{ textAlign: 'left', padding: '16px 18px' }}
+                    onClick={() => onSelectSize && onSelectSize(p.id)}>
+                    <div className="hstack between" style={{ alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                      <div className="hstack" style={{ alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                        <span className="wp-display" style={{ fontSize: 18, fontWeight: 600 }}>{p.label}</span>
+                        <span className="wp-mono" style={{ fontSize: 14, color: 'var(--wp-text-2)' }}>{p.size}</span>
+                        {p.recommended && (
+                          <span className="wp-mono" style={{
+                            fontSize: 10, color: 'var(--wp-accent)',
+                            border: '1px solid var(--wp-accent-soft)',
+                            padding: '2px 8px', borderRadius: 3, letterSpacing: '0.04em',
+                          }}>recomendado</span>
+                        )}
+                      </div>
+                      <span className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)', whiteSpace: 'nowrap' }}>{p.meta}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--wp-text-2)', marginTop: 6, lineHeight: 1.4 }}>{p.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {montando && progresso && (
+              <div style={{ marginTop: 20 }}>
+                <div className="wp-mono" style={{ fontSize: 12, color: 'var(--wp-text-3)', marginBottom: 8 }}>
+                  {progresso}
+                </div>
+                <div style={{ height: 2, background: 'var(--wp-line-soft)', overflow: 'hidden', borderRadius: 1 }}>
+                  <div className="wp-pulse" style={{ height: '100%', width: '40%', background: 'var(--wp-accent)' }} />
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={{ padding: '0 24px 24px' }}>
+            <WpButton variant="primary" full onClick={onMontar} disabled={montando}>
+              <span style={{ fontFamily: 'serif', fontSize: 16, lineHeight: 1, marginRight: 8 }}>♟</span>
+              {montando ? 'Montando…' : 'Montar conjunto'}
+            </WpButton>
+          </div>
+        </div>
+      );
+    }
+
+    /* Fluxo 1 — Padrão (1 passo): apenas ScreenWizSize. */
+    function ScreenWizStandard(props) {
+      return <ScreenWizSize flowName="Padrão" step={1} total={1} {...props} />;
+    }
+
+    /* Plano · Última análise — quando programa salvo existe. */
+    function ScreenWizPlanStatus({ programa, idadeMs, onAtualizar, onAvancar, onBack, onClose }) {
+      // Mapeia priority pra score visual (sem dado real de %; é indicador).
+      const SCORE_BY_PRIORITY = { alta: 38, media: 58, baixa: 75 };
+      const fraquezas = (programa && programa.themes ? programa.themes : [])
+        .slice(0, 3)
+        .map(t => ({
+          theme: t.theme,
+          score: SCORE_BY_PRIORITY[t.priority] || 70,
+          erros: t.priority === 'alta' ? 9 : t.priority === 'media' ? 6 : 4,
+        }));
+      const idadeStr = formatarIdadeRelativaWiz(idadeMs);
+      const totalGames = programa && programa.games_analyzed;
+      return (
+        <div className="wp-wiz">
+          <WizHeader step={1} total={2} title="Novo conjunto · Plano de melhoria" onBack={onBack} onClose={onClose} />
+          <div className="wp-wiz-body">
+            <h2 className="wp-display" style={{ fontSize: 26, fontWeight: 500, margin: 0, lineHeight: 1.15, color: 'var(--wp-text)' }}>
+              Análise das suas<br />partidas
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--wp-text-3)', marginTop: 10, lineHeight: 1.5 }}>
+              Identificamos seus padrões fracos para focar o conjunto.
+            </p>
+
+            <div className="wp-card" style={{ padding: 18, marginTop: 24 }}>
+              <div className="hstack between" style={{ alignItems: 'baseline' }}>
+                <WpEyebrow>Última análise</WpEyebrow>
+                <span className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-good)' }}>● completa</span>
+              </div>
+              <div className="wp-mono" style={{ fontSize: 22, fontWeight: 500, marginTop: 10 }}>{idadeStr}</div>
+              <div style={{ fontSize: 12, color: 'var(--wp-text-3)', marginTop: 4 }}>
+                <span className="wp-mono">{totalGames || '—'} partidas</span>{programa && programa.username ? <React.Fragment> · <span className="wp-mono">@{programa.username}</span></React.Fragment> : null}
+              </div>
+              <div className="wp-divider" style={{ margin: '16px 0' }} />
+              <WpEyebrow style={{ marginBottom: 10 }}>Pontos fracos detectados</WpEyebrow>
+              {fraquezas.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>Sem pontos fracos detectados — análise inconclusiva.</div>
+              ) : fraquezas.map(p => (
+                <div key={p.theme} style={{ marginBottom: 10 }}>
+                  <div className="hstack between" style={{ alignItems: 'baseline', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13 }}>{TEMAS[p.theme] || p.theme}</span>
+                    <span className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)' }}>
+                      {p.score}% · {p.erros} erros
+                    </span>
+                  </div>
+                  <div style={{ height: 2, background: 'var(--wp-surface-2)' }}>
+                    <div style={{
+                      height: '100%', width: p.score + '%',
+                      background: p.score < 50 ? 'var(--wp-bad)' : p.score < 75 ? 'var(--wp-warn)' : 'var(--wp-accent)',
+                    }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button className="wp-btn wp-btn--full"
+              style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13 }}
+              onClick={onAtualizar}>
+              <WpIcon name="sparkle" size={13} /> Atualizar análise
+            </button>
+          </div>
+          <div style={{ padding: '0 24px 24px' }}>
+            <WpButton variant="primary" full onClick={onAvancar}>Avançar</WpButton>
+          </div>
+        </div>
+      );
+    }
+
+    /* Plano · Análise em andamento — também usado quando nunca analisou. */
+    function ScreenWizPlanAnalyzing({ progress, total, detected, onBack, onClose }) {
+      const cur = progress || 0, tot = total || 30;
+      const pct = tot > 0 ? Math.round((cur / tot) * 100) : 0;
+      return (
+        <div className="wp-wiz">
+          <WizHeader step={1} total={2} title="Novo conjunto · Plano de melhoria" onBack={onBack} onClose={onClose} />
+          <div className="wp-wiz-body">
+            <h2 className="wp-display" style={{ fontSize: 26, fontWeight: 500, margin: 0, lineHeight: 1.15, color: 'var(--wp-text)' }}>
+              Analisando<br />partidas…
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--wp-text-3)', marginTop: 10, lineHeight: 1.5 }}>
+              Isso costuma levar 1–2 minutos.
+            </p>
+
+            <div style={{ marginTop: 36 }}>
+              <div className="hstack between" style={{ alignItems: 'baseline', marginBottom: 12 }}>
+                <span className="wp-mono wp-pulse" style={{ fontSize: 13, color: 'var(--wp-accent)' }}>
+                  analisando partida {cur} de {tot}
+                </span>
+                <span className="wp-mono" style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>{pct}%</span>
+              </div>
+              <div style={{ height: 2, background: 'var(--wp-line-soft)', overflow: 'hidden', borderRadius: 1 }}>
+                <div style={{ height: '100%', width: pct + '%', background: 'var(--wp-accent)', transition: 'width .4s' }} />
+              </div>
+            </div>
+
+            <div className="wp-card" style={{ padding: 16, marginTop: 28 }}>
+              <WpEyebrow style={{ marginBottom: 12 }}>Detectado até agora</WpEyebrow>
+              {(!detected || detected.length === 0) ? (
+                <div style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>Aguardando primeiras detecções…</div>
+              ) : detected.map(p => (
+                <div key={p.theme} className="wp-row" style={{ padding: '8px 0', border: 0 }}>
+                  <span style={{ flex: 1, fontSize: 13, color: 'var(--wp-text-2)' }}>{TEMAS[p.theme] || p.theme}</span>
+                  <span className="wp-mono" style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>{p.count} erros</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ padding: '0 24px 24px' }}>
+            <WpButton full disabled style={{ color: 'var(--wp-text-3)' }}>Aguarde a análise</WpButton>
+          </div>
+        </div>
+      );
+    }
+
+    /* Adversário · Escolher — top sugestões + input manual. */
+    function ScreenWizFoeChoose({ topAdversarios, selectedHandle, customHandle, onSelect, onCustomChange, onAvancar, onBack, onClose, semChesscom }) {
+      const podeAvancar = !!selectedHandle || (customHandle && customHandle.trim().length >= 3);
+      return (
+        <div className="wp-wiz">
+          <WizHeader step={1} total={3} title="Novo conjunto · vs. Adversário" onBack={onBack} onClose={onClose} />
+          <div className="wp-wiz-body">
+            <h2 className="wp-display" style={{ fontSize: 26, fontWeight: 500, margin: 0, lineHeight: 1.15, color: 'var(--wp-text)' }}>
+              Quem você quer<br />vencer?
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--wp-text-3)', marginTop: 10, lineHeight: 1.5 }}>
+              Vamos extrair aberturas e padrões dele para gerar puzzles específicos.
+            </p>
+
+            {!semChesscom && topAdversarios && topAdversarios.length > 0 && (
+              <React.Fragment>
+                <WpEyebrow style={{ marginTop: 28, marginBottom: 10 }}>Top adversários · chess.com</WpEyebrow>
+                <div className="wp-card" style={{ overflow: 'hidden', padding: 0 }}>
+                  {topAdversarios.map((o, i) => {
+                    const handle = o.username || o.handle;
+                    const isSel = selectedHandle === handle;
+                    const score = (o.W != null) ? (o.W + '-' + o.L + '-' + o.D) : (o.score || '');
+                    const meta = o.total + ' jogos · ' + score;
+                    return (
+                      <button key={handle}
+                        onClick={() => onSelect && onSelect(handle)}
+                        style={{
+                          width: '100%', textAlign: 'left', padding: '14px 16px', cursor: 'pointer',
+                          background: isSel ? 'var(--wp-accent-tint)' : 'transparent',
+                          border: 0, borderBottom: i < topAdversarios.length - 1 ? '1px solid var(--wp-line-soft)' : 0,
+                          borderLeft: isSel ? '2px solid var(--wp-accent)' : '2px solid transparent',
+                          display: 'flex', alignItems: 'center', gap: 12, color: 'var(--wp-text)',
+                        }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 16,
+                          background: 'var(--wp-surface-3)',
+                          color: 'var(--wp-accent)',
+                          fontFamily: 'var(--font-mono)', fontSize: 12,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}>{handle.charAt(0).toUpperCase()}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="wp-mono" style={{ fontSize: 13, fontWeight: 500 }}>@{handle}</div>
+                          <div className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)', marginTop: 2 }}>{meta}</div>
+                        </div>
+                        <WpIcon name="chevron-right" size={14} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </React.Fragment>
+            )}
+
+            <WpEyebrow style={{ marginTop: 22, marginBottom: 10 }}>
+              {topAdversarios && topAdversarios.length > 0 ? 'Ou outro adversário' : 'Username chess.com'}
+            </WpEyebrow>
+            <WpInput prefix="@" mono
+              value={customHandle || ''}
+              onChange={e => onCustomChange && onCustomChange(e.target.value)}
+              placeholder="username chess.com"
+              spellCheck={false}
+              autoCapitalize="none" />
+            <div style={{ fontSize: 11, color: 'var(--wp-text-4)', marginTop: 6 }}>
+              Buscaremos as últimas 30 partidas dele.
+            </div>
+          </div>
+          <div style={{ padding: '0 24px 24px' }}>
+            <WpButton variant="primary" full disabled={!podeAvancar} onClick={onAvancar}>Avançar</WpButton>
+          </div>
+        </div>
+      );
+    }
+
+    /* Adversário · Análise em andamento. */
+    function ScreenWizFoeAnalyzing({ handle, progress, total, detected, onBack, onClose }) {
+      const cur = progress || 0, tot = total || 30;
+      const pct = tot > 0 ? Math.round((cur / tot) * 100) : 0;
+      return (
+        <div className="wp-wiz">
+          <WizHeader step={2} total={3} title="Novo conjunto · vs. Adversário" onBack={onBack} onClose={onClose} />
+          <div className="wp-wiz-body">
+            <h2 className="wp-display" style={{ fontSize: 26, fontWeight: 500, margin: 0, lineHeight: 1.15, color: 'var(--wp-text)' }}>
+              Estudando<br />
+              <span className="wp-mono" style={{ fontSize: 22, color: 'var(--wp-accent)', letterSpacing: '-0.02em' }}>@{handle}</span>
+            </h2>
+
+            <div style={{ marginTop: 36 }}>
+              <div className="hstack between" style={{ alignItems: 'baseline', marginBottom: 12 }}>
+                <span className="wp-mono wp-pulse" style={{ fontSize: 13, color: 'var(--wp-accent)' }}>
+                  analisando partida {cur} de {tot}
+                </span>
+                <span className="wp-mono" style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>{pct}%</span>
+              </div>
+              <div style={{ height: 2, background: 'var(--wp-line-soft)', overflow: 'hidden', borderRadius: 1 }}>
+                <div style={{ height: '100%', width: pct + '%', background: 'var(--wp-accent)', transition: 'width .4s' }} />
+              </div>
+            </div>
+
+            <div className="wp-card" style={{ padding: 16, marginTop: 28 }}>
+              <WpEyebrow style={{ marginBottom: 12 }}>Padrões detectados</WpEyebrow>
+              {(!detected || detected.length === 0) ? (
+                <div style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>Aguardando primeiras detecções…</div>
+              ) : detected.map((p, i) => (
+                <div key={i} className="wp-row" style={{ padding: '8px 0', border: 0 }}>
+                  <span style={{ flex: 1, fontSize: 13, color: 'var(--wp-text-2)' }}>{p.label}</span>
+                  <span className="wp-mono" style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>{p.meta}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ padding: '0 24px 24px' }}>
+            <WpButton full disabled style={{ color: 'var(--wp-text-3)' }}>Aguarde a análise</WpButton>
+          </div>
+        </div>
+      );
+    }
+
+    /* Adversário · Análise pronta — stats + foco. */
+    function ScreenWizFoeReady({ handle, gamesAnalyzed, openings, patterns, focus, onAvancar, onBack, onClose }) {
+      return (
+        <div className="wp-wiz">
+          <WizHeader step={2} total={3} title="Novo conjunto · vs. Adversário" onBack={onBack} onClose={onClose} />
+          <div className="wp-wiz-body">
+            <h2 className="wp-display" style={{ fontSize: 26, fontWeight: 500, margin: 0, lineHeight: 1.15, color: 'var(--wp-text)' }}>
+              Análise pronta
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--wp-text-3)', marginTop: 10 }}>
+              <span className="wp-mono">@{handle}</span> · {gamesAnalyzed || 0} partidas analisadas
+            </p>
+
+            <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--wp-line-soft)' }}>
+              <div style={{ background: 'var(--wp-bg)', padding: '18px 16px' }}>
+                <WpEyebrow style={{ marginBottom: 8 }}>Aberturas</WpEyebrow>
+                <div className="wp-mono" style={{ fontSize: 22, fontWeight: 500 }}>{openings || 0}</div>
+                <div className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)' }}>frequentes</div>
+              </div>
+              <div style={{ background: 'var(--wp-bg)', padding: '18px 16px' }}>
+                <WpEyebrow style={{ marginBottom: 8 }}>Padrões</WpEyebrow>
+                <div className="wp-mono" style={{ fontSize: 22, fontWeight: 500 }}>{patterns || 0}</div>
+                <div className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)' }}>recorrentes</div>
+              </div>
+            </div>
+
+            <div className="wp-card" style={{ padding: 16, marginTop: 12 }}>
+              <WpEyebrow style={{ marginBottom: 12 }}>Foco do conjunto</WpEyebrow>
+              {(focus || []).slice(0, 5).map((t, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+                  <span className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-4)', width: 20 }}>
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span style={{ fontSize: 13 }}>{TEMAS[t] || t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ padding: '0 24px 24px' }}>
+            <WpButton variant="primary" full onClick={onAvancar}>Avançar — escolher tamanho</WpButton>
+          </div>
+        </div>
+      );
+    }
+
+    function ScreenWizPlanSize(props) {
+      return <ScreenWizSize flowName="Plano de melhoria" step={2} total={2} {...props} />;
+    }
+
+    function ScreenWizFoeSize({ foeHandle, ...props }) {
+      return <ScreenWizSize flowName={'vs. @' + foeHandle} step={3} total={3} {...props} />;
+    }
+
+    /* Helper: formata idade em ms como "agora", "há X min", "há X h", "há X dias". */
+    function formatarIdadeRelativaWiz(ms) {
+      if (ms == null || isNaN(ms) || ms < 0) return '—';
+      const min = Math.floor(ms / 60000);
+      if (min < 1) return 'agora';
+      if (min < 60) return 'há ' + min + ' min';
+      const h = Math.floor(min / 60);
+      if (h < 24) return 'há ' + h + ' h';
+      const d = Math.floor(h / 24);
+      return 'há ' + d + (d === 1 ? ' dia' : ' dias');
+    }
+
+    /* Orquestrador do wizard — gerencia step interno + dados por fluxo. */
+    function TelaWizard({ flow, ratingUsuario, meuChesscom, onConcluido, onCancelar }) {
+      const ratingValor = (ratingUsuario && ratingUsuario.valor) || 1200;
+      const [step, setStep] = useState(flow === 'standard' ? 'size' : flow === 'improvement' ? 'plan-status' : 'foe-choose');
+      const [sizeId, setSizeId] = useState('std');
+      const [montando, setMontando] = useState(false);
+      const [progresso, setProgresso] = useState('');
+
+      // Plano: programa do próprio usuário
+      const [programa, setPrograma] = useState(null);
+      const [analiseEmCurso, setAnaliseEmCurso] = useState(false);
+      const [analiseProgresso, setAnaliseProgresso] = useState({ current: 0, total: 30 });
+      const [detected, setDetected] = useState([]);
+
+      // Adversário
+      const [topAdvs, setTopAdvs] = useState([]);
+      const [selectedFoe, setSelectedFoe] = useState(null);
+      const [customFoe, setCustomFoe] = useState('');
+      const [foePrograma, setFoePrograma] = useState(null);
+      const foeHandle = selectedFoe || (customFoe && customFoe.trim()) || '';
+
+      const SIZE_VALUE = { mini: 100, red: 300, std: 500, full: 1000 };
+
+      // Carrega programa do usuário (Plano) ao entrar
+      useEffect(() => {
+        if (flow !== 'improvement' || !meuChesscom) return;
+        (async () => {
+          try {
+            const p = await window.ChessAnalysis.loadProgram(meuChesscom);
+            if (p) setPrograma(p);
+            else iniciarAnalisePlan();
+          } catch (_) {}
+        })();
+        // eslint-disable-next-line
+      }, [flow, meuChesscom]);
+
+      // Carrega top adversários (cache via WP.Prefetch) ao entrar no fluxo de adversário
+      useEffect(() => {
+        if (flow !== 'opponent' || !meuChesscom) return;
+        (async () => {
+          try {
+            const lista = (window.WP && window.WP.Prefetch)
+              ? await window.WP.Prefetch.adversarios(meuChesscom)
+              : await window.ChessAnalysis.topAdversarios(meuChesscom, { maxMonths: 6, top: 5, minGames: 3 });
+            setTopAdvs(lista || []);
+          } catch (_) {}
+        })();
+      }, [flow, meuChesscom]);
+
+      function iniciarAnalisePlan() {
+        if (!meuChesscom) return;
+        setAnaliseEmCurso(true);
+        setAnaliseProgresso({ current: 0, total: 30 });
+        setDetected([]);
+        setStep('plan-running');
+        (async () => {
+          try {
+            const p = await window.ChessAnalysis.analyzePlayer(meuChesscom, (info) => {
+              if (info.stage === 'analyze' && info.total) {
+                setAnaliseProgresso({ current: info.current || 0, total: info.total });
+              }
+            });
+            setPrograma(p);
+            setAnaliseEmCurso(false);
+            setStep('plan-status');
+          } catch (e) {
+            setAnaliseEmCurso(false);
+            alert('Falha na análise: ' + (e.message || e));
+            setStep('plan-status');
+          }
+        })();
+      }
+
+      function iniciarAnaliseFoe() {
+        if (!foeHandle) return;
+        setAnaliseEmCurso(true);
+        setAnaliseProgresso({ current: 0, total: 30 });
+        setDetected([]);
+        setStep('foe-running');
+        (async () => {
+          try {
+            const p = await window.ChessAnalysis.analyzePlayer(foeHandle, (info) => {
+              if (info.stage === 'analyze' && info.total) {
+                setAnaliseProgresso({ current: info.current || 0, total: info.total });
+              }
+            });
+            setFoePrograma(p);
+            setAnaliseEmCurso(false);
+            setStep('foe-ready');
+          } catch (e) {
+            setAnaliseEmCurso(false);
+            alert('Falha ao analisar @' + foeHandle + ': ' + (e.message || e));
+            setStep('foe-choose');
+          }
+        })();
+      }
+
+      async function montarEFinalizar() {
+        const tamanho = SIZE_VALUE[sizeId] || 500;
+        let temas = [];
+        let prog = null;
+        let nomePrefix = 'Conjunto';
+        let tipo = 'padrao';
+        let usernameRef = null;
+        if (flow === 'improvement' && programa) {
+          prog = programa;
+          const detectados = (programa.themes || []).map(t => t.theme);
+          temas = (window.WP_HELPERS && window.WP_HELPERS.completarTemas)
+            ? window.WP_HELPERS.completarTemas(detectados, 5)
+            : detectados.slice(0, 5);
+          nomePrefix = 'Análise · ' + programa.username;
+          tipo = 'pessoal';
+          usernameRef = programa.username;
+        } else if (flow === 'opponent' && foePrograma) {
+          prog = foePrograma;
+          const detectados = (foePrograma.themes || []).map(t => t.theme);
+          temas = (window.WP_HELPERS && window.WP_HELPERS.completarTemas)
+            ? window.WP_HELPERS.completarTemas(detectados, 5)
+            : detectados.slice(0, 5);
+          nomePrefix = 'Vs ' + foePrograma.username;
+          tipo = 'adversario';
+          usernameRef = foePrograma.username;
+        }
+        setMontando(true);
+        try {
+          const r = await montarConjunto(ratingValor, 200, temas, tamanho, setProgresso);
+          if (!r.puzzles || r.puzzles.length === 0) {
+            alert('Não foi possível montar o conjunto.');
+            setMontando(false);
+            return;
+          }
+          const novo = {
+            id: gerarId(),
+            nome: nomePrefix,
+            criado_em: Date.now(),
+            rating: ratingValor,
+            variacao: 200,
+            temas: temas,
+            tamanho: r.puzzles.length,
+            tipo: tipo,
+            username_referencia: usernameRef,
+            puzzle_ids: r.puzzles.map(p => p.id || p.puzzleId),
+            faixas_usadas: r.stats.faixas_usadas,
+            range_efetivo: r.stats.range_efetivo,
+          };
+          if (onConcluido) onConcluido(novo, r.puzzles);
+        } catch (e) {
+          alert('Erro: ' + (e.message || e));
+          setMontando(false);
+        }
+      }
+
+      const idadeMs = (programa && programa.analyzed_at)
+        ? (Date.now() - new Date(programa.analyzed_at).getTime())
+        : null;
+
+      // Mock de "padrões detectados" pra adversário (analyzePlayer não retorna openings ainda)
+      const foeOpeningsCount = foePrograma && foePrograma.profile
+        ? Object.keys(foePrograma.profile.openings || {}).length
+        : 0;
+      const foePatternsCount = foePrograma && foePrograma.themes
+        ? foePrograma.themes.length
+        : 0;
+      const foeFocus = foePrograma && foePrograma.themes
+        ? (window.WP_HELPERS && window.WP_HELPERS.completarTemas)
+          ? window.WP_HELPERS.completarTemas(foePrograma.themes.map(t => t.theme), 5)
+          : foePrograma.themes.map(t => t.theme).slice(0, 5)
+        : [];
+
+      // === Render por step ===
+      const stepProps = { onBack: () => goBack(), onClose: onCancelar };
+      function goBack() {
+        if (step === 'size') {
+          if (flow === 'standard') onCancelar();
+          else if (flow === 'improvement') setStep('plan-status');
+          else setStep('foe-ready');
+        } else if (step === 'plan-status' || step === 'plan-running') onCancelar();
+        else if (step === 'foe-choose') onCancelar();
+        else if (step === 'foe-ready' || step === 'foe-running') setStep('foe-choose');
+      }
+
+      if (step === 'size') {
+        const flowName = flow === 'standard' ? 'Padrão'
+                       : flow === 'improvement' ? 'Plano de melhoria'
+                       : 'vs. @' + foeHandle;
+        const totalSteps = flow === 'standard' ? 1 : flow === 'improvement' ? 2 : 3;
+        const curStep = totalSteps;
+        return (
+          <ScreenWizSize
+            flowName={flowName}
+            step={curStep} total={totalSteps}
+            rating={ratingValor}
+            sizeId={sizeId}
+            onSelectSize={setSizeId}
+            onMontar={montarEFinalizar}
+            montando={montando}
+            progresso={progresso}
+            {...stepProps} />
+        );
+      }
+      if (step === 'plan-status') {
+        return (
+          <ScreenWizPlanStatus
+            programa={programa}
+            idadeMs={idadeMs}
+            onAtualizar={iniciarAnalisePlan}
+            onAvancar={() => setStep('size')}
+            {...stepProps} />
+        );
+      }
+      if (step === 'plan-running') {
+        return (
+          <ScreenWizPlanAnalyzing
+            progress={analiseProgresso.current}
+            total={analiseProgresso.total}
+            detected={detected}
+            {...stepProps} />
+        );
+      }
+      if (step === 'foe-choose') {
+        return (
+          <ScreenWizFoeChoose
+            topAdversarios={topAdvs}
+            selectedHandle={selectedFoe}
+            customHandle={customFoe}
+            semChesscom={!meuChesscom}
+            onSelect={(h) => { setSelectedFoe(h); setCustomFoe(''); }}
+            onCustomChange={(v) => { setCustomFoe(v); setSelectedFoe(null); }}
+            onAvancar={iniciarAnaliseFoe}
+            {...stepProps} />
+        );
+      }
+      if (step === 'foe-running') {
+        return (
+          <ScreenWizFoeAnalyzing
+            handle={foeHandle}
+            progress={analiseProgresso.current}
+            total={analiseProgresso.total}
+            detected={detected}
+            {...stepProps} />
+        );
+      }
+      if (step === 'foe-ready') {
+        return (
+          <ScreenWizFoeReady
+            handle={foeHandle}
+            gamesAnalyzed={(foePrograma && foePrograma.games_analyzed) || 0}
+            openings={foeOpeningsCount}
+            patterns={foePatternsCount}
+            focus={foeFocus}
+            onAvancar={() => setStep('size')}
+            {...stepProps} />
+        );
+      }
+      return null;
     }
 
     /* === TELA SELEÇÃO DE CICLO === */
@@ -5992,6 +6663,8 @@
       // Estado de qual tipo abrir TelaAnalisarJogador. Definido pelos
       // CTAs da TelaInicio (Pessoal → 'auto', Adversário → 'adversario').
       const [tipoAnalise, setTipoAnalise] = useState('auto');
+      // Fluxo do wizard novo (handoff): 'standard' | 'improvement' | 'opponent'
+      const [wizFlow, setWizFlow] = useState(null);
 
       useEffect(() => { Store.set(Chaves.CONJUNTOS, conjuntos); }, [conjuntos]);
       useEffect(() => { Store.set(Chaves.CICLOS, ciclos); }, [ciclos]);
@@ -6478,12 +7151,21 @@
                 <ScreenNewSet
                   temChesscom={!!(ratingUsuario && ratingUsuario.chesscom)}
                   onVoltar={() => setTela('conjuntos')}
-                  onCriarPadrao={() => {
-                    setPresetCriar({ tipo: 'padrao', rating: ratingUsuario.valor });
-                    setTela('criar');
+                  onCriarPadrao={() => { setWizFlow('standard'); setTela('wizard'); }}
+                  onCriarPessoal={() => { setWizFlow('improvement'); setTela('wizard'); }}
+                  onCriarAdversario={() => { setWizFlow('opponent'); setTela('wizard'); }}
+                />
+              )}
+              {!carregando && tela === 'wizard' && wizFlow && (
+                <TelaWizard
+                  flow={wizFlow}
+                  ratingUsuario={ratingUsuario}
+                  meuChesscom={(ratingUsuario && ratingUsuario.chesscom) || null}
+                  onConcluido={(novo, puzzles) => {
+                    setWizFlow(null);
+                    aoSalvarConjunto(novo, puzzles, true);
                   }}
-                  onCriarPessoal={() => { setTipoAnalise('auto'); setTela('analisar'); }}
-                  onCriarAdversario={() => { setTipoAnalise('adversario'); setTela('analisar'); }}
+                  onCancelar={() => { setWizFlow(null); setTela('inicio'); }}
                 />
               )}
               {!carregando && tela === 'criar' && (

@@ -70,6 +70,15 @@ input, select { font-family: inherit; color: var(--wp-text); }
 .wp-tally i.on { opacity: 1; }
 .wp-divider { height: 1px; background: var(--wp-line-soft); width: 100%; }
 
+/* === WP-PULSE (handoff) ===
+   Pulse sutil pra estados de "analisando", aguarde, ações em curso.
+   Opacity oscila 0.55 ↔ 1 em 2.4s — não acelera, não distrai. */
+@keyframes wp-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.wp-pulse { animation: wp-pulse 2.4s ease-in-out infinite; }
+
 /* === FOCUS VISIBLE (acessibilidade) ===
    Anel discreto em foco por teclado para todas interações relevantes.
    Não aparece em clique (mouse) graças ao :focus-visible. */
