@@ -40,6 +40,11 @@
     const [seg, resetTimer] = useTimerComPausa(rodando, pausado);
 
     const chessRef = useRef(null);
+    // Marca o último square em que aoIniciarDrag rodou (mousedown via
+    // chessboard.js). Usado pra distinguir tap de seleção-via-drag-start
+    // no onSquareClick — se o tap chega na mesma casa logo após o
+    // pickPiece, NÃO destoggla, mantém a seleção ativa.
+    const ultimoPickRef = useRef({ sq: null, t: 0 });
     const expectedIdxRef = useRef(1);
     const fenInicialJogadorRef = useRef("");
     const orientacaoRef = useRef("white");
@@ -378,12 +383,22 @@
       const piece = c.get(square);
       if (!piece || piece.color !== c.turn()) return;
       setCasaSelecionada(square);
+      ultimoPickRef.current = { sq: square, t: Date.now() };
     };
 
     const onSquareClick = (sq) => {
       if (estado !== "jogando" || pausado || promoPicker) return;
       const c = chessRef.current;
       if (!c) return;
+      // Se o tap acabou de chegar logo após um pickPiece (mousedown da
+      // chessboard.js que disparou aoIniciarDrag), pular o toggle-off.
+      // Sem isso, tap-to-select destoggla na hora porque casaSelecionada
+      // já foi setada pelo onDragStart.
+      const recente = ultimoPickRef.current;
+      if (recente && recente.sq === sq && Date.now() - recente.t < 400) {
+        ultimoPickRef.current = { sq: null, t: 0 };
+        return;
+      }
       if (!casaSelecionada) {
         const piece = c.get(sq);
         if (!piece || piece.color !== c.turn()) return;

@@ -643,7 +643,7 @@
 }
 
 /* === HIGHLIGHTS DAS CASAS ===
-   Filosofia: cor única amarela (chess.com style) pra origem + destino do
+   Filosofia: cor única amarela suave (LED quente) pra origem + destino do
    último lance, sem borda. Mistura bem em casa clara e escura. Borda fica
    reservada pra estados que merecem destaque animado (erro, acerto). */
 .highlight-last-from,
@@ -651,13 +651,14 @@
 .highlight-error-from,
 .highlight-error-to,
 .highlight-success-to {
-  background-color: rgba(247, 220, 90, 0.55) !important;
+  background-color: rgba(255, 245, 130, 0.45) !important;
 }
-/* Casa selecionada (tap-to-move): amarelo mais saturado pra distinguir
-   sem precisar de borda. Bolinhas nas casas-destino fazem o resto. */
+/* Casa selecionada (tap-to-move): mesmo amarelo, alpha um pouco maior
+   pra firmar a seleção sem virar laranja. Bolinhas dos lances possíveis
+   identificam o que vai acontecer. */
 .selected-square {
   position: relative;
-  background-color: rgba(255, 215, 90, 0.78) !important;
+  background-color: rgba(255, 240, 110, 0.65) !important;
 }
 /* Borda no destino do lance ERRADO/CORRETO — coexiste com o fill amarelo
    e ganha pulso animado via outline. Borda inset 4px é o "estático". */
