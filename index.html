@@ -1384,7 +1384,7 @@
                 <div className="choice-icon">♞</div>
                 <div className="choice-title">Padrão</div>
                 <div className="choice-desc">
-                  Manutenção tática. Puzzles aleatórios na sua faixa de rating.
+                  Manutenção tática. Sortido de todos os temas na sua faixa de rating.
                 </div>
               </button>
               <button className="choice-card"
@@ -2475,14 +2475,18 @@
         montar,
       } = wz;
 
-      // Disclosure de personalização. Aberto se veio com preset não-padrão
-      // (ex: análise chess.com escolheu temas e tamanho específicos) ou se
-      // o usuário tem temas selecionados.
+      // Padrão: forma simplificada — sem temas, sem variação custom, sem
+      // edição de nome. Conjunto cobre TODOS os temas táticos por default
+      // (temas=[] no domain = sem filtro de tema). Disclosure só aparece
+      // pra Pessoal/Adversário (presets de análise vêm com temas específicos
+      // que o usuário pode querer revisar).
+      const tipoConjunto = (preset && preset.tipo) || 'padrao';
+      const ehPadrao = tipoConjunto === 'padrao';
       const presetEhCustom = preset && (
         (preset.temas && preset.temas.length > 0) ||
         (preset.variacao && preset.variacao !== 200)
       );
-      const [personalizarAberto, setPersonalizarAberto] = useState(!!presetEhCustom);
+      const [personalizarAberto, setPersonalizarAberto] = useState(!ehPadrao && !!presetEhCustom);
 
       function aceitarESalvar(treinar) {
         const novo = {
@@ -2539,6 +2543,7 @@
                 </div>
                 <div className="mono fs-11 txt-muted mb-20">
                   Puzzles de {formatarNumero(rating - variacao)} a {formatarNumero(rating + variacao)}
+                  {ehPadrao && ' · todos os temas táticos'}
                 </div>
 
                 {/* Smith/Tikkanen presets */}
@@ -2568,43 +2573,49 @@
                   })}
                 </div>
 
-                {/* Personalização avançada (colapsável) */}
-                <div className="mono fs-10 ls-2 txt-muted mb-8">
-                  <button onClick={() => setPersonalizarAberto(a => !a)}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                      color: 'var(--txt-muted)', font: 'inherit', letterSpacing: 'inherit'
-                    }}>
-                    {personalizarAberto ? '▾' : '▸'} PERSONALIZAR
-                  </button>
-                </div>
-                {personalizarAberto && (
-                  <div className="card-soft mb-16" style={{ padding: '14px 16px' }}>
-                    <div className="input-label">Variação ±{variacao}</div>
-                    <input className="slider mb-4" type="range" min="50" max="400" step="50"
-                      value={variacao} onChange={e => setVariacao(parseInt(e.target.value))} />
-                    <div className="mono fs-11 txt-muted mb-16">
-                      Faixa: {formatarNumero(rating - variacao)} a {formatarNumero(rating + variacao)}
+                {/* Personalização (colapsável) — só pra Pessoal/Adversário,
+                    onde a análise gera presets que o usuário pode querer revisar.
+                    Padrão é "tudo, sortido" sem editor. */}
+                {!ehPadrao && (
+                  <React.Fragment>
+                    <div className="mono fs-10 ls-2 txt-muted mb-8">
+                      <button onClick={() => setPersonalizarAberto(a => !a)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                          color: 'var(--txt-muted)', font: 'inherit', letterSpacing: 'inherit'
+                        }}>
+                        {personalizarAberto ? '▾' : '▸'} PERSONALIZAR
+                      </button>
                     </div>
-
-                    <div className="input-label">
-                      Temas táticos {temas.length > 0 ? '(' + temas.length + ' selecionados)' : '· vazio = todos'}
-                    </div>
-                    <div className="tema-grid mb-16">
-                      {Object.keys(TEMAS).map(k => (
-                        <div key={k}
-                          className={'tema-pill' + (temas.includes(k) ? ' active' : '')}
-                          onClick={() => toggleTema(k)}>
-                          {TEMAS[k]}
+                    {personalizarAberto && (
+                      <div className="card-soft mb-16" style={{ padding: '14px 16px' }}>
+                        <div className="input-label">Variação ±{variacao}</div>
+                        <input className="slider mb-4" type="range" min="50" max="400" step="50"
+                          value={variacao} onChange={e => setVariacao(parseInt(e.target.value))} />
+                        <div className="mono fs-11 txt-muted mb-16">
+                          Faixa: {formatarNumero(rating - variacao)} a {formatarNumero(rating + variacao)}
                         </div>
-                      ))}
-                    </div>
 
-                    <div className="input-label">Nome do conjunto</div>
-                    <input className="input-text" type="text"
-                      value={nome} placeholder={nomeDefault}
-                      onChange={e => setNome(e.target.value)} />
-                  </div>
+                        <div className="input-label">
+                          Temas táticos {temas.length > 0 ? '(' + temas.length + ' selecionados)' : '· vazio = todos'}
+                        </div>
+                        <div className="tema-grid mb-16">
+                          {Object.keys(TEMAS).map(k => (
+                            <div key={k}
+                              className={'tema-pill' + (temas.includes(k) ? ' active' : '')}
+                              onClick={() => toggleTema(k)}>
+                              {TEMAS[k]}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="input-label">Nome do conjunto</div>
+                        <input className="input-text" type="text"
+                          value={nome} placeholder={nomeDefault}
+                          onChange={e => setNome(e.target.value)} />
+                      </div>
+                    )}
+                  </React.Fragment>
                 )}
 
                 <button className="btn btn-primary btn-block" onClick={montar}>
@@ -5449,8 +5460,8 @@
 
       const ehAuto = tipo === 'auto';
       const subtitulo = ehAuto
-        ? 'Análise das suas últimas ' + (window.ChessAnalysis ? window.ChessAnalysis.GAMES_TARGET : 30) + ' partidas. Plano focado nas suas fraquezas reais.'
-        : 'Análise das últimas partidas do oponente. Plano focado nos padrões que ele expõe — incluindo os que ninguém costuma punir.';
+        ? 'Análise das suas últimas ' + (window.ChessAnalysis ? window.ChessAnalysis.GAMES_TARGET : 30) + ' partidas. Foco nas suas fraquezas.'
+        : 'Análise das últimas partidas dele. Foco nos padrões que ele expõe.';
       const placeholder = ehAuto ? 'seu username chess.com' : 'username do adversário';
       const labelInput = ehAuto ? 'Seu username chess.com' : 'Username do adversário';
       const labelBotao = ehAuto ? '⚙ Analisar minhas partidas' : '⚙ Analisar partidas do adversário';
@@ -5467,7 +5478,7 @@
       return (
         <div className="tela-container">
           <div className="mb-16">
-            <div className="serif bold fs-22 mb-12">🔍 Analisar Jogador</div>
+            <div className="serif bold fs-17 mb-12">Novo conjunto · análise</div>
             <div className="mono fs-10 ls-2 txt-muted mb-8">PLANO PARA</div>
             <div className="segmented mb-12">
               <button className={ehAuto ? 'active' : ''}
