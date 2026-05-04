@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Woodpecker · paletas em comparação</title>
+<style>
+  :root {
+    --font-serif: "Iowan Old Style", "Charter", "Sitka Text", Georgia, "Times New Roman", serif;
+    --font-mono:  "SF Mono", "Menlo", "Cascadia Mono", "Consolas", "Liberation Mono", monospace;
+  }
+
+  /* === PALETA A — papel grafite + tinta dourada === */
+  .pal-a {
+    --bg:           #0e0e10;
+    --surface:      #16161a;
+    --surface-2:    #1d1d22;
+    --border:       #2a2a30;
+    --border-strong:#3a3a42;
+    --txt:          #ececef;
+    --txt-mid:      #a8a8b0;
+    --txt-muted:    #6e6e76;
+    --primary:      #c9a464;  /* gold único acento */
+    --primary-bg:   rgba(201,164,100,0.10);
+    --green:        #6c9d72;
+    --green-bg:     rgba(108,157,114,0.10);
+    --red:          #b8635c;
+    --red-bg:       rgba(184,99,92,0.10);
+    --amber:        #d49b42;
+  }
+
+  /* === PALETA B — midnight + aço azulado === */
+  .pal-b {
+    --bg:           #0a0c10;
+    --surface:      #13161c;
+    --surface-2:    #1a1e26;
+    --border:       #242933;
+    --border-strong:#333a47;
+    --txt:          #e7e9ee;
+    --txt-mid:      #969ba6;
+    --txt-muted:    #5e6571;
+    --primary:      #8c9fc7;  /* azul aço dessaturado */
+    --primary-bg:   rgba(140,159,199,0.10);
+    --green:        #6a9f8b;
+    --green-bg:     rgba(106,159,139,0.10);
+    --red:          #b06b6b;
+    --red-bg:       rgba(176,107,107,0.10);
+    --amber:        #c9a458;  /* gold só pra acentos secundários */
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #050507;
+    color: #aaa;
+    font-family: var(--font-serif);
+  }
+  body {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+  }
+  .legend {
+    padding: 24px 32px 0;
+    color: #888;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+  }
+  .legend h1 {
+    color: #ddd;
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 0;
+    margin: 0 0 4px;
+  }
+  .legend p {
+    margin: 0 0 18px;
+    font-family: var(--font-serif);
+    font-size: 13px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #999;
+  }
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: #050507;
+    flex: 1;
+  }
+  @media (max-width: 880px) {
+    .compare { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--bg);
+    color: var(--txt);
+    padding: 32px 28px;
+    min-height: 100vh;
+  }
+  .panel-name {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    color: var(--txt-muted);
+    margin-bottom: 4px;
+  }
+  .panel-title {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--txt);
+    margin: 0 0 20px;
+  }
+  .panel-title .accent {
+    color: var(--primary);
+  }
+
+  /* === COMPONENTES MOCKED === */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .card-soft {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+
+  .mono { font-family: var(--font-mono); }
+  .num  { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+  .serif { font-family: var(--font-serif); }
+  .fs-10 { font-size: 10px; }
+  .fs-11 { font-size: 11px; }
+  .fs-12 { font-size: 12px; }
+  .fs-13 { font-size: 13px; }
+  .fs-15 { font-size: 15px; }
+  .fs-22 { font-size: 22px; }
+  .ls-2 { letter-spacing: 0.16em; }
+  .bold { font-weight: 600; }
+  .muted { color: var(--txt-muted); }
+  .mid   { color: var(--txt-mid); }
+  .gold  { color: var(--primary); }
+  .green { color: var(--green); }
+  .red   { color: var(--red); }
+  .center { text-align: center; }
+  .mb-4 { margin-bottom: 4px; }
+  .mb-8 { margin-bottom: 8px; }
+  .mb-12 { margin-bottom: 12px; }
+  .mb-16 { margin-bottom: 16px; }
+  .mt-12 { margin-top: 12px; }
+  .between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .hstack { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .vstack { display: flex; flex-direction: column; gap: 6px; }
+
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    padding: 9px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--txt-mid);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .btn:hover {
+    background: var(--surface);
+    border-color: var(--primary);
+    color: var(--txt);
+  }
+  .btn-primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #0a0a0c;
+    font-weight: 600;
+  }
+  .btn-primary:hover {
+    background: var(--primary);
+    filter: brightness(1.08);
+    color: #0a0a0c;
+  }
+  .btn-ghost {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.10em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--txt-muted);
+  }
+  .badge-green { color: var(--green); border-color: var(--border); background: var(--green-bg); }
+  .badge-red   { color: var(--red);   border-color: var(--border); background: var(--red-bg); }
+  .badge-gold  { color: var(--primary); border-color: var(--border); background: var(--primary-bg); }
+
+  /* Status bar TelaTreinar */
+  .status-bar {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    align-items: baseline;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--txt-mid);
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    margin-bottom: 14px;
+  }
+  .status-bar .num-display {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+    font-size: 14px;
+    color: var(--txt);
+    font-weight: 600;
+  }
+  .status-bar .sep { color: var(--border-strong); }
+
+  /* Board placeholder */
+  .board {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    margin-bottom: 14px;
+  }
+  .board > div {
+    width: 100%; height: 100%;
+  }
+  .board > div.l { background: #2a2a2e; }
+  .board > div.d { background: #18181c; }
+  .pal-b .board > div.l { background: #232734; }
+  .pal-b .board > div.d { background: #15181f; }
+  .board > div.h { background: var(--primary-bg); box-shadow: inset 0 0 0 2px var(--primary); }
+
+  /* Feedback */
+  .feedback {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    background: var(--surface);
+    margin-bottom: 8px;
+  }
+  .feedback-ok    { border-left: 3px solid var(--green); }
+  .feedback-err   { border-left: 3px solid var(--red); }
+  .feedback-err-3 { border-left: 3px solid var(--amber); }
+
+  /* Choice cards */
+  .choice {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--txt);
+    padding: 14px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 8px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .choice:hover { border-color: var(--primary); }
+  .choice .icon { font-size: 22px; }
+  .choice .title { font-family: var(--font-serif); font-size: 15px; font-weight: 600; margin-top: 4px; }
+  .choice .desc { font-family: var(--font-serif); font-size: 12px; color: var(--txt-muted); margin-top: 4px; line-height: 1.45; }
+  .choice[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+  /* Logo */
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .logo svg { width: 28px; height: 28px; }
+  .logo-glyph { fill: var(--txt); }
+  .logo-strike { fill: var(--primary); }
+  .logo-name {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: var(--txt);
+  }
+  .logo-sub {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.10em;
+    color: var(--txt-muted);
+  }
+
+  /* Metric grid pra rating */
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .metric-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    color: var(--txt-muted);
+    margin-bottom: 4px;
+  }
+  .metric-value {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+    font-size: 28px;
+    color: var(--txt);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="legend">
+  <h1>Paletas em comparação</h1>
+  <p>Mesmo conteúdo, mesma tipografia. Só muda a paleta. Decida pelo que respira melhor — tudo é editável depois.</p>
+</div>
+
+<div class="compare">
+
+  <!-- =========== PALETA A =========== -->
+  <div class="panel pal-a">
+    <div class="panel-name">PALETA A · GRAFITE + GOLD</div>
+    <h2 class="panel-title">Acento <span class="accent">único</span> dourado</h2>
+
+    <div class="logo">
+      <svg viewBox="0 0 32 32"><text class="logo-glyph" x="16" y="26" text-anchor="middle"
+        font-family="Georgia, serif" font-size="28">♞</text>
+        <circle class="logo-strike" cx="25" cy="7" r="2.8"/></svg>
+      <span class="logo-name">WOODPECKER</span>
+      <span class="logo-sub">MÉTODO TÁTICO</span>
+    </div>
+
+    <!-- Rating display -->
+    <div class="metric">
+      <div class="metric-label">RATING · CHESS.COM</div>
+      <div class="metric-value">1450</div>
+      <div class="mono fs-10 muted mt-12">rapid 1500 · blitz 1430 · bullet 1300</div>
+    </div>
+
+    <!-- Conjunto card -->
+    <div class="card">
+      <div class="between mb-8">
+        <div class="hstack">
+          <span style="font-size:18px">♞</span>
+          <span class="serif bold fs-13">Manutenção Padrão</span>
+        </div>
+        <span class="badge badge-green">PRONTO</span>
+      </div>
+      <div class="mono fs-11 muted">3 ciclos · 500 puzzles · ↘ 18% vs C1</div>
+    </div>
+    <div class="card-soft">
+      <div class="between mb-4">
+        <div class="hstack">
+          <span style="font-size:18px">⚔</span>
+          <span class="serif bold fs-13">vs Hikaru</span>
+        </div>
+        <span class="badge">2 / 4 ciclos</span>
+      </div>
+      <div class="mono fs-11 muted">300 puzzles · adversario</div>
+    </div>
+
+    <!-- Status bar treino -->
+    <div class="status-bar">
+      <span class="num-display">12<span class="muted">/100</span></span>
+      <span class="sep">·</span>
+      <span class="num-display">0:24</span>
+      <span class="muted fs-10">puzzle</span>
+      <span class="sep">·</span>
+      <span class="num-display">8:42</span>
+      <span class="muted fs-10">total</span>
+      <span class="sep">·</span>
+      <span class="green num">−5s</span>
+      <span class="muted fs-10">vs C1</span>
+    </div>
+
+    <!-- Board mock -->
+    <div class="board" aria-hidden="true">
+      <!-- 8x8 simplificado: tabuleiro padrão + 1 highlight em e4 -->
+      <div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div>
+      <div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div>
+      <div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div>
+      <div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="h"></div><div class="l"></div><div class="d"></div><div class="l"></div>
+      <div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div>
+      <div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div>
+      <div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div>
+      <div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div>
+    </div>
+
+    <!-- Feedback -->
+    <div class="feedback feedback-ok">
+      <div class="mono fs-10 ls-2 green">✓ ACERTO · 0:12</div>
+      <div class="serif fs-13 mt-12"><span class="bold">Garfo</span> · cavalo ataca rei e dama ao mesmo tempo</div>
+    </div>
+    <div class="feedback feedback-err">
+      <div class="mono fs-10 ls-2 red">✗ ERROU</div>
+      <div class="serif fs-13 mt-12 muted">próximo</div>
+    </div>
+    <div class="feedback feedback-err-3">
+      <div class="mono fs-10 ls-2 gold">⚠ TERCEIRO ERRO · DICA</div>
+      <div class="serif fs-13 mt-12">Solução: <span class="mono">Cf5+ Re4 Dxd2</span></div>
+    </div>
+
+    <!-- Botões -->
+    <div class="hstack mt-12">
+      <button class="btn btn-primary">▶ Continuar</button>
+      <button class="btn">↻ Repetir</button>
+      <button class="btn btn-ghost">✕ Sair</button>
+    </div>
+
+    <!-- Wizard cards -->
+    <div class="mono fs-10 ls-2 muted mt-12 mb-8">CRIAR CONJUNTO</div>
+    <button class="choice">
+      <div class="icon">♞</div>
+      <div class="title">Padrão</div>
+      <div class="desc">puzzles aleatórios na sua faixa de rating</div>
+    </button>
+    <button class="choice" disabled>
+      <div class="icon">🎯</div>
+      <div class="title">Plano pessoal</div>
+      <div class="desc">requer chess.com configurado</div>
+    </button>
+  </div>
+
+
+  <!-- =========== PALETA B =========== -->
+  <div class="panel pal-b">
+    <div class="panel-name">PALETA B · MIDNIGHT + AÇO</div>
+    <h2 class="panel-title">Acento <span class="accent">azul</span> dessaturado</h2>
+
+    <div class="logo">
+      <svg viewBox="0 0 32 32"><text class="logo-glyph" x="16" y="26" text-anchor="middle"
+        font-family="Georgia, serif" font-size="28">♞</text>
+        <circle class="logo-strike" cx="25" cy="7" r="2.8"/></svg>
+      <span class="logo-name">WOODPECKER</span>
+      <span class="logo-sub">MÉTODO TÁTICO</span>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label">RATING · CHESS.COM</div>
+      <div class="metric-value">1450</div>
+      <div class="mono fs-10 muted mt-12">rapid 1500 · blitz 1430 · bullet 1300</div>
+    </div>
+
+    <div class="card">
+      <div class="between mb-8">
+        <div class="hstack">
+          <span style="font-size:18px">♞</span>
+          <span class="serif bold fs-13">Manutenção Padrão</span>
+        </div>
+        <span class="badge badge-green">PRONTO</span>
+      </div>
+      <div class="mono fs-11 muted">3 ciclos · 500 puzzles · ↘ 18% vs C1</div>
+    </div>
+    <div class="card-soft">
+      <div class="between mb-4">
+        <div class="hstack">
+          <span style="font-size:18px">⚔</span>
+          <span class="serif bold fs-13">vs Hikaru</span>
+        </div>
+        <span class="badge">2 / 4 ciclos</span>
+      </div>
+      <div class="mono fs-11 muted">300 puzzles · adversario</div>
+    </div>
+
+    <div class="status-bar">
+      <span class="num-display">12<span class="muted">/100</span></span>
+      <span class="sep">·</span>
+      <span class="num-display">0:24</span>
+      <span class="muted fs-10">puzzle</span>
+      <span class="sep">·</span>
+      <span class="num-display">8:42</span>
+      <span class="muted fs-10">total</span>
+      <span class="sep">·</span>
+      <span class="green num">−5s</span>
+      <span class="muted fs-10">vs C1</span>
+    </div>
+
+    <div class="board" aria-hidden="true">
+      <div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div>
+      <div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div>
+      <div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div>
+      <div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="h"></div><div class="l"></div><div class="d"></div><div class="l"></div>
+      <div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div>
+      <div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div>
+      <div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div>
+      <div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div><div class="d"></div><div class="l"></div>
+    </div>
+
+    <div class="feedback feedback-ok">
+      <div class="mono fs-10 ls-2 green">✓ ACERTO · 0:12</div>
+      <div class="serif fs-13 mt-12"><span class="bold">Garfo</span> · cavalo ataca rei e dama ao mesmo tempo</div>
+    </div>
+    <div class="feedback feedback-err">
+      <div class="mono fs-10 ls-2 red">✗ ERROU</div>
+      <div class="serif fs-13 mt-12 muted">próximo</div>
+    </div>
+    <div class="feedback feedback-err-3">
+      <div class="mono fs-10 ls-2 gold">⚠ TERCEIRO ERRO · DICA</div>
+      <div class="serif fs-13 mt-12">Solução: <span class="mono">Cf5+ Re4 Dxd2</span></div>
+    </div>
+
+    <div class="hstack mt-12">
+      <button class="btn btn-primary">▶ Continuar</button>
+      <button class="btn">↻ Repetir</button>
+      <button class="btn btn-ghost">✕ Sair</button>
+    </div>
+
+    <div class="mono fs-10 ls-2 muted mt-12 mb-8">CRIAR CONJUNTO</div>
+    <button class="choice">
+      <div class="icon">♞</div>
+      <div class="title">Padrão</div>
+      <div class="desc">puzzles aleatórios na sua faixa de rating</div>
+    </button>
+    <button class="choice" disabled>
+      <div class="icon">🎯</div>
+      <div class="title">Plano pessoal</div>
+      <div class="desc">requer chess.com configurado</div>
+    </button>
+  </div>
+
+</div>
+
+</body>
+</html>
