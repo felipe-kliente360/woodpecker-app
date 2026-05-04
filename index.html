@@ -1602,6 +1602,197 @@
       );
     }
 
+    /* === ScreenHome (handoff Tela 6) ===
+       Daily entry point: streak + calendar + em-andamento + outros conjuntos. */
+    function ScreenHome({
+      conjuntos, ciclos, ratingUsuario,
+      onContinuar, onTreinar, onEvolucao, onCriar, onIrParaPerfil,
+    }) {
+      const Conjunto = window.WP.Conjunto;
+      const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
+      const streak = window.WP.Ciclo.streakAtual(ciclos);
+      const semana = useMemo(() => window.WP.Ciclo.streakPorDia(ciclos, 7), [ciclos]);
+      const inicial = ratingUsuario && ratingUsuario.chesscom
+        ? ratingUsuario.chesscom.charAt(0).toUpperCase() : 'W';
+      const ratingValor = ratingUsuario && ratingUsuario.valor ? ratingUsuario.valor : '—';
+
+      // Dia da semana hoje (0=domingo)
+      const hoje = new Date();
+      const hojeISO = hoje.toISOString().slice(0, 10);
+      const tempoHoje = useMemo(() => {
+        const total = ciclos
+          .filter(c => c.data_fim && new Date(c.data_fim).toISOString().slice(0, 10) === hojeISO)
+          .reduce((s, c) => s + (c.tempo_total_s || 0), 0);
+        return total;
+      }, [ciclos, hojeISO]);
+
+      // Conjunto em andamento = primeiro ativo (com último ciclo).
+      const emAndamento = ativos[0] || null;
+      const ciclosEm = emAndamento ? ciclosDoConjunto(ciclos, emAndamento.id) : [];
+      const ultCiclo = ciclosEm[ciclosEm.length - 1] || null;
+      const prevCiclo = ciclosEm[ciclosEm.length - 2] || null;
+      const deltaPct = (ultCiclo && prevCiclo && prevCiclo.tempo_total_s)
+        ? Math.round((1 - ultCiclo.tempo_total_s / prevCiclo.tempo_total_s) * 100)
+        : null;
+      const proxPacote = ultCiclo ? Math.floor(((ultCiclo.acertos || 0) + (ultCiclo.erros || 0)) / 10) + 1 : 1;
+      const totalPuzzles = emAndamento ? (emAndamento.tamanho || 100) : 100;
+      const concluidosPacote = ultCiclo ? ((ultCiclo.acertos || 0) + (ultCiclo.erros || 0)) : 0;
+      const cicloAtual = ultCiclo ? ultCiclo.numero : 0;
+      const metaCiclos = emAndamento ? (Conjunto.META_CICLOS[Conjunto.tipoDe(emAndamento)] || 5) : 5;
+
+      function formatarHMS(s) {
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const ss = s % 60;
+        if (h > 0) return h + ':' + String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+        return String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+      }
+
+      const labelsDia = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+      const hojeWD = hoje.getDay();
+      // Ordena semana começando 6 dias atrás → hoje
+      const semanaOrd = semana.slice(-7);
+
+      return (
+        <div className="wp-content wp-home">
+          <div className="wp-home-header">
+            <div className="wp-home-brand">
+              <span className="wp-tally" style={{ color: 'var(--wp-accent)' }}>
+                <i className="on" /><i className="on" /><i className="on" /><i className="on" />
+              </span>
+              <span className="wp-mono wp-home-mark">WOODPECKER</span>
+            </div>
+            <div className="wp-home-user">
+              <span className="wp-mono wp-home-rating">{ratingValor}</span>
+              <button className="wp-home-avatar wp-mono" onClick={onIrParaPerfil} aria-label="Perfil">
+                {inicial}
+              </button>
+            </div>
+          </div>
+
+          <div className="wp-home-streak">
+            <div>
+              <WpEyebrow>Constância</WpEyebrow>
+              <div className="wp-home-streak-row">
+                <span className="wp-mono wp-home-streak-num">{streak}</span>
+                <span className="wp-home-streak-meta">
+                  {streak === 1 ? 'dia seguido' : 'dias seguidos'}
+                </span>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <WpEyebrow>Hoje</WpEyebrow>
+              <div className="wp-mono wp-home-today">
+                {tempoHoje > 0 ? formatarHMS(tempoHoje) : '—'}
+              </div>
+            </div>
+          </div>
+
+          <div className="wp-home-week">
+            {semanaOrd.map((d, i) => {
+              const ehHoje = d.data === hojeISO;
+              const tem = d.count > 0;
+              return (
+                <div key={d.data} className="wp-home-week-cell">
+                  <div className="wp-home-week-label">
+                    {labelsDia[(hojeWD - (6 - i) + 7) % 7]}
+                  </div>
+                  <div
+                    className={
+                      'wp-home-week-box'
+                      + (tem ? ' filled' : '')
+                      + (ehHoje ? ' today' : '')
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="wp-divider" style={{ margin: '24px 0' }} />
+
+          {emAndamento ? (
+            <div className="wp-card wp-em-andamento">
+              <div className="wp-em-row">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="wp-em-title">{emAndamento.nome}</div>
+                  <div className="wp-em-meta">
+                    Ciclo {cicloAtual} de {metaCiclos} · pacote {Math.floor(concluidosPacote / 10) + 1}
+                  </div>
+                </div>
+                <span className="wp-mono wp-em-badge">ATIVO</span>
+              </div>
+
+              <div className="wp-em-progress-row">
+                <span className="wp-mono wp-em-count">{concluidosPacote}/{totalPuzzles}</span>
+                <div className="wp-em-bar"><div className="wp-em-bar-fill" style={{ width: ((concluidosPacote / totalPuzzles) * 100) + '%' }} /></div>
+              </div>
+
+              {prevCiclo && (
+                <div className="wp-em-cycles">
+                  <span className="wp-em-cycle-label">Ciclo {prevCiclo.numero}</span>
+                  <span className="wp-mono wp-em-cycle-time">{formatarTempo(prevCiclo.tempo_total_s)}</span>
+                  <span className="wp-em-cycle-label">Ciclo {ultCiclo.numero}</span>
+                  <span className="wp-mono wp-em-cycle-time wp-em-cycle-time--accent">{formatarTempo(ultCiclo.tempo_total_s)}</span>
+                  {deltaPct !== null && (
+                    <span className={'wp-mono wp-em-delta ' + (deltaPct > 0 ? 'good' : 'bad')} style={{ marginLeft: 'auto' }}>
+                      {deltaPct > 0 ? '−' : '+'}{Math.abs(deltaPct)}%
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <WpButton variant="primary" full onClick={() => onContinuar()} style={{ marginTop: 18 }}>
+                Continuar — pacote {proxPacote}
+              </WpButton>
+            </div>
+          ) : (
+            <WpCard onClick={onCriar} className="wp-em-empty">
+              <div className="wp-card-title">Comece um conjunto</div>
+              <div className="wp-card-desc">
+                Cada conjunto será repetido por 5 ciclos. O método começa com um.
+              </div>
+            </WpCard>
+          )}
+
+          {ativos.length > 0 && (
+            <>
+              <WpEyebrow style={{ marginTop: 28, marginBottom: 8 }}>Outros conjuntos</WpEyebrow>
+              <div className="wp-list">
+                {ativos.slice(emAndamento ? 1 : 0).map((c, i) => {
+                  const cs = ciclosDoConjunto(ciclos, c.id);
+                  const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)] || 5;
+                  return (
+                    <button key={c.id} className="wp-row wp-row--button wp-home-conjunto" onClick={() => onTreinar(c)}>
+                      <span className="wp-mono wp-home-conjunto-idx">
+                        {String(i + (emAndamento ? 2 : 1)).padStart(2, '0')}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="wp-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
+                        <div className="wp-home-conjunto-meta">
+                          {(c.tamanho || '?')} puzzles · ciclo {cs.length}/{meta}
+                        </div>
+                      </div>
+                      <span style={{ color: 'var(--wp-accent)' }}>
+                        <WpTally total={meta} done={cs.length} />
+                      </span>
+                      <WpIcon name="chevron-right" size={14} />
+                    </button>
+                  );
+                })}
+                <button className="wp-row wp-row--button wp-home-novo" onClick={onCriar}>
+                  <span className="wp-mono wp-home-conjunto-idx">
+                    {String(ativos.length + 1).padStart(2, '0')}
+                  </span>
+                  <span className="wp-row-label" style={{ color: 'var(--wp-text-3)' }}>+ Novo conjunto</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
     function TelaInicio({
       conjuntos, ciclos, ratingUsuario,
       onContinuar, onTreinar, onEvolucao, onTreinarApenasErros,
@@ -5393,41 +5584,15 @@
                 />
               )}
               {!carregando && tela === 'inicio' && (
-                <TelaInicio
+                <ScreenHome
                   conjuntos={conjuntos}
                   ciclos={ciclos}
                   ratingUsuario={ratingUsuario}
                   onContinuar={continuarTreino}
                   onTreinar={iniciarTreino}
                   onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
-                  onTreinarApenasErros={(conjunto) => {
-                    const cs = ciclosDoConjunto(ciclos, conjunto.id);
-                    setConjuntoAtivo(conjunto);
-                    carregarEIniciar(conjunto, cs.length + 1, true);
-                  }}
-                  onConcluirConjunto={concluirConjunto}
-                  onIrParaConjuntos={() => setTela('conjuntos')}
-                  onCalibrar={iniciarCalibracao}
-                  onSetRatingChesscom={(rating, username) => {
-                    if (rating && rating >= 600 && rating <= 2800) setRatingUsuario(rating, 'chesscom', username);
-                  }}
-                  onSetChesscomUsername={setChesscomUsername}
-                  onOnboardingConcluir={aoConcluirOnboarding}
-                  onCriarPadrao={() => {
-                    setPresetCriar({ tipo: 'padrao', rating: ratingUsuario.valor });
-                    setTela('criar');
-                  }}
-                  onCriarPessoal={() => {
-                    // Pessoal usa o pipeline de análise — abre TelaAnalisar
-                    // em modo auto. O conjunto é gerado lá via 'Criar
-                    // conjunto com top temas' e marcado tipo='pessoal'.
-                    setTipoAnalise('auto');
-                    setTela('analisar');
-                  }}
-                  onCriarAdversario={() => {
-                    setTipoAnalise('adversario');
-                    setTela('analisar');
-                  }}
+                  onCriar={() => setTela('criar')}
+                  onIrParaPerfil={() => setTela('perfil')}
                 />
               )}
               {!carregando && tela === 'conjuntos' && (
