@@ -5863,11 +5863,11 @@
        genérico nas duas situações iniciais (5 puzzles ambientação ou
        30 puzzles calibração) — explica o que vai acontecer em vez de
        só mostrar uma barra de progresso. */
-    function ScreenOnbExplain({ kind, msg }) {
-      const titulo = kind === '30' ? 'Calibração em 30 puzzles' : '5 puzzles pra você sentir o método';
+    function ScreenOnbExplain({ kind, msg, ready, onContinuar }) {
+      const titulo = kind === '30' ? 'Calibração em 30 puzzles' : 'Ambientação em 5 puzzles';
       const corpo = kind === '30'
-        ? 'Vamos te mostrar puzzles em diferentes faixas de dificuldade. Resolva normalmente — acertos e erros nos dizem onde está o seu nível ideal. Leva uns 12 minutos. Quando terminar, seu rating fica definido e o app já te leva pra primeiro conjunto.'
-        : 'Vamos rodar 5 puzzles na sua faixa, pra você entender a dinâmica do método em escala mínima. Em 3 ciclos curtos de 5 puzzles, você sente a aceleração: o mesmo conjunto resolvido cada vez mais rápido. Depois disso, conjuntos maiores rendem mais.';
+        ? 'Puzzles em várias faixas de dificuldade. O resultado define seu rating e abre o primeiro conjunto. ~12 minutos.'
+        : '5 puzzles na sua faixa, repetidos por 3 ciclos curtos. Cada ciclo fica mais rápido — quando o padrão vira reflexo, você sentiu o método.';
       return (
         <div className="wp-onboarding">
           <div className="wp-onboarding-brand">
@@ -5890,16 +5890,28 @@
 
           <div style={{ marginTop: 36 }}>
             <div className="hstack between" style={{ alignItems: 'baseline', marginBottom: 12 }}>
-              <span className="wp-mono wp-pulse" style={{ fontSize: 13, color: 'var(--wp-accent)' }}>
-                {msg || 'Preparando puzzles...'}
+              <span className={'wp-mono ' + (ready ? '' : 'wp-pulse')} style={{
+                fontSize: 13, color: ready ? 'var(--wp-good)' : 'var(--wp-accent)',
+              }}>
+                {ready ? '● pronto' : (msg || 'Preparando puzzles...')}
               </span>
             </div>
             <div style={{ height: 2, background: 'var(--wp-line-soft)', overflow: 'hidden', borderRadius: 1 }}>
-              <div className="wp-pulse" style={{ height: '100%', width: '40%', background: 'var(--wp-accent)' }} />
+              <div style={{
+                height: '100%',
+                width: ready ? '100%' : '40%',
+                background: ready ? 'var(--wp-good)' : 'var(--wp-accent)',
+                transition: 'width .4s',
+              }} className={ready ? '' : 'wp-pulse'} />
             </div>
           </div>
 
           <div style={{ flex: 1 }} />
+          <div className="vstack gap-8" style={{ marginTop: 24 }}>
+            <WpButton variant="primary" full disabled={!ready} onClick={onContinuar}>
+              {ready ? 'Começar' : 'Preparando…'}
+            </WpButton>
+          </div>
         </div>
       );
     }
@@ -6758,6 +6770,9 @@
       // Contexto do loading: 'onb-5' / 'onb-30' renderiza ScreenOnbExplain
       // em vez do LoadingPuzzles genérico durante o onboarding.
       const [loadingScreen, setLoadingScreen] = useState(null);
+      // Conjunto preparado aguardando user clicar "Começar" no explainer.
+      // Quando truthy, o ScreenOnbExplain habilita o botão.
+      const [onbPending, setOnbPending] = useState(null);
       const [erroCarregar, setErroCarregar] = useState(null);
       const [sessaoSalva, setSessaoSalva] = useState(() => Store.get(Chaves.SESSAO, null));
       const [showModalRetomar, setShowModalRetomar] = useState(() => !!Store.get(Chaves.SESSAO, null));
@@ -6862,6 +6877,7 @@
       async function iniciarCalibracao() {
         setCarregando(true);
         setLoadingScreen('onb-30');
+        setOnbPending(null);
         setErroCarregar(null);
         setCarregandoMsg('Montando puzzles de calibração...');
         try {
@@ -6869,6 +6885,7 @@
           if (r.puzzles.length === 0) {
             setErroCarregar('Não foi possível montar a calibração — sem puzzles disponíveis.');
             setCarregando(false);
+            setLoadingScreen(null);
             return;
           }
           const novo = {
@@ -6886,10 +6903,11 @@
           };
           setConjuntos(cs => cs.concat([novo]));
           memCache.puzzlesPorConjunto[novo.id] = r.puzzles;
-          iniciarCiclo(novo, r.puzzles, 1, false);
+          // Não dispara iniciarCiclo aqui — usuário precisa clicar
+          // "Começar" no ScreenOnbExplain pra ler a explicação.
+          setOnbPending({ conjunto: novo, puzzles: r.puzzles });
         } catch (e) {
           setErroCarregar('Falha ao iniciar calibração: ' + (e.message || e));
-        } finally {
           setCarregando(false);
           setLoadingScreen(null);
         }
@@ -6907,6 +6925,7 @@
         }
         setCarregando(true);
         setLoadingScreen('onb-5');
+        setOnbPending(null);
         setErroCarregar(null);
         setCarregandoMsg('Montando seus 5 puzzles iniciais...');
         try {
@@ -6932,18 +6951,29 @@
           };
           setConjuntos(cs => cs.concat([novo]));
           memCache.puzzlesPorConjunto[novo.id] = r.puzzles;
-          iniciarCiclo(novo, r.puzzles, 1, false);
           // Análise pesada agendada pra rodar em idle, depois do ciclo
           // começar — não compete com a CPU dos puzzles iniciais.
           if (username && window.WP && window.WP.Prefetch) {
             setTimeout(() => window.WP.Prefetch.agendarAnalise(username), 2000);
           }
+          // Não dispara iniciarCiclo aqui — usuário precisa clicar
+          // "Começar" no ScreenOnbExplain pra ler a explicação.
+          setOnbPending({ conjunto: novo, puzzles: r.puzzles });
         } catch (e) {
           setErroCarregar('Falha no conjunto inicial: ' + (e.message || e));
-        } finally {
           setCarregando(false);
           setLoadingScreen(null);
         }
+      }
+
+      // Disparado pelo "Começar" do ScreenOnbExplain (após puzzles
+      // estarem prontos). Limpa o explainer e abre o ciclo.
+      function onbContinuar() {
+        const p = onbPending;
+        setOnbPending(null);
+        setLoadingScreen(null);
+        setCarregando(false);
+        if (p) iniciarCiclo(p.conjunto, p.puzzles, 1, false);
       }
 
       // Iniciar treino
@@ -7157,7 +7187,11 @@
             hideSidebar={fullscreen}>
             <div className={'wp-screen-content' + (fullscreen ? ' wp-screen-content--full' : '')}>
               {carregando && (loadingScreen === 'onb-5' || loadingScreen === 'onb-30')
-                ? <ScreenOnbExplain kind={loadingScreen === 'onb-30' ? '30' : '5'} msg={carregandoMsg} />
+                ? <ScreenOnbExplain
+                    kind={loadingScreen === 'onb-30' ? '30' : '5'}
+                    msg={carregandoMsg}
+                    ready={!!onbPending}
+                    onContinuar={onbContinuar} />
                 : (carregando && <LoadingPuzzles msg={carregandoMsg} />)}
               {erroCarregar && (
                 <div className="feedback-banner red tela-container narrow" style={{ marginTop: 20, marginBottom: 20 }}>
