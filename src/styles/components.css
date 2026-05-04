@@ -1402,6 +1402,27 @@
   opacity: 0.85;
 }
 
+/* === HIGHLIGHT OVERRIDES (após .white-1e1d7/.black-3c85d) ===
+   chessboardjs aplica cor de casa via .white-1e1d7 / .black-3c85d com
+   !important, declaradas acima. Como essas regras vêm DEPOIS dos
+   .highlight-last-* / .selected-square (linha ~570), precisamos repetir
+   aqui pra que a fonte CSS (source order) ganhe — sem isso, a cor da
+   casa sobrescreve o pastel amarelo do highlight. */
+[class*="square-"].highlight-last-from {
+  background-color: oklch(0.88 0.085 95 / 0.32) !important;
+}
+[class*="square-"].highlight-last-to {
+  background-color: oklch(0.88 0.085 95 / 0.46) !important;
+}
+[class*="square-"].selected-square {
+  background-color: oklch(0.86 0.10 92 / 0.62) !important;
+}
+[class*="square-"].highlight-error-from,
+[class*="square-"].highlight-error-to,
+[class*="square-"].highlight-success-to {
+  background-color: oklch(0.88 0.085 95 / 0.46) !important;
+}
+
 /* ==========================================================================
    === DESIGN SYSTEM WP — botões, cards, inputs, tabbar, sidebar ===
    Componentes da repaginação. Nomes prefixados wp- pra coexistir com o

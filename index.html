@@ -3066,16 +3066,8 @@
 
           {/* Bottom action area */}
           <div className="wp-puzzle-bottom">
-            {estado === 'jogando' && (
-              <div className="hstack gap-8">
-                <WpButton variant="outline" full onClick={pularPuzzleErro || (() => avancar())}>
-                  <WpIcon name="hint" size={14} /> Dica
-                </WpButton>
-                <WpButton variant="outline" full onClick={() => avancar()}>
-                  Desistir
-                </WpButton>
-              </div>
-            )}
+            {/* Dica/Desistir removidos por enquanto — voltam quando houver
+                implementação real de dica e estatística de desistência. */}
             {estado === 'feedback' && feedback && (
               <>
                 {/* Banner detalhado abaixo do tabuleiro: tempo, solução, badges */}
