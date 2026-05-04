@@ -45,6 +45,12 @@
     // no onSquareClick — se o tap chega na mesma casa logo após o
     // pickPiece, NÃO destoggla, mantém a seleção ativa.
     const ultimoPickRef = useRef({ sq: null, t: 0 });
+    // Tempo (em segundos via seg) em que começou a vez ATUAL do jogador.
+    // Reseta no init de cada puzzle e após cada resposta do adversário.
+    // Usado pra calcular delta por lance pra detecção de "vi de cara".
+    const segLanceIniciadoRef = useRef(0);
+    // Array de deltas (segundos) por lance correto do jogador no puzzle.
+    const temposPorLanceRef = useRef([]);
     const expectedIdxRef = useRef(1);
     const fenInicialJogadorRef = useRef("");
     const orientacaoRef = useRef("white");
@@ -165,6 +171,8 @@
         setCasaSelecionada(null);
         setPausado(false);
         segRef.current = 0;
+        segLanceIniciadoRef.current = 0;
+        temposPorLanceRef.current = [];
         resetTimer();
         setRodando(true);
       } catch (e) {
@@ -264,6 +272,10 @@
       // Marca o destino do lance correto. Em puzzles multi-lance o último
       // setter (lance final) é o que sobrevive — exibido em verde no fim.
       setUltimoLanceJogadorTo(to);
+      // Tempo decidido pelo jogador neste lance (segundos desde o início
+      // da vez dele). Usado pra detectar "vi de cara" — cada lance ≤ 3s.
+      const deltaLance = Math.max(0, segRef.current - segLanceIniciadoRef.current);
+      temposPorLanceRef.current.push(deltaLance);
 
       const respIdx = expectedIdxRef.current;
       if (lances[respIdx]) {
@@ -272,6 +284,8 @@
           expectedIdxRef.current = respIdx + 1;
           setFenAtual(c.fen());
           setUltimoLanceAdv({ from: lances[respIdx].slice(0, 2), to: lances[respIdx].slice(2, 4) });
+          // Vez do jogador recomeça aqui — zera o relógio do próximo lance.
+          segLanceIniciadoRef.current = segRef.current;
           if (expectedIdxRef.current >= lances.length) {
             concluirCorreto();
           }
@@ -299,11 +313,12 @@
       setRodando(false);
       const lances = puzzle.lances || puzzle.moves || [];
       const sans = Puzzle.sequenciaSan(fenInicialJogadorRef.current, lances.slice(1));
-      // "Vi de cara" automático: acerto em até 5s significa reconhecimento
-      // imediato do padrão. Métrica cognitiva separada do tempo (não é só
-      // velocidade — é fluência). Threshold conservador pra evitar falso
-      // positivo em puzzles de 1 lance trivial.
-      const visaoInstantanea = tempo <= 5;
+      // "Vi de cara" automático: cada lance do jogador resolvido em ≤ 3s.
+      // Métrica cognitiva de fluência por decisão — não importa se o
+      // puzzle tem 1 ou 5 lances. Antes era ≤5s no tempo total, o que
+      // tornava puzzles multi-lance virtualmente impossíveis.
+      const deltas = temposPorLanceRef.current;
+      const visaoInstantanea = deltas.length > 0 && deltas.every(t => t <= 3);
       setFeedback({ correto: true, tempo_s: tempo, sans: sans, visao_instantanea: visaoInstantanea });
       setEstado("feedback");
       setResultados(rs => rs.concat([{
