@@ -1269,6 +1269,27 @@
   padding: 14px;
   border-color: var(--wp-good-soft);
 }
+
+/* === ScreenPackComplete (handoff Tela 13) === */
+.wp-pack-complete { padding-top: 40px; }
+.wp-pack-headline {
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0;
+  color: var(--wp-text);
+}
+@media (max-width: 380px) {
+  .wp-pack-headline { font-size: 26px; }
+}
+.wp-pack-stat-text {
+  font-size: 14px;
+  color: var(--wp-text-2);
+  margin-top: 8px;
+}
+.wp-good-text { color: var(--wp-good); }
+.wp-bad-text  { color: var(--wp-bad); }
 .wp-onboarding-brand {
   display: flex;
   align-items: center;

@@ -3456,6 +3456,131 @@
     }
 
     /* === TELA CONCLUSÃO === */
+    /* === ScreenPackComplete (handoff Tela 13) ===
+       Renderizada após conclusão de ciclo (ou pacote intermediário, no
+       futuro). Tally grande, headline Fraunces "Você está N× mais rápido",
+       grid 2x2 stats hairline, CTAs Pausa + Próximo. */
+    function ScreenPackComplete({ conjunto, ciclo, ciclosAnteriores, onProximoCiclo, onApenasErros, onEvolucao }) {
+      const Conjunto = window.WP.Conjunto;
+      const ciclosComEsse = ciclosAnteriores.concat([ciclo]);
+      const statusConcluir = Conjunto.prontoPraConcluir(conjunto, ciclosComEsse);
+      const total = ciclo.total;
+      const acertos = ciclo.acertos;
+      const baseline = (ciclosAnteriores.length >= 1) ? ciclosAnteriores[0] : null;
+      const ratio = baseline && ciclo.tempo_total_s
+        ? (baseline.tempo_total_s / ciclo.tempo_total_s) : 1;
+      const ratioFmt = ratio.toFixed(1).replace('.', ',') + '×';
+
+      const anterior = ciclosAnteriores[ciclosAnteriores.length - 1] || null;
+      const deltaAcertos = anterior ? acertos - anterior.acertos : 0;
+      const deltaTempoPct = anterior && anterior.tempo_total_s
+        ? Math.round((1 - ciclo.tempo_total_s / anterior.tempo_total_s) * 100)
+        : null;
+
+      // Mais rápido / a revisitar (puzzles do ciclo)
+      const resultados = ciclo.resultados || [];
+      const corretos = resultados.filter(r => r.correto && r.tempo_s);
+      const errados = resultados.filter(r => !r.correto);
+      const maisRapido = corretos.sort((a, b) => (a.tempo_s || 99) - (b.tempo_s || 99))[0];
+      const aRevisitar = errados.sort((a, b) => (b.tempo_s || 0) - (a.tempo_s || 0))[0];
+
+      function temaLabel(tts) {
+        if (!tts || tts.length === 0) return 'Tática';
+        return traduzirTema(tts[0]);
+      }
+
+      const eyebrowText = statusConcluir.pronto
+        ? 'Conjunto concluído'
+        : 'Ciclo ' + ciclo.numero + ' / ' + (Conjunto.META_CICLOS[Conjunto.tipoDe(conjunto)] || 5) + ' concluído';
+      const cicloNum = ciclo.numero;
+      const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(conjunto)] || 5;
+
+      return (
+        <div className="wp-onboarding wp-pack-complete">
+          <WpEyebrow style={{ marginBottom: 18 }}>{eyebrowText}</WpEyebrow>
+
+          <span className="wp-tally" style={{ color: 'var(--wp-accent)', gap: 4, marginBottom: 28 }}>
+            {Array.from({ length: meta }, (_, i) => (
+              <i key={i} className={i < cicloNum ? 'on' : ''} style={{ height: 28, width: 3 }} />
+            ))}
+          </span>
+
+          <h1 className="wp-display wp-pack-headline">
+            {baseline && ratio > 1.05 ? (
+              <>
+                Você está <span style={{ color: 'var(--wp-accent)' }}>{ratioFmt}</span> mais rápido que no ciclo {baseline.numero}.
+              </>
+            ) : baseline ? (
+              <>Ciclo {ciclo.numero} concluído. Próximo objetivo: bater seu tempo.</>
+            ) : (
+              <>Ciclo 1 concluído. Esse é seu tempo de referência.</>
+            )}
+          </h1>
+
+          <div className="wp-stats-grid wp-stats-grid--2" style={{ marginTop: 32 }}>
+            <div className="wp-stat-cell">
+              <WpEyebrow>Acertos</WpEyebrow>
+              <div className="wp-stat-value wp-mono">
+                {acertos}<span style={{ color: 'var(--wp-text-3)', fontSize: 14 }}> / {total}</span>
+              </div>
+              {anterior && (
+                <div className={'wp-mono wp-stat-sub ' + (deltaAcertos >= 0 ? 'wp-good-text' : 'wp-bad-text')}>
+                  {deltaAcertos >= 0 ? '+' : ''}{deltaAcertos} vs ciclo {anterior.numero}
+                </div>
+              )}
+            </div>
+            <div className="wp-stat-cell">
+              <WpEyebrow>Tempo</WpEyebrow>
+              <div className="wp-stat-value wp-mono">{formatarTempo(ciclo.tempo_total_s)}</div>
+              {deltaTempoPct !== null && (
+                <div className={'wp-mono wp-stat-sub ' + (deltaTempoPct > 0 ? 'wp-good-text' : 'wp-bad-text')}>
+                  {deltaTempoPct > 0 ? '−' : '+'}{Math.abs(deltaTempoPct)}% vs ciclo {anterior.numero}
+                </div>
+              )}
+            </div>
+            <div className="wp-stat-cell">
+              <WpEyebrow>Mais rápido</WpEyebrow>
+              <div className="wp-mono wp-pack-stat-text">
+                {maisRapido
+                  ? temaLabel(maisRapido.temas) + ' · ' + (maisRapido.tempo_s || 0) + 's'
+                  : '—'}
+              </div>
+            </div>
+            <div className="wp-stat-cell">
+              <WpEyebrow>A revisitar</WpEyebrow>
+              <div className="wp-mono wp-pack-stat-text" style={{ color: 'var(--wp-bad)' }}>
+                {aRevisitar
+                  ? temaLabel(aRevisitar.temas) + ' · ' + formatarTempo(aRevisitar.tempo_s || 0)
+                  : '—'}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1 }} />
+          <div className="hstack gap-8" style={{ marginTop: 32 }}>
+            <WpButton variant="outline" onClick={onEvolucao} style={{ flex: 1 }}>
+              Análises
+            </WpButton>
+            {!statusConcluir.pronto && (
+              <WpButton variant="primary" onClick={onProximoCiclo} style={{ flex: 2 }}>
+                Próximo ciclo
+              </WpButton>
+            )}
+            {statusConcluir.pronto && (
+              <WpButton variant="primary" onClick={onProximoCiclo} style={{ flex: 2 }}>
+                Concluir conjunto
+              </WpButton>
+            )}
+          </div>
+          {errados.length > 0 && !statusConcluir.pronto && (
+            <WpButton variant="ghost" full onClick={onApenasErros} style={{ marginTop: 8 }}>
+              Apenas erros · {errados.length} {errados.length === 1 ? 'puzzle' : 'puzzles'}
+            </WpButton>
+          )}
+        </div>
+      );
+    }
+
     function TelaConclusao({ conjunto, ciclo, ciclosAnteriores, onProximoCiclo, onApenasErros, onEvolucao, onCriarComRating, onConcluirConjunto, onCalibrar, onExcluirConjunto }) {
       const Conjunto = window.WP.Conjunto;
       const ehFimOnboarding = !!conjunto.eh_onboarding && ciclo.numero >= 3;
@@ -6076,26 +6201,13 @@
                 />
               )}
               {!carregando && tela === 'conclusao' && conjuntoAtivo && cicloAtual && (
-                <TelaConclusao
+                <ScreenPackComplete
                   conjunto={conjuntoAtivo}
                   ciclo={cicloAtual}
                   ciclosAnteriores={ciclosDoConjunto(ciclos, conjuntoAtivo.id)}
                   onProximoCiclo={aoProximoCiclo}
                   onApenasErros={aoApenasErros}
                   onEvolucao={() => { setEvolucaoConjunto(conjuntoAtivo); setTela('evolucao'); }}
-                  onCriarComRating={(rating) => {
-                    setPresetCriar({ rating, variacao: 200, temas: [], tamanho: 1000, nome: '' });
-                    setTela('criar');
-                  }}
-                  onConcluirConjunto={(id) => {
-                    concluirConjunto(id);
-                    setTela('conjuntos');
-                  }}
-                  onCalibrar={iniciarCalibracao}
-                  onExcluirConjunto={(id) => {
-                    excluirConjunto(id);
-                    setTela('inicio');
-                  }}
                 />
               )}
               {!carregando && tela === 'evolucao' && (
