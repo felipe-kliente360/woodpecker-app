@@ -643,61 +643,62 @@
 }
 
 /* === HIGHLIGHTS DAS CASAS ===
-   Filosofia: fill leve (não escurece a peça) + borda saturada elegante
-   via inset box-shadow. A peça permanece nítida; a casa "diz" o estado. */
+   Filosofia: SEM fill (peça permanece nítida) + borda colorida grossa
+   via inset box-shadow. A casa é demarcada pela moldura, não pelo
+   sombreado — assim funciona igual em casa clara e escura. */
 .highlight-last-from {
-  background-color: rgba(217, 184, 86, 0.08) !important;
-  box-shadow: inset 0 0 0 3px rgba(217, 184, 86, 0.55) !important;
+  background-color: transparent !important;
+  box-shadow: inset 0 0 0 3px rgba(230, 195, 100, 0.70) !important;
 }
 .highlight-last-to {
-  background-color: rgba(217, 184, 86, 0.16) !important;
-  box-shadow: inset 0 0 0 3px rgba(217, 184, 86, 0.85) !important;
+  background-color: transparent !important;
+  box-shadow: inset 0 0 0 4px rgba(240, 205, 110, 0.95) !important;
 }
-/* Casa selecionada (tap-to-move): borda azul + tint leve. Sem anel
-   central — a borda já comunica o estado, o anel competia com a peça. */
+/* Casa selecionada (tap-to-move): borda azul nítida, sem fill. */
 .selected-square {
   position: relative;
-  background-color: rgba(140, 175, 220, 0.12) !important;
-  box-shadow: inset 0 0 0 3px rgba(140, 175, 220, 0.80) !important;
+  background-color: transparent !important;
+  box-shadow: inset 0 0 0 4px rgba(150, 185, 230, 0.95) !important;
 }
-/* Lance errado: borda vermelha saturada, fill bem leve pra peça
-   continuar legível na casa de destino. */
+/* Lance errado: borda vermelha. */
 .highlight-error-from {
-  background-color: rgba(192, 80, 80, 0.08) !important;
-  box-shadow: inset 0 0 0 3px rgba(192, 80, 80, 0.50) !important;
+  background-color: transparent !important;
+  box-shadow: inset 0 0 0 3px rgba(220, 100, 100, 0.70) !important;
 }
 .highlight-error-to {
-  background-color: rgba(192, 80, 80, 0.18) !important;
-  box-shadow: inset 0 0 0 3px rgba(220, 100, 100, 0.85) !important;
+  background-color: transparent !important;
+  box-shadow: inset 0 0 0 4px rgba(240, 110, 110, 0.95) !important;
 }
-/* Lance correto (final do puzzle): borda verde marcando onde o lance
-   vencedor caiu. Aparece junto do feedback de acerto. */
+/* Lance correto (final do puzzle): borda verde no destino vencedor. */
 .highlight-success-to {
-  background-color: rgba(106, 159, 139, 0.18) !important;
-  box-shadow: inset 0 0 0 3px rgba(120, 180, 155, 0.85) !important;
+  background-color: transparent !important;
+  box-shadow: inset 0 0 0 4px rgba(140, 210, 175, 0.95) !important;
 }
 
 /* === ANIMAÇÕES DE FEEDBACK NO TABULEIRO ===
-   A: pulso na borda externa do .board-wrap (700ms one-shot).
-   B: pulso na casa de destino (sobre highlight-success-to/error-to). */
+   A: outline pulsa pra fora do .board-wrap (não conflita com overflow
+      dos parents, mas tomamos cuidado).
+   B: outline pulsa na casa de destino — outline é separado de
+      box-shadow, então não fica refém do !important do highlight estático. */
 .board-wrap { position: relative; border-radius: 4px; }
 .board-wrap.is-correct {
-  animation: pulseBorderGreen 700ms ease-out 1;
+  animation: pulseBoardGreen 700ms ease-out 1;
 }
 .board-wrap.is-wrong {
-  animation: pulseBorderRed 700ms ease-out 1;
+  animation: pulseBoardRed 700ms ease-out 1;
 }
-@keyframes pulseBorderGreen {
-  0%   { box-shadow: 0 0 0 0   rgba(106, 159, 139, 0.65); }
-  60%  { box-shadow: 0 0 0 10px rgba(106, 159, 139, 0); }
-  100% { box-shadow: 0 0 0 10px rgba(106, 159, 139, 0); }
+@keyframes pulseBoardGreen {
+  0%   { outline: 5px solid rgba(106, 220, 150, 1.0);  outline-offset: 0; }
+  50%  { outline: 5px solid rgba(106, 220, 150, 0.55); outline-offset: 8px; }
+  100% { outline: 0px solid rgba(106, 220, 150, 0);    outline-offset: 8px; }
 }
-@keyframes pulseBorderRed {
-  0%   { box-shadow: 0 0 0 0   rgba(192, 80, 80, 0.65); }
-  60%  { box-shadow: 0 0 0 10px rgba(192, 80, 80, 0); }
-  100% { box-shadow: 0 0 0 10px rgba(192, 80, 80, 0); }
+@keyframes pulseBoardRed {
+  0%   { outline: 5px solid rgba(245, 90, 90, 1.0);  outline-offset: 0; }
+  50%  { outline: 5px solid rgba(245, 90, 90, 0.55); outline-offset: 8px; }
+  100% { outline: 0px solid rgba(245, 90, 90, 0);    outline-offset: 8px; }
 }
-/* Pulso na casa: amplifica brevemente a saturação da borda existente. */
+/* Pulso na casa de destino (outline ao redor da casa, expandindo).
+   Outline = camada separada de box-shadow → não briga com !important. */
 .board-wrap.is-correct .highlight-success-to {
   animation: pulseSquareGreen 700ms ease-out 1;
 }
@@ -705,14 +706,14 @@
   animation: pulseSquareRed 700ms ease-out 1;
 }
 @keyframes pulseSquareGreen {
-  0%   { box-shadow: inset 0 0 0 4px rgba(120, 200, 165, 1.0)   !important; }
-  60%  { box-shadow: inset 0 0 0 4px rgba(120, 200, 165, 0.85) !important; }
-  100% { box-shadow: inset 0 0 0 3px rgba(120, 180, 155, 0.85) !important; }
+  0%   { outline: 5px solid rgba(140, 230, 180, 1.0); outline-offset: 0; }
+  60%  { outline: 5px solid rgba(140, 230, 180, 0.30); outline-offset: 8px; }
+  100% { outline: 0px solid rgba(140, 230, 180, 0);   outline-offset: 8px; }
 }
 @keyframes pulseSquareRed {
-  0%   { box-shadow: inset 0 0 0 4px rgba(255, 110, 110, 1.0)   !important; }
-  60%  { box-shadow: inset 0 0 0 4px rgba(255, 110, 110, 0.85) !important; }
-  100% { box-shadow: inset 0 0 0 3px rgba(220, 100, 100, 0.85) !important; }
+  0%   { outline: 5px solid rgba(255, 110, 110, 1.0); outline-offset: 0; }
+  60%  { outline: 5px solid rgba(255, 110, 110, 0.30); outline-offset: 8px; }
+  100% { outline: 0px solid rgba(255, 110, 110, 0);   outline-offset: 8px; }
 }
 
 /* === BANNER FEEDBACK === */
