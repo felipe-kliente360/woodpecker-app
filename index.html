@@ -843,6 +843,52 @@
       );
     }
 
+    /* === ONBOARDING MODAL ===
+     * Aparece no primeiro acesso (sem rating + sem conjuntos + sem
+     * ciclos + nunca dispensado). Welcome curto + 2 CTAs de rating
+     * (calibrar / chess.com) + opção de pular. Pular grava o flag e
+     * cai na TelaInicio sem rating. Após definir rating o flag também
+     * é gravado pra modal não reaparecer. */
+    function OnboardingModal({ onCalibrar, onImportarChesscom, onPular }) {
+      return (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ maxWidth: 480 }}>
+            <div className="mono fs-10 ls-2 txt-muted mb-4">BEM-VINDO</div>
+            <div className="serif bold fs-22 mb-12" style={{ lineHeight: 1.25 }}>
+              Repetição massiva de padrões táticos
+            </div>
+            <div className="serif fs-13 txt-mid mb-16" style={{ lineHeight: 1.55 }}>
+              Você resolve o mesmo conjunto de puzzles várias vezes. O alvo é
+              cortar o tempo total pela metade — <span className="bold">halving</span> — a cada repetição.
+              Padrões que demoravam minutos viram reconhecimento instantâneo.
+            </div>
+
+            <div className="mono fs-10 ls-2 txt-muted mb-8">PRA COMEÇAR</div>
+            <div className="vstack gap-8 mb-12">
+              <button className="choice-card" onClick={onCalibrar}>
+                <div className="choice-icon">🎯</div>
+                <div className="choice-title">Calibrar</div>
+                <div className="choice-desc">
+                  30 puzzles em faixa ampla. O app sugere onde você rende mais.
+                </div>
+              </button>
+              <button className="choice-card" onClick={onImportarChesscom}>
+                <div className="choice-icon">🔍</div>
+                <div className="choice-title">Importar do chess.com</div>
+                <div className="choice-desc">
+                  Lê seu perfil. Rating ponderado por rapid, blitz e bullet.
+                </div>
+              </button>
+            </div>
+
+            <button className="btn btn-ghost btn-block" onClick={onPular}>
+              Pular por enquanto
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     function TelaInicio({
       conjuntos, ciclos, ratingUsuario,
       onContinuar, onTreinar, onEvolucao, onTreinarApenasErros,
@@ -860,6 +906,18 @@
       const [mostraWizard, setMostraWizard] = useState(false);
       const [tentativaCriar, setTentativaCriar] = useState(null);
       const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
+
+      // Onboarding: primeira visita = sem rating + sem conjuntos + sem
+      // ciclos + nunca dispensado.
+      const ehPrimeiroAcesso = !temRating && conjuntos.length === 0
+        && ciclos.length === 0
+        && !Store.get(Chaves.ONBOARDING_VISTO, false);
+      const [mostraOnboarding, setMostraOnboarding] = useState(ehPrimeiroAcesso);
+
+      function dispensarOnboarding() {
+        Store.set(Chaves.ONBOARDING_VISTO, true);
+        setMostraOnboarding(false);
+      }
 
       const revisao = useMemo(() => puzzlesDevidoRevisao(ciclos, conjuntos), [ciclos, conjuntos]);
 
@@ -1084,8 +1142,22 @@
               onConfirmar={(rating, username) => {
                 if (onSetRatingChesscom) onSetRatingChesscom(rating, username);
                 setMostraImport(false);
+                Store.set(Chaves.ONBOARDING_VISTO, true);
               }}
               onFechar={() => setMostraImport(false)} />
+          )}
+
+          {mostraOnboarding && (
+            <OnboardingModal
+              onCalibrar={() => {
+                dispensarOnboarding();
+                onCalibrar();
+              }}
+              onImportarChesscom={() => {
+                dispensarOnboarding();
+                setMostraImport(true);
+              }}
+              onPular={dispensarOnboarding} />
           )}
         </div>
       );
@@ -4193,6 +4265,8 @@
         setRatingUsuarioState(novo);
         Store.set(Chaves.RATING_USUARIO, novo.valor);
         Store.set(Chaves.RATING_FONTE, novo.fonte);
+        // Definir rating também encerra onboarding (pra modal não voltar)
+        Store.set(Chaves.ONBOARDING_VISTO, true);
         Store.set(Chaves.RATING_DATA, novo.data);
         if (novo.chesscom) Store.set(Chaves.RATING_CHESSCOM_USERNAME, novo.chesscom);
       }

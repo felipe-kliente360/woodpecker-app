@@ -15,6 +15,9 @@
     AUDIO_ON:         "wp_audio_on",
     // Tamanho do bloco da pausa-cerimônia: 25, 50 ou 100. Default 50.
     BLOCO_TAMANHO:    "wp_bloco_tamanho",
+    // Marca que o usuário viu (e talvez pulou) o onboarding inicial.
+    // Sem isso, modal reabriria toda vez que ele entra sem rating.
+    ONBOARDING_VISTO: "wp_onboarding_visto",
     // Rating do usuário como entidade própria (não atributo do conjunto).
     // Definido via 2 caminhos: calibragem ou import chess.com.
     // Valores 'manual' podem aparecer em dados legados.
