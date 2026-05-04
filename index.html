@@ -871,12 +871,48 @@
     }
 
     /* === ONBOARDING MODAL ===
-     * Aparece no primeiro acesso (sem rating + sem conjuntos + sem
-     * ciclos + nunca dispensado). Welcome curto + 2 CTAs de rating
-     * (calibrar / chess.com) + opção de pular. Pular grava o flag e
-     * cai na TelaInicio sem rating. Após definir rating o flag também
-     * é gravado pra modal não reaparecer. */
-    function OnboardingModal({ onCalibrar, onImportarChesscom, onPular }) {
+     * Primeiro acesso (sem rating + sem conjuntos + sem ciclos + nunca
+     * dispensado). Pede o username do chess.com e puxa rating ponderado.
+     * Depois o App auto-cria um conjunto inicial de 5 puzzles e inicia
+     * o ciclo — onboarding = 3 ciclos de 5 pra demonstrar o método.
+     * Calibragem fica disponível depois, na home. Pular cai na home
+     * sem rating. */
+    function OnboardingModal({ onConcluir, onPular }) {
+      const [u, setU] = useState('');
+      const [carregando, setCarregando] = useState(false);
+      const [erro, setErro] = useState(null);
+      const [resultado, setResultado] = useState(null);
+
+      async function buscar() {
+        const username = u.trim();
+        if (!username) return;
+        setCarregando(true);
+        setErro(null);
+        setResultado(null);
+        try {
+          const resp = await fetch('https://api.chess.com/pub/player/' + encodeURIComponent(username.toLowerCase()) + '/stats');
+          if (!resp.ok) {
+            if (resp.status === 404) throw new Error('Usuário não encontrado no chess.com.');
+            throw new Error('Falha ao buscar (HTTP ' + resp.status + ').');
+          }
+          const stats = await resp.json();
+          const r = window.WP.Rating.ratingPonderadoChesscom(stats);
+          if (!r) throw new Error('Sem rating em rapid/blitz/bullet — pula por enquanto, calibra na home.');
+          setResultado({ rating: r.rating, fontes: r.fontes, username: username });
+        } catch (e) {
+          setErro(e.message || String(e));
+        } finally {
+          setCarregando(false);
+        }
+      }
+
+      function comecar() {
+        if (!resultado) return;
+        onConcluir(resultado.rating, resultado.username);
+      }
+
+      const labelTC = { rapid: 'Rapid', blitz: 'Blitz', bullet: 'Bullet' };
+
       return (
         <div className="modal-overlay">
           <div className="modal-card" style={{ maxWidth: 480 }}>
@@ -890,27 +926,66 @@
               Padrões que demoravam minutos viram reconhecimento instantâneo.
             </div>
 
-            <div className="mono fs-10 ls-2 txt-muted mb-8">PRA COMEÇAR</div>
-            <div className="vstack gap-8 mb-12">
-              <button className="choice-card" onClick={onCalibrar}>
-                <div className="choice-icon">🎯</div>
-                <div className="choice-title">Calibrar</div>
-                <div className="choice-desc">
-                  30 puzzles em faixa ampla. O app sugere onde você rende mais.
-                </div>
-              </button>
-              <button className="choice-card" onClick={onImportarChesscom}>
-                <div className="choice-icon">🔍</div>
-                <div className="choice-title">Importar do chess.com</div>
-                <div className="choice-desc">
-                  Lê seu perfil. Rating ponderado por rapid, blitz e bullet.
-                </div>
-              </button>
+            <div className="mono fs-10 ls-2 txt-muted mb-8">SEU USUÁRIO CHESS.COM</div>
+            <div className="hstack gap-8 mb-8">
+              <input
+                type="text"
+                value={u}
+                onChange={e => { setU(e.target.value); setResultado(null); setErro(null); }}
+                onKeyDown={e => { if (e.key === 'Enter') buscar(); }}
+                autoFocus
+                placeholder="seu_usuario"
+                spellCheck={false}
+                autoCapitalize="none"
+                style={{
+                  flex: 1, background: 'var(--surface)', color: 'var(--txt)',
+                  border: '1px solid var(--border)', borderRadius: 6,
+                  padding: '10px 12px', fontFamily: "'Courier New', monospace", fontSize: 14,
+                  outline: 'none',
+                }} />
+              {!resultado && (
+                <button className="btn btn-small" onClick={buscar} disabled={carregando || !u.trim()}>
+                  {carregando ? 'Buscando…' : 'Buscar'}
+                </button>
+              )}
+            </div>
+            <div className="mono fs-10 txt-muted mb-12" style={{ lineHeight: 1.6 }}>
+              Puxamos seu rating ponderado em rapid/blitz/bullet — fica como parâmetro do app.
             </div>
 
-            <button className="btn btn-ghost btn-block" onClick={onPular}>
-              Pular por enquanto
-            </button>
+            {erro && <div className="mono fs-11 txt-red mb-12">✗ {erro}</div>}
+
+            {resultado && (
+              <div className="card-soft mb-12" style={{ borderLeft: '3px solid var(--green)' }}>
+                <div className="mono fs-10 ls-2 txt-muted mb-4">RATING PONDERADO</div>
+                <div className="serif bold num-display fs-22 mb-8">{resultado.rating}</div>
+                <div className="vstack gap-4">
+                  {resultado.fontes.map(f => (
+                    <div key={f.time_class} className="hstack gap-8">
+                      <span className="mono fs-11 txt-mid" style={{ width: 60 }}>{labelTC[f.time_class]}</span>
+                      <span className="num fs-12 bold">{f.rating}</span>
+                      <span className="mono fs-10 txt-muted" style={{ marginLeft: 'auto' }}>peso ×{f.peso}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {resultado ? (
+              <div className="vstack gap-8">
+                <div className="serif fs-13 txt-mid mb-4" style={{ lineHeight: 1.55 }}>
+                  Vamos começar com um conjunto de <span className="bold">5 puzzles na sua faixa</span>.
+                  Em 3 ciclos você sente o método na pele.
+                </div>
+                <button className="btn btn-primary btn-block" onClick={comecar}>
+                  ▶ Começar com 5 puzzles
+                </button>
+              </div>
+            ) : (
+              <button className="btn btn-ghost btn-block" onClick={onPular}>
+                Pular por enquanto
+              </button>
+            )}
           </div>
         </div>
       );
@@ -921,7 +996,7 @@
       onContinuar, onTreinar, onEvolucao, onTreinarApenasErros,
       onConcluirConjunto, onConcluir,
       onCriarPadrao, onCriarPessoal, onCriarAdversario,
-      onCalibrar, onSetRatingChesscom,
+      onCalibrar, onSetRatingChesscom, onOnboardingConcluir,
       onIrParaConjuntos,
     }) {
       const Conjunto = window.WP.Conjunto;
@@ -1149,13 +1224,9 @@
 
           {mostraOnboarding && (
             <OnboardingModal
-              onCalibrar={() => {
+              onConcluir={(rating, username) => {
                 dispensarOnboarding();
-                onCalibrar();
-              }}
-              onImportarChesscom={() => {
-                dispensarOnboarding();
-                setMostraImport(true);
+                if (onOnboardingConcluir) onOnboardingConcluir(rating, username);
               }}
               onPular={dispensarOnboarding} />
           )}
@@ -2034,8 +2105,9 @@
     }
 
     /* === TELA CONCLUSÃO === */
-    function TelaConclusao({ conjunto, ciclo, ciclosAnteriores, onProximoCiclo, onApenasErros, onEvolucao, onCriarComRating, onConcluirConjunto }) {
+    function TelaConclusao({ conjunto, ciclo, ciclosAnteriores, onProximoCiclo, onApenasErros, onEvolucao, onCriarComRating, onConcluirConjunto, onCalibrar, onExcluirConjunto }) {
       const Conjunto = window.WP.Conjunto;
+      const ehFimOnboarding = !!conjunto.eh_onboarding && ciclo.numero >= 3;
       // Verifica se o conjunto está pronto pra concluir DEPOIS deste
       // ciclo (passa ciclo final junto, simulando lista atual).
       const ciclosComEsse = ciclosAnteriores.concat([ciclo]);
@@ -2264,6 +2336,47 @@
           <div className="card-soft mb-20" style={{ borderLeft: '4px solid ' + sugestao.cor }}>
             <div className="serif fs-13" style={{ lineHeight: 1.6 }}>{sugestao.texto}</div>
           </div>
+
+          {/* Banner de fim de onboarding: 3º ciclo do conjunto inicial */}
+          {ehFimOnboarding && (
+            <div className="card mb-16" style={{
+              borderTop: '3px solid var(--gold)',
+              background: 'var(--surface)',
+            }}>
+              <div className="mono fs-10 ls-2 txt-muted mb-4">ONBOARDING COMPLETO</div>
+              <div className="serif bold fs-17 mb-8">
+                Você sentiu o método: 3 ciclos · 15 puzzles
+              </div>
+              <div className="serif fs-13 txt-mid mb-12" style={{ lineHeight: 1.55 }}>
+                Os números acima mostram seu halving em curso. Daqui pra frente,
+                conjuntos maiores rendem mais — e o rating do chess.com pode
+                não ser o ideal pra começar.
+              </div>
+              <div className="vstack gap-8">
+                {onEvolucao && (
+                  <button className="btn btn-primary btn-block" onClick={onEvolucao}>
+                    📊 Ver evolução completa
+                  </button>
+                )}
+                {onCalibrar && (
+                  <button className="btn btn-ghost btn-block" onClick={onCalibrar}>
+                    🎯 Calibrar pra ajustar o rating
+                  </button>
+                )}
+                {onExcluirConjunto && (
+                  <button className="btn btn-ghost btn-block"
+                    style={{ color: 'var(--red)' }}
+                    onClick={() => {
+                      if (confirm('Excluir o conjunto "Primeiros 5"? Os ciclos ficam no histórico.')) {
+                        onExcluirConjunto(conjunto.id);
+                      }
+                    }}>
+                    🗑 Excluir conjunto inicial
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Banner de conclusão automática: aparece quando atingiu meta
               de ciclos OU halving. Só pra tipo pessoal/adversario. */}
@@ -4112,6 +4225,45 @@
         }
       }
 
+      // Fluxo de onboarding: import chess.com → conjunto inicial de 5
+      // puzzles na faixa do rating + inicia ciclo direto. Marca o conjunto
+      // com eh_onboarding=true pra TelaConclusao detectar fim em 3 ciclos.
+      async function aoConcluirOnboarding(rating, username) {
+        setRatingUsuario(rating, 'chesscom', username);
+        setCarregando(true);
+        setErroCarregar(null);
+        setCarregandoMsg('Montando seus 5 puzzles iniciais...');
+        try {
+          const r = await montarConjunto(rating, 200, [], 5, setCarregandoMsg);
+          if (r.puzzles.length === 0) {
+            setErroCarregar('Não foi possível montar o conjunto inicial — tente calibrar manualmente.');
+            setCarregando(false);
+            return;
+          }
+          const novo = {
+            id: gerarId(),
+            nome: 'Primeiros 5',
+            criado_em: Date.now(),
+            rating: rating,
+            variacao: 200,
+            temas: [],
+            tamanho: r.puzzles.length,
+            tipo: 'padrao',
+            puzzle_ids: r.puzzles.map(p => p.id || p.puzzleId),
+            faixas_usadas: r.stats.faixas_usadas,
+            range_efetivo: r.stats.range_efetivo,
+            eh_onboarding: true,
+          };
+          setConjuntos(cs => cs.concat([novo]));
+          memCache.puzzlesPorConjunto[novo.id] = r.puzzles;
+          iniciarCiclo(novo, r.puzzles, 1, false);
+        } catch (e) {
+          setErroCarregar('Falha no conjunto inicial: ' + (e.message || e));
+        } finally {
+          setCarregando(false);
+        }
+      }
+
       // Iniciar treino
       async function iniciarTreino(conjunto) {
         const cs = ciclosDoConjunto(ciclos, conjunto.id);
@@ -4341,6 +4493,7 @@
                   onSetRatingChesscom={(rating, username) => {
                     if (rating && rating >= 600 && rating <= 2800) setRatingUsuario(rating, 'chesscom', username);
                   }}
+                  onOnboardingConcluir={aoConcluirOnboarding}
                   onCriarPadrao={() => {
                     setPresetCriar({ tipo: 'padrao', rating: ratingUsuario.valor });
                     setTela('criar');
@@ -4416,6 +4569,11 @@
                   onConcluirConjunto={(id) => {
                     concluirConjunto(id);
                     setTela('conjuntos');
+                  }}
+                  onCalibrar={iniciarCalibracao}
+                  onExcluirConjunto={(id) => {
+                    excluirConjunto(id);
+                    setTela('inicio');
                   }}
                 />
               )}
