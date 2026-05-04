@@ -1156,6 +1156,258 @@
      * 3 cards (padrão / pessoal / adversário). Pessoal e Adversário
      * desabilitados se !temChesscom. Após escolha, fecha e dispara o
      * callback correspondente — pipeline de criação roda como antes. */
+    /* ==========================================================================
+       === ONBOARDING — 5 telas separadas (handoff Telas 1-5) ===
+       Roteamento: 'welcome' → 'calibrar' → 'calibrar-user' | 'calibrar-30' (via
+       iniciarCalibracao → tela 'treinar') | manual prompt → 'inicio'.
+       ========================================================================== */
+
+    function ScreenWelcome({ onComecar, onPular }) {
+      return (
+        <div className="wp-onboarding">
+          <div className="wp-onboarding-brand">
+            <span className="wp-tally" style={{ color: 'var(--wp-accent)', gap: 4 }}>
+              <i className="on" style={{ width: 3, height: 22 }} />
+              <i className="on" style={{ width: 3, height: 22 }} />
+              <i className="on" style={{ width: 3, height: 22 }} />
+              <i className="on" style={{ width: 3, height: 22 }} />
+            </span>
+            <span className="wp-mono wp-onboarding-mark">WOODPECKER</span>
+          </div>
+
+          <WpEyebrow style={{ marginBottom: 16 }}>O método</WpEyebrow>
+          <h1 className="wp-display wp-onboarding-hero">
+            Repetir<br />
+            <span style={{ color: 'var(--wp-accent)' }}>até reconhecer.</span><br />
+            Reconhecer<br />
+            <span style={{ color: 'var(--wp-text-3)' }}>até dominar.</span>
+          </h1>
+          <p className="wp-onboarding-lede">
+            Cada ciclo é o mesmo conjunto, resolvido mais rápido.
+            Constância é o sinal — não a primeira solução.
+          </p>
+
+          <div style={{ flex: 1 }} />
+          <div className="vstack gap-8" style={{ marginTop: 24 }}>
+            <WpButton variant="primary" full onClick={onComecar}>
+              Começar calibração
+            </WpButton>
+            <WpButton variant="ghost" full onClick={onPular}>
+              Já tenho conta
+            </WpButton>
+          </div>
+        </div>
+      );
+    }
+
+    function ScreenCalibrate({ temChesscom, onVoltar, onChesscom, onTrintaPuzzles, onManual }) {
+      const [escolha, setEscolha] = useState('chesscom');
+      function aoConfirmar() {
+        if (escolha === 'chesscom') onChesscom();
+        else if (escolha === 'trinta') onTrintaPuzzles();
+        else if (escolha === 'manual') onManual();
+      }
+      return (
+        <div className="wp-onboarding">
+          <div className="wp-onboarding-stepbar">
+            <button className="wp-icon-btn wp-onboarding-back" onClick={onVoltar} aria-label="Voltar">
+              <WpIcon name="arrow-left" size={18} />
+            </button>
+            <WpEyebrow>Passo 1 / 3</WpEyebrow>
+            <span style={{ width: 36 }} />
+          </div>
+
+          <WpEyebrow style={{ marginTop: 14, marginBottom: 14 }}>Calibrar rating</WpEyebrow>
+          <h1 className="wp-display" style={{ fontSize: 32, fontWeight: 500, margin: 0, lineHeight: 1.1, color: 'var(--wp-text)' }}>
+            Como prefere começar?
+          </h1>
+          <p className="wp-onboarding-lede" style={{ marginTop: 12 }}>
+            Precisamos do seu nível para escolher os puzzles certos.
+          </p>
+
+          <div className="vstack gap-12" style={{ marginTop: 32 }}>
+            <WpCard
+              selected={escolha === 'chesscom'}
+              onClick={() => setEscolha('chesscom')}>
+              <div className="wp-card-row">
+                <div style={{ flex: 1 }}>
+                  <div className="wp-card-title">Conectar chess.com</div>
+                  <div className="wp-card-desc">
+                    Importamos seu rating e suas últimas partidas para sugerir temas de melhoria.
+                  </div>
+                </div>
+                <span className="wp-mono wp-recommended">RECOMENDADO</span>
+              </div>
+            </WpCard>
+            <WpCard
+              selected={escolha === 'trinta'}
+              onClick={() => setEscolha('trinta')}>
+              <div className="wp-card-title">Resolver 30 puzzles</div>
+              <div className="wp-card-desc">
+                Calibração offline. Cerca de 12 minutos.
+              </div>
+            </WpCard>
+            <WpCard
+              selected={escolha === 'manual'}
+              onClick={() => setEscolha('manual')}>
+              <div className="wp-card-title">Definir manualmente</div>
+              <div className="wp-card-desc">
+                Use seu rating se já souber o número.
+              </div>
+            </WpCard>
+          </div>
+
+          <div style={{ flex: 1 }} />
+          <WpButton variant="primary" full onClick={aoConfirmar} style={{ marginTop: 24 }}>
+            Continuar
+          </WpButton>
+        </div>
+      );
+    }
+
+    function ScreenCalibrateUsername({ onVoltar, onConfirmar }) {
+      const [u, setU] = useState('');
+      const [carregando, setCarregando] = useState(false);
+      const [erro, setErro] = useState(null);
+      const [resultado, setResultado] = useState(null);
+
+      async function buscar() {
+        const username = u.trim();
+        if (!username) return;
+        setCarregando(true); setErro(null); setResultado(null);
+        try {
+          const resp = await fetch('https://api.chess.com/pub/player/' + encodeURIComponent(username.toLowerCase()) + '/stats');
+          if (!resp.ok) {
+            if (resp.status === 404) throw new Error('Usuário não encontrado.');
+            throw new Error('Falha ao buscar (HTTP ' + resp.status + ').');
+          }
+          const stats = await resp.json();
+          const r = window.WP.Rating.ratingPonderadoChesscom(stats);
+          if (!r) throw new Error('Sem rating em rapid/blitz/bullet.');
+          setResultado({ rating: r.rating, fontes: r.fontes, username });
+        } catch (e) { setErro(e.message || String(e)); }
+        finally { setCarregando(false); }
+      }
+
+      const labelTC = { rapid: 'Rapid', blitz: 'Blitz', bullet: 'Bullet' };
+
+      return (
+        <div className="wp-onboarding">
+          <div className="wp-onboarding-stepbar">
+            <button className="wp-icon-btn wp-onboarding-back" onClick={onVoltar} aria-label="Voltar">
+              <WpIcon name="arrow-left" size={18} />
+            </button>
+            <WpEyebrow>Passo 2 / 3</WpEyebrow>
+            <span style={{ width: 36 }} />
+          </div>
+
+          <WpEyebrow style={{ marginTop: 14, marginBottom: 14 }}>chess.com</WpEyebrow>
+          <h1 className="wp-display" style={{ fontSize: 28, fontWeight: 500, margin: 0, lineHeight: 1.15 }}>
+            Qual seu username?
+          </h1>
+
+          <div className="wp-onboarding-input-row" style={{ marginTop: 22 }}>
+            <div style={{ flex: 1 }}>
+              <WpInput
+                prefix="@"
+                mono
+                value={u}
+                onChange={e => { setU(e.target.value); setResultado(null); setErro(null); }}
+                onKeyDown={e => { if (e.key === 'Enter') buscar(); }}
+                autoFocus
+                placeholder="seu_usuario"
+                spellCheck={false}
+                autoCapitalize="none"
+              />
+            </div>
+            {!resultado && (
+              <WpButton variant="outline" onClick={buscar} disabled={carregando || !u.trim()}>
+                {carregando ? 'Buscando' : 'Buscar'}
+              </WpButton>
+            )}
+          </div>
+
+          {erro && (
+            <div className="feedback-banner red" style={{ marginTop: 16 }}>
+              <div className="feedback-title">Erro</div>
+              <div>{erro}</div>
+            </div>
+          )}
+
+          {resultado && (
+            <div className="wp-card" style={{ marginTop: 16, padding: 16 }}>
+              <div className="hstack gap-12" style={{ alignItems: 'center' }}>
+                <div className="wp-onboarding-avatar wp-mono">
+                  {resultado.username.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="wp-onboarding-result-name">{resultado.username}</div>
+                  <div className="wp-mono wp-onboarding-result-meta">
+                    Rating ponderado · {resultado.rating}
+                  </div>
+                </div>
+                <WpIcon name="check" size={18} style={{ color: 'var(--wp-good)' }} />
+              </div>
+              <div className="vstack gap-4" style={{ marginTop: 12 }}>
+                {resultado.fontes.map(f => (
+                  <div key={f.time_class} className="hstack gap-8 wp-mono" style={{ fontSize: 11 }}>
+                    <span style={{ color: 'var(--wp-text-3)', width: 60 }}>{labelTC[f.time_class]}</span>
+                    <span style={{ color: 'var(--wp-text)', fontWeight: 600 }}>{f.rating}</span>
+                    <span style={{ color: 'var(--wp-text-4)', marginLeft: 'auto', fontSize: 10 }}>peso ×{f.peso}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ flex: 1 }} />
+          {resultado && (
+            <WpButton variant="primary" full onClick={() => onConfirmar(resultado.rating, resultado.username)}>
+              Importar e continuar
+            </WpButton>
+          )}
+        </div>
+      );
+    }
+
+    function ScreenCalibrateResult({ rating, acertos, total, tempoMedio, onCriarConjunto }) {
+      const min = Math.max(600, rating - 100);
+      const max = Math.min(2800, rating + 100);
+      return (
+        <div className="wp-onboarding">
+          <div className="wp-onboarding-stepbar" style={{ justifyContent: 'flex-end' }}>
+            <WpEyebrow>Passo 3 / 3</WpEyebrow>
+          </div>
+
+          <WpEyebrow style={{ marginTop: 24, marginBottom: 18 }}>Seu rating de calibração</WpEyebrow>
+          <WpBigNumber value={rating} size={64} color="var(--wp-accent)" />
+
+          <p className="wp-onboarding-lede" style={{ marginTop: 14 }}>
+            Vamos sugerir puzzles entre <span className="wp-mono" style={{ color: 'var(--wp-text)' }}>{min}–{max}</span>.
+            Você poderá ajustar a qualquer momento.
+          </p>
+
+          <div className="wp-stats-grid wp-stats-grid--2" style={{ marginTop: 36 }}>
+            <div className="wp-stat-cell">
+              <WpEyebrow>Acertos</WpEyebrow>
+              <div className="wp-stat-value wp-mono">
+                {acertos}<span style={{ color: 'var(--wp-text-3)', fontSize: 14 }}> / {total}</span>
+              </div>
+            </div>
+            <div className="wp-stat-cell">
+              <WpEyebrow>Tempo médio</WpEyebrow>
+              <div className="wp-stat-value wp-mono">{tempoMedio}</div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1 }} />
+          <WpButton variant="primary" full onClick={onCriarConjunto} style={{ marginTop: 32 }}>
+            Criar primeiro conjunto
+          </WpButton>
+        </div>
+      );
+    }
+
     function WizardCriarConjunto({ temChesscom, onCriarPadrao, onCriarPessoal, onCriarAdversario, onFechar }) {
       function escolher(tipo) {
         onFechar();
@@ -4657,7 +4909,14 @@
 
     /* === APP ROOT === */
     function App() {
-      const [tela, setTela] = useState('inicio');
+      // Roteamento inicial: se nunca viu onboarding e não tem rating,
+      // entra direto em ScreenWelcome.
+      const [tela, setTela] = useState(() => {
+        const visto = Store.get(Chaves.ONBOARDING_VISTO, false);
+        const rating = Store.get(Chaves.RATING_USUARIO, null);
+        return (!visto && !rating) ? 'welcome' : 'inicio';
+      });
+      const [calibracaoResultado, setCalibracaoResultado] = useState(null);
       const [conjuntos, setConjuntos] = useState(() => Store.get(Chaves.CONJUNTOS, []));
       const [ciclos, setCiclos] = useState(() => Store.get(Chaves.CICLOS, []));
 
@@ -5040,8 +5299,8 @@
         perfil: 'perfil', conclusao: 'inicio',
       };
       const abaAtiva = ABA_DA_TELA[tela] || 'inicio';
-      // Telas full-screen (sem shell): treino e onboarding (Fase 8).
-      const TELAS_FULLSCREEN = new Set(['treinar']);
+      // Telas full-screen (sem sidebar nem tab bar): treino + onboarding.
+      const TELAS_FULLSCREEN = new Set(['treinar', 'welcome', 'calibrar', 'calibrar-user', 'calibrar-result']);
       const fullscreen = TELAS_FULLSCREEN.has(tela);
       const [mostraConfig, setMostraConfig] = useState(false);
 
@@ -5083,6 +5342,56 @@
                 </div>
               )}
 
+              {tela === 'welcome' && (
+                <ScreenWelcome
+                  onComecar={() => setTela('calibrar')}
+                  onPular={() => {
+                    Store.set(Chaves.ONBOARDING_VISTO, true);
+                    setTela('inicio');
+                  }}
+                />
+              )}
+              {tela === 'calibrar' && (
+                <ScreenCalibrate
+                  temChesscom={!!(ratingUsuario && ratingUsuario.chesscom)}
+                  onVoltar={() => setTela('welcome')}
+                  onChesscom={() => setTela('calibrar-user')}
+                  onTrintaPuzzles={iniciarCalibracao}
+                  onManual={() => {
+                    const v = prompt('Qual seu rating? (600–2800)');
+                    const r = parseInt(v, 10);
+                    if (!isNaN(r) && r >= 600 && r <= 2800) {
+                      setRatingUsuario(r, 'manual', null);
+                      Store.set(Chaves.ONBOARDING_VISTO, true);
+                      setTela('inicio');
+                    }
+                  }}
+                />
+              )}
+              {tela === 'calibrar-user' && (
+                <ScreenCalibrateUsername
+                  onVoltar={() => setTela('calibrar')}
+                  onConfirmar={(rating, username) => {
+                    setRatingUsuario(rating, 'chesscom', username);
+                    Store.set(Chaves.ONBOARDING_VISTO, true);
+                    setTela('inicio');
+                  }}
+                />
+              )}
+              {tela === 'calibrar-result' && calibracaoResultado && (
+                <ScreenCalibrateResult
+                  rating={calibracaoResultado.rating}
+                  acertos={calibracaoResultado.acertos}
+                  total={calibracaoResultado.total}
+                  tempoMedio={calibracaoResultado.tempoMedio}
+                  onCriarConjunto={() => {
+                    setRatingUsuario(calibracaoResultado.rating, 'calibragem', null);
+                    Store.set(Chaves.ONBOARDING_VISTO, true);
+                    setCalibracaoResultado(null);
+                    setTela('criar');
+                  }}
+                />
+              )}
               {!carregando && tela === 'inicio' && (
                 <TelaInicio
                   conjuntos={conjuntos}

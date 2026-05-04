@@ -877,7 +877,20 @@
 
 /* === ONBOARDING (welcome / calibragem) ===
    Estilo full-bleed sem aparência de modal. Hero Fraunces + tally + input
-   prefixado @. Tom zen do handoff: sem celebração, padding generoso. */
+   prefixado @. Tom zen do handoff: sem celebração, padding generoso.
+   .wp-onboarding é o container das 5 telas roteadas (Welcome,
+   Calibrate, CalibrateUsername, CalibrateResult). */
+.wp-onboarding {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  background: var(--wp-bg);
+  padding: 40px 28px 32px;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+  min-height: 100vh;
+}
 .wp-onboarding-overlay {
   background: var(--wp-bg);
   align-items: stretch;
@@ -894,6 +907,61 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+}
+.wp-onboarding-stepbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+  margin-top: -8px;
+}
+.wp-onboarding-back { border: 0; padding: 6px; }
+.wp-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.wp-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--wp-text);
+  margin-bottom: 6px;
+  letter-spacing: -0.005em;
+}
+.wp-card-desc {
+  font-size: 13px;
+  color: var(--wp-text-2);
+  line-height: 1.45;
+}
+.wp-recommended {
+  font-size: 10px;
+  color: var(--wp-accent);
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+.wp-onboarding-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--wp-surface-3);
+  color: var(--wp-accent);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.wp-onboarding-result-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wp-text);
+}
+.wp-onboarding-result-meta {
+  font-size: 12px;
+  color: var(--wp-text-3);
+  margin-top: 2px;
 }
 .wp-onboarding-brand {
   display: flex;
