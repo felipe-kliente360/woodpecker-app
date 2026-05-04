@@ -450,7 +450,7 @@
     }
 
     /* === HEADER === */
-    function Header({ audioOn, onToggleAudio }) {
+    function Header({ onAbrirConfig }) {
       return (
         <div className="header">
           <div className="header-left">
@@ -465,10 +465,10 @@
           </div>
           <div className="hstack gap-8">
             <button className="theme-toggle"
-              onClick={onToggleAudio}
-              title={audioOn ? 'Áudio: ligado' : 'Áudio: desligado'}
+              onClick={onAbrirConfig}
+              title="Configurações"
               style={{ padding: '6px 10px' }}>
-              <span>{audioOn ? '🔊' : '🔇'}</span>
+              <span>⚙</span>
             </button>
           </div>
         </div>
@@ -540,7 +540,11 @@
 
     /* === TELA INÍCIO === */
     /* === SEÇÃO BACKUP / IMPORTAÇÃO === */
-    function SecaoBackup({ onAposImport }) {
+    /* === SETTINGS MODAL ===
+     * Modal único acessível pelo ⚙ no header. Reúne configurações do
+     * app: áudio, cadência da pausa (bloco-N), backup. Substitui a
+     * antiga SecaoBackup que ficava no rodapé da TelaInicio. */
+    function SettingsModal({ audioOn, onToggleAudio, onAposImport, onFechar }) {
       const [autoBackup, setAutoBackup] = useState(() => Store.get(Chaves.AUTO_BACKUP, false));
       const [bloco, setBloco] = useState(() => Store.get(Chaves.BLOCO_TAMANHO, 50));
       const [erro, setErro] = useState(null);
@@ -553,7 +557,7 @@
       function aoExportar() {
         try {
           exportarBackup();
-          setAviso('Backup exportado com sucesso.');
+          setAviso('Backup exportado.');
           setErro(null);
           setTimeout(() => setAviso(null), 4000);
         } catch (e) { setErro(e.message || String(e)); }
@@ -571,7 +575,7 @@
               : (confirm('Já existem conjuntos no app. OK para mesclar (mantém os atuais e adiciona novos por id) · Cancelar para sobrescrever tudo.') ? 'merge' : 'replace');
             const r2 = importarBackup(ev.target.result, modo);
             setErro(null);
-            setAviso('Importado: ' + r2.adicionados_conjuntos + ' conjuntos · ' + r2.adicionados_ciclos + ' ciclos (' + r2.modo + ').');
+            setAviso('Importado: ' + r2.adicionados_conjuntos + ' conjuntos · ' + r2.adicionados_ciclos + ' ciclos.');
             if (onAposImport) onAposImport();
           } catch (err) {
             setErro('Falha ao importar: ' + (err.message || err));
@@ -579,36 +583,63 @@
           }
         };
         r.readAsText(f);
-        e.target.value = ''; // permite reimportar o mesmo arquivo
+        e.target.value = '';
       }
 
       return (
-        <div className="card-soft mt-16">
-          <div className="serif bold fs-13 mb-8">💾 Backup e Restauração</div>
-          <div className="mono fs-11 txt-muted mb-12">
-            Os dados ficam só neste navegador. Baixe um backup com regularidade — em outro dispositivo, importe o arquivo aqui.
-          </div>
-          <div className="hstack gap-8 flex-wrap">
-            <button className="btn btn-small" onClick={aoExportar}>↓ Exportar JSON</button>
-            <button className="btn btn-small ghost" onClick={() => fileRef.current && fileRef.current.click()}>↑ Importar JSON</button>
-            <input ref={fileRef} type="file" accept="application/json,.json" onChange={aoSelecionarArquivo} style={{ display: 'none' }} />
-          </div>
-          <label className="hstack gap-8 mt-12" style={{ cursor: 'pointer', userSelect: 'none' }}>
-            <input type="checkbox" checked={autoBackup} onChange={e => setAutoBackup(e.target.checked)} style={{ width: 14, height: 14 }} />
-            <span className="mono fs-11 txt-mid">Backup automático ao concluir cada ciclo</span>
-          </label>
-          {/* Cadência da pausa: 25 (micro-cerimônia) / 50 (reflexão) / 100 (raro) */}
-          <div className="hstack gap-8 mt-12 flex-wrap" style={{ alignItems: 'center' }}>
-            <span className="mono fs-11 txt-mid">Pausa a cada</span>
-            <div className="segmented">
-              {[25, 50, 100].map(n => (
-                <button key={n} className={bloco === n ? 'active' : ''} onClick={() => setBloco(n)}>{n}</button>
-              ))}
+        <div className="modal-overlay" onClick={onFechar}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div className="between mb-12">
+              <div className="serif bold fs-17">Configurações</div>
+              <button className="btn btn-small ghost" onClick={onFechar}>✕</button>
             </div>
-            <span className="mono fs-10 txt-muted">{bloco === 25 ? 'micro-cerimônia' : 'reflexão escrita opcional'}</span>
+
+            {/* Áudio */}
+            <div className="card-soft mb-12">
+              <div className="mono fs-10 ls-2 txt-muted mb-4">ÁUDIO</div>
+              <label className="hstack gap-8" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={audioOn} onChange={onToggleAudio}
+                  style={{ width: 14, height: 14 }} />
+                <span className="serif fs-13 txt-mid">Companion áudio — toques curtos no acerto/erro</span>
+              </label>
+            </div>
+
+            {/* Cadência da pausa */}
+            <div className="card-soft mb-12">
+              <div className="mono fs-10 ls-2 txt-muted mb-4">CADÊNCIA DA PAUSA</div>
+              <div className="hstack gap-8 mt-4 flex-wrap" style={{ alignItems: 'center' }}>
+                <span className="serif fs-13 txt-mid">A cada</span>
+                <div className="segmented">
+                  {[25, 50, 100].map(n => (
+                    <button key={n} className={bloco === n ? 'active' : ''} onClick={() => setBloco(n)}>{n}</button>
+                  ))}
+                </div>
+                <span className="mono fs-10 txt-muted">
+                  {bloco === 25 ? 'micro-cerimônia' : 'reflexão escrita opcional'}
+                </span>
+              </div>
+            </div>
+
+            {/* Backup */}
+            <div className="card-soft mb-12">
+              <div className="mono fs-10 ls-2 txt-muted mb-4">BACKUP</div>
+              <div className="serif fs-12 txt-muted mb-12" style={{ lineHeight: 1.5 }}>
+                Os dados ficam só neste navegador. Baixe periodicamente; em outro dispositivo, importe.
+              </div>
+              <div className="hstack gap-8 flex-wrap mb-12">
+                <button className="btn btn-small" onClick={aoExportar}>↓ Exportar JSON</button>
+                <button className="btn btn-small ghost" onClick={() => fileRef.current && fileRef.current.click()}>↑ Importar JSON</button>
+                <input ref={fileRef} type="file" accept="application/json,.json" onChange={aoSelecionarArquivo} style={{ display: 'none' }} />
+              </div>
+              <label className="hstack gap-8" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={autoBackup} onChange={e => setAutoBackup(e.target.checked)}
+                  style={{ width: 14, height: 14 }} />
+                <span className="mono fs-11 txt-mid">Auto-backup ao concluir ciclo</span>
+              </label>
+              {erro && <div className="mono fs-11 txt-red mt-8">{erro}</div>}
+              {aviso && <div className="mono fs-11 txt-green mt-8">{aviso}</div>}
+            </div>
           </div>
-          {erro && <div className="mono fs-11 txt-red mt-8">{erro}</div>}
-          {aviso && <div className="mono fs-11 txt-green mt-8">{aviso}</div>}
         </div>
       );
     }
@@ -895,7 +926,7 @@
       onConcluirConjunto, onConcluir,
       onCriarPadrao, onCriarPessoal, onCriarAdversario,
       onCalibrar, onSetRatingChesscom,
-      onAposImport, onIrParaConjuntos,
+      onIrParaConjuntos,
     }) {
       const Conjunto = window.WP.Conjunto;
       const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
@@ -905,7 +936,6 @@
       const [mostraImport, setMostraImport] = useState(false);
       const [mostraWizard, setMostraWizard] = useState(false);
       const [tentativaCriar, setTentativaCriar] = useState(null);
-      const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
 
       // Onboarding: primeira visita = sem rating + sem conjuntos + sem
       // ciclos + nunca dispensado.
@@ -1062,32 +1092,6 @@
               </div>
             </div>
           )}
-
-          {/* Atividade + streak ficam aqui temporariamente; movem pra
-              TelaEvolucao na onda 5. */}
-          {atividade.total > 0 && (
-            <div className="card-soft mb-12">
-              <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'space-between' }}>
-                <div>
-                  <div className="mono fs-10 ls-2 txt-muted">ATIVIDADE</div>
-                  <div className="serif bold fs-15">
-                    {atividade.total} ciclo{atividade.total > 1 ? 's' : ''} · {atividade.diasAtivos} dia{atividade.diasAtivos > 1 ? 's' : ''} ativo{atividade.diasAtivos > 1 ? 's' : ''}
-                  </div>
-                </div>
-                <div className="mono fs-11 txt-muted center">
-                  {atividade.diasDesde !== null && (
-                    atividade.diasDesde < 1
-                      ? 'Última: há ' + Math.round(atividade.diasDesde * 24) + 'h'
-                      : 'Última: há ' + Math.round(atividade.diasDesde) + ' dia' + (Math.round(atividade.diasDesde) > 1 ? 's' : '')
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {atividade.total > 0 && <CalendarioStreak ciclos={ciclos} dias={84} />}
-
-          <SecaoBackup onAposImport={onAposImport} />
 
           {/* === MODAIS === */}
           {mostraWizard && (
@@ -2686,6 +2690,7 @@
     // concluídos). Mostra volume, taxa, tempo, conjuntos e top temas
     // de erro cross-conjunto.
     function AbaTotal({ conjuntos, ciclos }) {
+      const atividade = useMemo(() => metricasAtividade(ciclos), [ciclos]);
       const dados = useMemo(() => {
         const totalCiclos = ciclos.length;
         const totalPuzzles = ciclos.reduce((s, c) => s + ((c.resultados || []).length), 0);
@@ -2721,6 +2726,27 @@
 
       return (
         <div className="vstack gap-14">
+          {/* Atividade + streak — eram da TelaInicio antes da onda 5 */}
+          <div className="card-soft">
+            <div className="hstack gap-12 flex-wrap" style={{ justifyContent: 'space-between' }}>
+              <div>
+                <div className="mono fs-10 ls-2 txt-muted">ATIVIDADE</div>
+                <div className="serif bold fs-15">
+                  {atividade.total} ciclo{atividade.total > 1 ? 's' : ''} · {atividade.diasAtivos} dia{atividade.diasAtivos > 1 ? 's' : ''} ativo{atividade.diasAtivos > 1 ? 's' : ''}
+                </div>
+              </div>
+              <div className="mono fs-11 txt-muted center">
+                {atividade.diasDesde !== null && (
+                  atividade.diasDesde < 1
+                    ? 'Última: há ' + Math.round(atividade.diasDesde * 24) + 'h'
+                    : 'Última: há ' + Math.round(atividade.diasDesde) + ' dia' + (Math.round(atividade.diasDesde) > 1 ? 's' : '')
+                )}
+              </div>
+            </div>
+          </div>
+
+          <CalendarioStreak ciclos={ciclos} dias={84} />
+
           <div className="card">
             <div className="metric-grid">
               <div className="metric-card">
@@ -4573,10 +4599,23 @@
       }
 
       const ocultarSidebar = tela === 'treinar';
+      const [mostraConfig, setMostraConfig] = useState(false);
 
       return (
         <div className="app-shell">
-          <Header audioOn={audioOn} onToggleAudio={toggleAudio} />
+          <Header onAbrirConfig={() => setMostraConfig(true)} />
+          {mostraConfig && (
+            <SettingsModal
+              audioOn={audioOn}
+              onToggleAudio={toggleAudio}
+              onAposImport={() => {
+                setConjuntos(Store.get(Chaves.CONJUNTOS, []));
+                setCiclos(Store.get(Chaves.CICLOS, []));
+                setSessaoSalva(Store.get(Chaves.SESSAO, null));
+                setMostraConfig(false);
+              }}
+              onFechar={() => setMostraConfig(false)} />
+          )}
 
           {showModalRetomar && sessaoSalva && (
             <ModalRetomada
@@ -4636,11 +4675,6 @@
                   onCriarAdversario={() => {
                     setTipoAnalise('adversario');
                     setTela('analisar');
-                  }}
-                  onAposImport={() => {
-                    setConjuntos(Store.get(Chaves.CONJUNTOS, []));
-                    setCiclos(Store.get(Chaves.CICLOS, []));
-                    setSessaoSalva(Store.get(Chaves.SESSAO, null));
                   }}
                 />
               )}
