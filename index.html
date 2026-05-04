@@ -415,14 +415,33 @@
         const $ = window.jQuery;
         const $board = $ && $('#' + boardId);
         let downSq = null, downX = 0, downY = 0;
+        // Em devices touch, cada tap dispara DUAS sequências:
+        // 1) touchstart/touchend (imediato)
+        // 2) mousedown/mouseup sintetizados (~300ms depois)
+        // Sem guarda, a sequência 2 chama onSquareClick de novo no mesmo
+        // square, destogglando a seleção feita pela sequência 1. lastTouchT
+        // marca o último evento de touch — se um mouse event chega em <700ms,
+        // ele é sintetizado e a gente ignora.
+        let lastTouchT = 0;
         function getXY(e) {
           const oe = e.originalEvent || e;
           if (oe.touches && oe.touches[0]) return [oe.touches[0].clientX, oe.touches[0].clientY];
           if (oe.changedTouches && oe.changedTouches[0]) return [oe.changedTouches[0].clientX, oe.changedTouches[0].clientY];
           return [oe.clientX || 0, oe.clientY || 0];
         }
+        function ehSintetizado(e) {
+          const tipo = (e.originalEvent || e).type || '';
+          const ehTouch = tipo.indexOf('touch') === 0;
+          if (ehTouch) {
+            lastTouchT = Date.now();
+            return false;
+          }
+          // mouse event: se veio logo depois de touch, é sintetizado
+          return (Date.now() - lastTouchT) < 700;
+        }
         function onDown(e) {
           if (!draggableRef.current) return;
+          if (ehSintetizado(e)) return;
           const sq = e.currentTarget && e.currentTarget.getAttribute('data-square');
           if (!sq) return;
           downSq = sq;
@@ -430,13 +449,15 @@
         }
         function onUp(e) {
           if (!draggableRef.current) { downSq = null; return; }
+          if (ehSintetizado(e)) { downSq = null; return; }
           const sq = e.currentTarget && e.currentTarget.getAttribute('data-square');
           if (!sq || !downSq) { downSq = null; return; }
           const [x, y] = getXY(e);
           const dx = Math.abs(x - downX);
           const dy = Math.abs(y - downY);
-          // Tap = mesma casa + sem movimento significativo
-          if (sq === downSq && dx < 10 && dy < 10) {
+          // Tap = mesma casa + sem movimento significativo. Threshold 16px
+          // pra acomodar drift natural do dedo em devices touch.
+          if (sq === downSq && dx < 16 && dy < 16) {
             if (onSquareClickRef.current) onSquareClickRef.current(sq);
           }
           downSq = null;
