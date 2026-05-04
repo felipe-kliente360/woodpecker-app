@@ -809,6 +809,17 @@
   -webkit-user-drag: none;
   -webkit-touch-callout: none;
 }
+/* === DRAGGED PIECE (chessboard.js v1) ===
+   No mousedown a lib cria <img id="...-draggedPiece"> em <body> com
+   z-index 9999. Em desktop, sem isso, mouseup em tap fica com target =
+   draggedPiece (fora de $board), e nosso handler delegado de tap NÃO
+   dispara — a peça nem mostra como selecionada via click puro. Com
+   pointer-events:none o evento passa pra casa abaixo e bubble normal.
+   Drag continua funcionando: chessboard.js rastreia via mousemove
+   no document e drop por geometria do cursor. */
+[id$="-draggedPiece"] {
+  pointer-events: none !important;
+}
 /* TelaTreinar usa .tela-container.narrow — column única, board centralizado */
 @media (max-width: 640px) {
   /* Treino mobile: padding mínimo para o tabuleiro respirar */
