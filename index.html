@@ -4457,6 +4457,207 @@
       );
     }
 
+    /* === WpSparkline === SVG mínimo, sem eixos. */
+    function WpSparkline({ data, color = 'var(--wp-accent)', height = 40, fill = false }) {
+      if (!data || data.length < 2) return null;
+      const max = Math.max(...data) || 1;
+      const min = Math.min(...data);
+      const range = (max - min) || 1;
+      const w = 200, h = height, pad = 2;
+      const pts = data.map((v, i) => {
+        const x = pad + (i * (w - 2 * pad)) / (data.length - 1);
+        const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+        return [x, y];
+      });
+      const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+      const last = pts[pts.length - 1];
+      const fillD = fill ? d + ' L' + last[0].toFixed(1) + ',' + (h - pad) + ' L' + pad + ',' + (h - pad) + ' Z' : null;
+      return (
+        <svg width="100%" height={h} viewBox={'0 0 ' + w + ' ' + h} preserveAspectRatio="none">
+          {fill && <path d={fillD} fill={color} opacity="0.12" />}
+          <path d={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx={last[0]} cy={last[1]} r="2.2" fill={color} />
+        </svg>
+      );
+    }
+
+    /* === WpBars === barras vertical flex. current = índice destacado. */
+    function WpBars({ data, current = -1, height = 64 }) {
+      if (!data || data.length === 0) return null;
+      const max = Math.max(...data.filter(v => v != null)) || 1;
+      return (
+        <div className="wp-bars" style={{ height: height + 'px' }}>
+          {data.map((v, i) => (
+            <div
+              key={i}
+              className={'b' + (i === current ? ' cur' : '') + (v == null ? ' empty' : '')}
+              style={{ height: v != null ? Math.max(4, (v / max) * 100) + '%' : '4px' }}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    /* === ScreenStats (handoff Tela 14) ===
+       Velocidade vs ciclo 1 + barras de tempo médio + constância 30 dias +
+       por conjunto + força relativa por tema. */
+    function ScreenStats({ conjuntos, ciclos, conjuntoInicial, onVoltar, onIrParaConjunto }) {
+      const Conjunto = window.WP.Conjunto;
+      const conjuntoSel = conjuntoInicial || conjuntos[0] || null;
+      const ciclosSel = conjuntoSel ? ciclosDoConjunto(ciclos, conjuntoSel.id) : ciclos;
+      const baseline = ciclosSel[0] || null;
+      const ultimo = ciclosSel[ciclosSel.length - 1] || null;
+      const ratio = (baseline && ultimo && ultimo.tempo_total_s)
+        ? (baseline.tempo_total_s / ultimo.tempo_total_s) : 1;
+      const ratioFmt = ratio.toFixed(1).replace('.', ',') + '×';
+
+      const meta = conjuntoSel ? (Conjunto.META_CICLOS[Conjunto.tipoDe(conjuntoSel)] || 5) : 5;
+      const dataTempo = [];
+      for (let i = 0; i < meta; i++) {
+        const c = ciclosSel[i];
+        dataTempo.push(c ? c.tempo_medio_s : null);
+      }
+      const cur = ciclosSel.length - 1;
+
+      const grid30 = useMemo(() => window.WP.Ciclo.streakPorDia(ciclos, 30), [ciclos]);
+      const dias30Ativos = grid30.filter(d => d.count > 0).length;
+
+      const errosTemas = useMemo(() => {
+        const dist = {};
+        const acertosTemas = {};
+        for (const c of ciclos) {
+          for (const r of (c.resultados || [])) {
+            for (const t of (r.temas || [])) {
+              if (r.correto) acertosTemas[t] = (acertosTemas[t] || 0) + 1;
+              else dist[t] = (dist[t] || 0) + 1;
+            }
+          }
+        }
+        const todos = new Set([...Object.keys(dist), ...Object.keys(acertosTemas)]);
+        const stats = [];
+        for (const t of todos) {
+          const ok = acertosTemas[t] || 0;
+          const er = dist[t] || 0;
+          if (ok + er < 3) continue;
+          stats.push({ tema: t, pct: Math.round((ok / (ok + er)) * 100), total: ok + er });
+        }
+        return stats.sort((a, b) => b.total - a.total).slice(0, 5);
+      }, [ciclos]);
+
+      const porConjunto = useMemo(() => {
+        return conjuntos.map(c => {
+          const cs = ciclosDoConjunto(ciclos, c.id);
+          if (cs.length < 2) return null;
+          const b = cs[0];
+          const u = cs[cs.length - 1];
+          const dPct = b.tempo_total_s ? Math.round((1 - u.tempo_total_s / b.tempo_total_s) * 100) : 0;
+          return { c, ultimoTempo: u.tempo_total_s, dPct };
+        }).filter(Boolean);
+      }, [conjuntos, ciclos]);
+
+      function corPorPct(p) {
+        if (p < 50) return 'var(--wp-bad)';
+        if (p < 75) return 'var(--wp-warn)';
+        return 'var(--wp-accent)';
+      }
+
+      return (
+        <div className="wp-content">
+          <div className="wp-page-header">
+            <h1 className="wp-h1 wp-display">Análises</h1>
+            <span className="wp-mono" style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>
+              {conjuntoSel ? conjuntoSel.nome : 'Total'}
+            </span>
+          </div>
+
+          <WpEyebrow>Velocidade vs. ciclo 1</WpEyebrow>
+          <div className="wp-stats-headline">
+            <span className="wp-mono wp-stats-ratio">{ratioFmt}</span>
+            <span className="wp-stats-ratio-meta">mais rápido</span>
+          </div>
+
+          <div className="wp-card" style={{ marginTop: 22, padding: 18 }}>
+            <div className="hstack between" style={{ marginBottom: 14, justifyContent: 'space-between' }}>
+              <WpEyebrow>Tempo médio por ciclo</WpEyebrow>
+              <span className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)' }}>seg / puzzle</span>
+            </div>
+            <WpBars data={dataTempo} current={cur} height={110} />
+            <div className="hstack" style={{ justifyContent: 'space-between', marginTop: 6 }}>
+              {dataTempo.map((_, i) => (
+                <span key={i} className="wp-mono wp-stats-cycle-label">c{i + 1}</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="wp-card" style={{ marginTop: 12, padding: 18 }}>
+            <div className="hstack" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+              <WpEyebrow>Constância — 30 dias</WpEyebrow>
+              <span className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-good)' }}>{dias30Ativos} / 30</span>
+            </div>
+            <div className="wp-stats-30d">
+              {grid30.map((d, i) => {
+                const intensity = d.count > 0 ? Math.min(1, 0.4 + (d.count - 1) * 0.2) : 0;
+                return (
+                  <div
+                    key={d.data}
+                    className="wp-stats-30d-cell"
+                    style={d.count > 0
+                      ? { background: 'oklch(0.72 0.13 55 / ' + intensity + ')' }
+                      : undefined}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {porConjunto.length > 0 && (
+            <>
+              <WpEyebrow style={{ marginTop: 28, marginBottom: 8 }}>Por conjunto</WpEyebrow>
+              <div className="wp-list">
+                {porConjunto.map(({ c, ultimoTempo, dPct }) => (
+                  <button
+                    key={c.id}
+                    className="wp-row wp-row--button"
+                    onClick={() => onIrParaConjunto && onIrParaConjunto(c)}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="wp-row-label">{c.nome}</div>
+                      <div className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)', marginTop: 2 }}>
+                        último ciclo {formatarTempo(ultimoTempo)}
+                      </div>
+                    </div>
+                    <span className={'wp-mono ' + (dPct > 0 ? 'wp-good-text' : (dPct < -5 ? 'wp-bad-text' : ''))}
+                      style={{ fontSize: 14, fontWeight: 500 }}>
+                      {dPct > 0 ? '−' : '+'}{Math.abs(dPct)}%
+                    </span>
+                    <WpIcon name="chevron-right" size={14} />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {errosTemas.length > 0 && (
+            <>
+              <WpEyebrow style={{ marginTop: 22, marginBottom: 12 }}>Temas — força relativa</WpEyebrow>
+              <div className="vstack gap-10">
+                {errosTemas.map(t => (
+                  <div key={t.tema}>
+                    <div className="hstack" style={{ justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>{traduzirTema(t.tema)}</span>
+                      <span className="wp-mono" style={{ fontSize: 12, color: 'var(--wp-text-3)' }}>{t.pct}%</span>
+                    </div>
+                    <div className="wp-tema-bar">
+                      <div className="wp-tema-bar-fill" style={{ width: t.pct + '%', background: corPorPct(t.pct) }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
     function TelaEvolucao({ conjuntos, ciclos, conjuntoInicial, onVoltar, onCriarFocado }) {
       // Default 'individual' quando vem de conjunto específico (clicar
       // em "ver evolução" do banner do TelaInicio); 'total' quando entra
@@ -6211,21 +6412,12 @@
                 />
               )}
               {!carregando && tela === 'evolucao' && (
-                <TelaEvolucao
+                <ScreenStats
                   conjuntos={conjuntos}
                   ciclos={ciclos}
                   conjuntoInicial={evolucaoConjunto}
+                  onIrParaConjunto={(c) => { setEvolucaoConjunto(c); }}
                   onVoltar={() => setTela('conjuntos')}
-                  onCriarFocado={(tema, conjuntoBase) => {
-                    setPresetCriar({
-                      rating: conjuntoBase ? conjuntoBase.rating : 1200,
-                      variacao: conjuntoBase ? conjuntoBase.variacao : 200,
-                      temas: [tema],
-                      tamanho: 200,
-                      nome: 'Foco · ' + traduzirTema(tema)
-                    });
-                    setTela('criar');
-                  }}
                 />
               )}
               {!carregando && tela === 'analisar' && (
