@@ -1305,8 +1305,13 @@
       );
     }
 
-    function TelaCriar({ onSalvarTreinar, onSalvar, onCancelar, preset }) {
-      const wz = useCriarConjunto({ preset: preset, montarFn: montarConjunto });
+    function TelaCriar({ onSalvarTreinar, onSalvar, onCancelar, preset, ratingUsuario }) {
+      // Rating é decisão global (TelaInicio). Forçamos preset.rating =
+      // ratingUsuario.valor pra ignorar valores antigos vindos da análise
+      // chess.com (suggested_rating do adversário, etc).
+      const ratingDoUsuario = (ratingUsuario && ratingUsuario.valor) || 1200;
+      const presetForcado = Object.assign({}, preset || {}, { rating: ratingDoUsuario });
+      const wz = useCriarConjunto({ preset: presetForcado, montarFn: montarConjunto });
       const {
         rating, setRating, variacao, setVariacao,
         temas, setTemas, toggleTema,
@@ -1371,15 +1376,13 @@
 
             {!resultado && !montando && (
               <div>
-                {/* Rating sempre visível — é a entrada essencial */}
+                {/* Rating fixo — definido na TelaInicio (calibragem ou chess.com) */}
                 <div className="mono fs-10 ls-2 txt-muted mb-8">SEU RATING</div>
-                <div className="hstack gap-12 mb-12" style={{ alignItems: 'baseline' }}>
+                <div className="hstack gap-12 mb-4" style={{ alignItems: 'baseline' }}>
                   <div className="num-display num-xl txt-primary">{formatarNumero(rating)}</div>
                   <div className="mono fs-12 txt-mid">{nivelDoRating(rating)}</div>
                 </div>
-                <input className="slider" type="range" min="600" max="2800" step="50"
-                  value={rating} onChange={e => setRating(parseInt(e.target.value))} />
-                <div className="mono fs-11 txt-muted mt-4 mb-20">
+                <div className="mono fs-11 txt-muted mb-20">
                   Puzzles de {formatarNumero(rating - variacao)} a {formatarNumero(rating + variacao)}
                 </div>
 
@@ -3348,7 +3351,7 @@
       );
     }
 
-    function TelaAnalisarJogador({ onCriarComTemas, onRatingDescoberto, tipoInicial }) {
+    function TelaAnalisarJogador({ onCriarComTemas, ratingUsuario, tipoInicial }) {
       // tipo='auto' → username do próprio jogador (Mode 3 default + toggle Mode 1)
       // tipo='adversario' → username de um oponente específico (Mode 2)
       const [tipo, setTipo] = useState(tipoInicial || 'auto');
@@ -3468,11 +3471,9 @@
         try {
           const p = await window.ChessAnalysis.analyzePlayer(u, onProg);
           setPrograma(p);
-          // Análise auto descobre rating real do jogador. Persistir como
-          // rating-do-usuário (fonte 'chesscom') só quando ehAuto.
-          if (ehAuto && p && p.suggested_rating && onRatingDescoberto) {
-            onRatingDescoberto(p.suggested_rating, 'chesscom', u);
-          }
+          // Não atualizamos mais o rating do usuário a partir da análise
+          // — rating é decisão exclusiva da TelaInicio (calibragem ou
+          // import lite chess.com). Análise só extrai temas.
         } catch (e) {
           console.error(e);
           setErro(e.message || String(e));
@@ -3494,6 +3495,11 @@
       // Recebe o programa com os temas do modo ATUAL exibido (programaView).
       // Em modo 'adversario' nomeia como "Vs <username>"; em chances-perdidas
       // como "Foco erros · ..."; em completo, "Análise · ...".
+      // Rating do conjunto = sempre o rating do usuário (não o
+      // suggested_rating do adversário/análise). Análise só fornece os
+      // TEMAS; a faixa de dificuldade é definida pelo usuário na TelaInicio.
+      const ratingDoUsuario = (ratingUsuario && ratingUsuario.valor) || 1200;
+
       function abrirCriarComTemas(programaExibido) {
         const p = programaExibido || programa;
         if (!p) return;
@@ -3506,7 +3512,7 @@
         onCriarComTemas({
           tipo:     ehAdv ? 'adversario' : 'pessoal',
           username_referencia: p.username,
-          rating:   p.suggested_rating,
+          rating:   ratingDoUsuario,
           variacao: 200,
           temas:    temas,
           tamanho:  ehAdv ? 200 : 300,
@@ -3522,7 +3528,7 @@
         onCriarComTemas({
           tipo:     ehAdv ? 'adversario' : 'pessoal',
           username_referencia: p.username,
-          rating:   p.suggested_rating,
+          rating:   ratingDoUsuario,
           variacao: 200,
           temas:    [tema],
           tamanho:  ehAdv ? 100 : 200,
@@ -4692,6 +4698,7 @@
               {!carregando && tela === 'criar' && (
                 <TelaCriar
                   preset={presetCriar}
+                  ratingUsuario={ratingUsuario}
                   onSalvarTreinar={(novo, puzzles) => { setPresetCriar(null); aoSalvarConjunto(novo, puzzles, true); }}
                   onSalvar={(novo, puzzles) => { setPresetCriar(null); aoSalvarConjunto(novo, puzzles, false); }}
                   onCancelar={() => { setPresetCriar(null); setTela('inicio'); }}
@@ -4759,11 +4766,11 @@
               {!carregando && tela === 'analisar' && (
                 <TelaAnalisarJogador
                   tipoInicial={tipoAnalise}
+                  ratingUsuario={ratingUsuario}
                   onCriarComTemas={(preset) => {
                     setPresetCriar(preset);
                     setTela('criar');
                   }}
-                  onRatingDescoberto={setRatingUsuario}
                 />
               )}
               {!carregando && tela === 'flash' && (
