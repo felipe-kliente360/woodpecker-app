@@ -1,30 +1,28 @@
-/* === DESIGN TOKENS — variáveis CSS dos temas ===
-   Toda customização de cor/marca para os temas escuro e claro acontece
-   neste arquivo. Os demais (.css) só consomem var(--*).
+/* === DESIGN TOKENS — paleta única (midnight + aço) ===
+   Não há tema light. App é dark-only por design. Cores foram escolhidas
+   pra contraste mínimo cromático com hierarquia via espaçamento e
+   tipografia, não via cor. Acento principal é o azul-aço dessaturado;
+   verde/vermelho/gold só aparecem em sinalização semântica.
 
    Convenção:
    --bg            fundo da página (atrás de tudo)
    --surface       fundo de cards-soft, sidebar, inputs sutis
    --card          fundo de cards principais (mais elevado)
-   --border        borda neutra padrão (linha 1px em cards/inputs)
+   --border        borda neutra padrão (linha 1px)
    --border-mid    borda intermediária (sliders, dividers)
-   --primary       azul de ação (links, botões, focus rings)
-   --primary-bg    fundo translúcido derivado do primary (badges, tiles ativos)
-   --green/red/gold/amber  semáforo (acerto/erro/aviso/destaque)
-   --*-bg / --*-bdr        tonalidades para banners e badges semafóricos
+   --primary       acento de ação (botões, focus, links)
+   --primary-bg    derivado translúcido (badges, tiles ativos)
+   --green/red/gold/amber  semáforo (acerto/erro/destaque/aviso)
+   --*-bg / --*-bdr        tons pra banners e badges semafóricos
    --txt           texto primário (corpo de prosa)
    --txt-mid       texto secundário (labels, descrições)
    --txt-muted     texto terciário (timestamps, meta)
-   --header-bg     fundo do header (sempre escuro, cor própria)
+   --header-bg     fundo do header (dark uniforme com bg)
 
-   Cores foram calibradas pra atingir WCAG AA (4.5:1 para texto de
-   corpo) em ambos os temas. txt-muted bumpado, light gold escurecido,
-   light slate escurecido, dark red bumpado.
-*/
+   Texto principal `#e7e9ee` em vez de `#fff` puro reduz fadiga visual.
+   Saturação baixa em todos os acentos: cores são marcadores semânticos,
+   nunca chamam atenção a si mesmas. */
 
-/* Font stacks — não dependem de tema. Mantidas como variáveis para
-   single source of truth: components.css e base.css consomem via
-   var(--font-mono) etc. */
 :root {
   --font-serif:
     'Iowan Old Style', 'Charter', 'Source Serif Pro',
@@ -32,29 +30,32 @@
   --font-mono:
     ui-monospace, 'SF Mono', Menlo, 'Cascadia Code', Consolas,
     'Liberation Mono', 'DejaVu Sans Mono', 'Courier New', monospace;
-}
 
-:root[data-theme="escuro"] {
-  --bg:#111827; --surface:#1a2535; --card:#1f2d3f;
-  --border:#324965; --border-mid:#3f5878;
-  --primary:#5a9bd9; --primary-bg:#1a3050;
-  --green:#52b878; --green-bg:#0e2a1a; --green-bdr:#1e4a30;
-  --red:#ea6868; --red-bg:#2a0e0e; --red-bdr:#4a1e1e;
-  --gold:#d8b04a; --gold-bg:#2a2010;
-  --amber:#dc8e44; --slate:#7d96ad;
-  --txt:#e6eef7; --txt-mid:#a3b9cc; --txt-muted:#7c95ac;
-  --header-bg:#0d1520;
-}
+  --bg:           #0a0c10;
+  --surface:      #13161c;
+  --card:         #1a1e26;
+  --border:       #242933;
+  --border-mid:   #333a47;
 
-:root[data-theme="claro"] {
-  --bg:#f4f0e8; --surface:#faf7f2; --card:#ffffff;
-  --border:#cdc3ad; --border-mid:#b8ac8e;
-  --primary:#1e4a7a; --primary-bg:#e3edf7;
-  --green:#1f6038; --green-bg:#edf7f2; --green-bdr:#9bc8b0;
-  --red:#8b2222; --red-bg:#fdf0f0; --red-bdr:#e0a8a8;
-  --gold:#7d521c; --gold-bg:#fcf2dd;
-  --amber:#7d4510; --slate:#506070;
-  --txt:#161616; --txt-mid:#3d3322; --txt-muted:#6b5d48;
-  --header-bg:#1e4a7a;
-}
+  --primary:      #8c9fc7;
+  --primary-bg:   #1a2030;
 
+  --green:        #6a9f8b;
+  --green-bg:     #14201a;
+  --green-bdr:    #2a3d33;
+
+  --red:          #b06b6b;
+  --red-bg:       #1f1414;
+  --red-bdr:      #3d2828;
+
+  --gold:         #c9a458;
+  --gold-bg:      #2a220e;
+  --amber:        #c9a458;
+  --slate:        #5e6571;
+
+  --txt:          #e7e9ee;
+  --txt-mid:      #969ba6;
+  --txt-muted:    #5e6571;
+
+  --header-bg:    #0a0c10;
+}

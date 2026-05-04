@@ -260,7 +260,7 @@
 
     /* === EXPORT / IMPORT === */
     const CHAVES_LS_BACKUP = [
-      Chaves.CONJUNTOS, Chaves.CICLOS, Chaves.TEMA,
+      Chaves.CONJUNTOS, Chaves.CICLOS,
       Chaves.SESSAO, Chaves.AUTO_BACKUP,
     ];
 
@@ -450,7 +450,7 @@
     }
 
     /* === HEADER === */
-    function Header({ tema, onToggleTema, audioOn, onToggleAudio }) {
+    function Header({ audioOn, onToggleAudio }) {
       return (
         <div className="header">
           <div className="header-left">
@@ -469,10 +469,6 @@
               title={audioOn ? 'Áudio: ligado' : 'Áudio: desligado'}
               style={{ padding: '6px 10px' }}>
               <span>{audioOn ? '🔊' : '🔇'}</span>
-            </button>
-            <button className="theme-toggle" onClick={onToggleTema} title="Alternar tema">
-              <span>{tema === 'escuro' ? '☀' : '☽'}</span>
-              <span className="ttxt">{tema === 'escuro' ? 'Claro' : 'Escuro'}</span>
             </button>
           </div>
         </div>
@@ -792,7 +788,7 @@
       onContinuar, onTreinar, onEvolucao, onTreinarApenasErros,
       onConcluirConjunto, onConcluir,
       onCriarPadrao, onCriarPessoal, onCriarAdversario,
-      onCalibrar, onSetRatingManual, onSetRatingChesscom,
+      onCalibrar, onSetRatingChesscom,
       onAposImport, onIrParaConjuntos,
     }) {
       const Conjunto = window.WP.Conjunto;
@@ -898,17 +894,6 @@
                     Lê seu perfil. Rating ponderado por rapid, blitz e bullet — sem analisar partidas.
                   </div>
                   <div className="choice-action">→ INFORMAR USERNAME</div>
-                </button>
-                <button className="choice-card" onClick={() => {
-                  const v = prompt('Qual é o seu rating? (600-2800)');
-                  if (v) onSetRatingManual(parseInt(v, 10));
-                }}>
-                  <div className="choice-icon">♞</div>
-                  <div className="choice-title">Já sei meu rating</div>
-                  <div className="choice-desc">
-                    Defina manualmente. Você pode atualizar depois via calibragem ou chess.com.
-                  </div>
-                  <div className="choice-action">→ DEFINIR MANUAL</div>
                 </button>
               </div>
             </div>
@@ -4410,26 +4395,13 @@
 
     /* === APP ROOT === */
     function App() {
-      // Default segue prefers-color-scheme do sistema na primeira visita.
-      // Após o usuário escolher manualmente (toggle no header), respeita
-      // a escolha persistida em Chaves.TEMA.
-      const [tema, setTema] = useState(() => {
-        const salvo = Store.get(Chaves.TEMA, null);
-        if (salvo) return salvo;
-        try {
-          if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-            return 'claro';
-          }
-        } catch (_) {}
-        return 'escuro';
-      });
       const [tela, setTela] = useState('inicio');
       const [conjuntos, setConjuntos] = useState(() => Store.get(Chaves.CONJUNTOS, []));
       const [ciclos, setCiclos] = useState(() => Store.get(Chaves.CICLOS, []));
 
-      // Rating do usuário como entidade. Definido via calibragem, import
-      // chess.com ou manual. Usado por TelaCriar (faixa de puzzles) e
-      // por toda inferência de rating-related.
+      // Rating do usuário como entidade. Definido via calibragem ou
+      // import chess.com (não há entrada manual). Usado por TelaCriar
+      // (faixa de puzzles) e por toda inferência de rating-related.
       const [ratingUsuario, setRatingUsuarioState] = useState(() => ({
         valor:    Store.get(Chaves.RATING_USUARIO, null),
         fonte:    Store.get(Chaves.RATING_FONTE, null),
@@ -4466,11 +4438,6 @@
       // CTAs da TelaInicio (Pessoal → 'auto', Adversário → 'adversario').
       const [tipoAnalise, setTipoAnalise] = useState('auto');
 
-      // Aplicar tema no <html>
-      useEffect(() => {
-        document.documentElement.setAttribute('data-theme', tema);
-        Store.set(Chaves.TEMA, tema);
-      }, [tema]);
       useEffect(() => { Store.set(Chaves.CONJUNTOS, conjuntos); }, [conjuntos]);
       useEffect(() => { Store.set(Chaves.CICLOS, ciclos); }, [ciclos]);
 
@@ -4479,10 +4446,6 @@
           if (!confirm('Sair do treino? Sua sessão será salva para retomada.')) return;
         }
         setTela(t);
-      }
-
-      function toggleTema() {
-        setTema(t => t === 'escuro' ? 'claro' : 'escuro');
       }
 
       // Atalhos rápidos de navegação (1-5 → telas, ? → help, Esc fecha).
@@ -4766,8 +4729,7 @@
 
       return (
         <div className="app-shell">
-          <Header tema={tema} onToggleTema={toggleTema}
-            audioOn={audioOn} onToggleAudio={toggleAudio} />
+          <Header audioOn={audioOn} onToggleAudio={toggleAudio} />
 
           {showModalRetomar && sessaoSalva && (
             <ModalRetomada
@@ -4810,9 +4772,6 @@
                   onConcluirConjunto={concluirConjunto}
                   onIrParaConjuntos={() => setTela('conjuntos')}
                   onCalibrar={iniciarCalibracao}
-                  onSetRatingManual={(v) => {
-                    if (v && v >= 600 && v <= 2800) setRatingUsuario(v, 'manual', null);
-                  }}
                   onSetRatingChesscom={(rating, username) => {
                     if (rating && rating >= 600 && rating <= 2800) setRatingUsuario(rating, 'chesscom', username);
                   }}
@@ -4835,7 +4794,6 @@
                     setConjuntos(Store.get(Chaves.CONJUNTOS, []));
                     setCiclos(Store.get(Chaves.CICLOS, []));
                     setSessaoSalva(Store.get(Chaves.SESSAO, null));
-                    setTema(Store.get(Chaves.TEMA, tema));
                   }}
                 />
               )}

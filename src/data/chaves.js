@@ -9,7 +9,6 @@
     CONJUNTOS:        "wp_conjuntos",
     CICLOS:           "wp_ciclos",
     SESSAO:           "wp_sessao",
-    TEMA:             "wp_tema",
     AUTO_BACKUP:      "wp_auto_backup",
     ANALISE_USERNAME: "wp_analise_username",
     SCHEMA_VERSION:   "wp_schema_version",
@@ -18,9 +17,10 @@
     // Tamanho do bloco da pausa-cerimônia: 25, 50 ou 100. Default 50.
     BLOCO_TAMANHO:    "wp_bloco_tamanho",
     // Rating do usuário como entidade própria (não atributo do conjunto).
-    // Definido via 1 dos 3 caminhos: calibragem, import chess.com, manual.
+    // Definido via 2 caminhos: calibragem ou import chess.com.
+    // Valores 'manual' podem aparecer em dados legados.
     RATING_USUARIO:           "wp_rating_usuario",
-    RATING_FONTE:             "wp_rating_fonte",      // 'calibragem' | 'chesscom' | 'manual'
+    RATING_FONTE:             "wp_rating_fonte",      // 'calibragem' | 'chesscom' (legado: 'manual')
     RATING_DATA:              "wp_rating_data",        // timestamp do último update
     RATING_CHESSCOM_USERNAME: "wp_rating_chesscom_username",
   };

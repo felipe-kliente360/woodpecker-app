@@ -30,7 +30,9 @@ test("metricasAtividade — soma total e dias únicos", () => {
     { data_fim: ag, numero: 4 },
   ]);
   assert.equal(m.total, 4);
-  assert.ok(m.diasAtivos >= 2 && m.diasAtivos <= 3, "dias únicos pode ser 2 ou 3 dependendo de UTC");
+  // Janela de 5 dias com 4 ciclos. UTC pode esticar pra 4 dias únicos
+  // se "ag" cair na primeira hora do dia (offset −1h sai pro dia anterior).
+  assert.ok(m.diasAtivos >= 2 && m.diasAtivos <= 4, "dias únicos varia com UTC");
   assert.ok(m.diasDesde >= 0 && m.diasDesde < 1);
 });
 
