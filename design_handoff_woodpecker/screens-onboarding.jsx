@@ -2,6 +2,35 @@
 // Woodpecker — Onboarding screens (calibração)
 
 function ScreenWelcome() {
+  const variant = (typeof window !== 'undefined' && window.__wpWelcomeVariant) || 'method';
+  const COPIES = {
+    method: {
+      eyebrow: 'O método',
+      title: <React.Fragment>Repetir<br/>até reconhecer.<br/><span style={{ color: 'var(--wp-accent)' }}>Reconhecer</span><br/><span style={{ color: 'var(--wp-text-3)' }}>até dominar.</span></React.Fragment>,
+      sub: 'Cada ciclo é o mesmo conjunto, resolvido mais rápido. Constância é o sinal — não a primeira solução.',
+    },
+    speed: {
+      eyebrow: 'Método Woodpecker',
+      title: <React.Fragment>O mesmo conjunto.<br/><span style={{ color: 'var(--wp-accent)' }}>Cinco vezes</span><br/>mais rápido.</React.Fragment>,
+      sub: 'Resolva 500 puzzles. Repita até virar reflexo. Em 6 ciclos, você enxerga em segundos o que antes levava minutos.',
+    },
+    rating: {
+      eyebrow: 'Para quem joga sério',
+      title: <React.Fragment>Seu rating<br/>não cresce<br/><span style={{ color: 'var(--wp-accent)' }}>por sorte.</span></React.Fragment>,
+      sub: 'Treino tático deliberado, com ciclos mensuráveis. O método que MGs usam para sair do platô — agora cronometrado, comparado, persistente.',
+    },
+    discipline: {
+      eyebrow: 'Prática deliberada',
+      title: <React.Fragment>Padrões<br/>antes de<br/><span style={{ color: 'var(--wp-accent)' }}>cálculo.</span></React.Fragment>,
+      sub: 'Forks, pinos, sacrifícios. O que separa um clube de um mestre é reconhecer o tema em três segundos, não em três minutos.',
+    },
+    minimal: {
+      eyebrow: 'Woodpecker',
+      title: <React.Fragment>Treine como<br/>quem estuda.<br/><span style={{ color: 'var(--wp-accent)' }}>Evolua</span> como<br/>quem mede.</React.Fragment>,
+      sub: 'Conjuntos repetíveis. Tempo cronometrado. Comparação entre ciclos. Sem ranking, sem distração — só você contra você de ontem.',
+    },
+  };
+  const copy = COPIES[variant] || COPIES.method;
   return (
     <WpFrame>
       <WpStatusBar />
@@ -14,15 +43,12 @@ function ScreenWelcome() {
         </div>
 
         <div>
-          <div className="wp-eyebrow" style={{ marginBottom: 16 }}>O método</div>
+          <div className="wp-eyebrow" style={{ marginBottom: 16 }}>{copy.eyebrow}</div>
           <h1 className="wp-display" style={{ fontSize: 38, fontWeight: 500, lineHeight: 1.05, margin: 0, color: 'var(--wp-text)', letterSpacing: '-0.025em' }}>
-            Repetir<br/>
-            até reconhecer.<br/>
-            <span style={{ color: 'var(--wp-accent)' }}>Reconhecer</span><br/>
-            <span style={{ color: 'var(--wp-text-3)' }}>até dominar.</span>
+            {copy.title}
           </h1>
           <p style={{ fontSize: 15, color: 'var(--wp-text-2)', lineHeight: 1.5, marginTop: 28, maxWidth: 320 }}>
-            Cada ciclo é o mesmo conjunto, resolvido mais rápido. Constância é o sinal — não a primeira solução.
+            {copy.sub}
           </p>
         </div>
 

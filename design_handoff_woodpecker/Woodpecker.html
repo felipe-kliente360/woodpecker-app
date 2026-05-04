@@ -30,7 +30,8 @@ const FRAME_W = 390;
 const FRAME_H = 760;
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-  "boardTheme": "mahogany"
+  "boardTheme": "mahogany",
+  "welcomeCopy": "rating"
 }/*EDITMODE-END*/;
 
 const BOARD_THEMES = {
@@ -73,6 +74,15 @@ function App() {
     r.setProperty('--wp-board-dark',  theme.dark);
     r.setProperty('--wp-board-edge',  theme.edge);
   }, [t.boardTheme]);
+  React.useEffect(() => {
+    window.__wpWelcomeVariant = t.welcomeCopy;
+    window.dispatchEvent(new Event('wp-welcome-changed'));
+  }, [t.welcomeCopy]);
+  const [, force] = React.useReducer(x => x + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener('wp-welcome-changed', force);
+    return () => window.removeEventListener('wp-welcome-changed', force);
+  }, []);
   return (
     <React.Fragment>
     <TweaksPanel>
@@ -85,6 +95,22 @@ function App() {
       />
       <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'rgba(41,38,27,.6)', padding: '2px 0 4px' }}>
         {theme.desc}
+      </div>
+      <TweakSection label="Copy · Boas-vindas" />
+      <TweakSelect
+        label="Variação"
+        value={t.welcomeCopy}
+        options={[
+          { value: 'method',     label: 'A · Método (atual)' },
+          { value: 'speed',      label: 'B · Velocidade' },
+          { value: 'rating',     label: 'C · Rating sério' },
+          { value: 'discipline', label: 'D · Padrões > cálculo' },
+          { value: 'minimal',    label: 'E · Você vs. você' },
+        ]}
+        onChange={(v) => setTweak('welcomeCopy', v)}
+      />
+      <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'rgba(41,38,27,.6)', padding: '2px 0 4px' }}>
+        Veja a tela "01 · Boas-vindas" mudando ao trocar.
       </div>
     </TweaksPanel>
     <DesignCanvas>
@@ -169,11 +195,26 @@ function App() {
         </DCArtboard>
       </DCSection>
 
-      <DCSection id="stats" title="Análises & Perfil" subtitle="Total, por conjunto, por tema. Constância como métrica-chave.">
-        <DCArtboard id="stats" label="01 · Análises (total)" width={FRAME_W} height={FRAME_H}>
+      <DCSection id="stats" title="Análises" subtitle="3 níveis: Geral · Conjuntos · Temas. Cada lista tem drill-in.">
+        <DCArtboard id="stats-geral" label="01 · Geral" width={FRAME_W} height={FRAME_H}>
           <ScreenStats />
         </DCArtboard>
-        <DCArtboard id="profile" label="02 · Perfil" width={FRAME_W} height={FRAME_H}>
+        <DCArtboard id="stats-sets" label="02 · Conjuntos · lista" width={FRAME_W} height={FRAME_H}>
+          <ScreenStatsSets />
+        </DCArtboard>
+        <DCArtboard id="stats-set-detail" label="03 · Conjunto · detalhe" width={FRAME_W} height={FRAME_H}>
+          <ScreenStatsSetDetail />
+        </DCArtboard>
+        <DCArtboard id="stats-set-empty" label="04 · Conjunto · 1 ciclo" width={FRAME_W} height={FRAME_H}>
+          <ScreenStatsSetEmpty />
+        </DCArtboard>
+        <DCArtboard id="stats-themes" label="05 · Temas · lista" width={FRAME_W} height={FRAME_H}>
+          <ScreenStatsThemes />
+        </DCArtboard>
+        <DCArtboard id="stats-theme-detail" label="06 · Tema · detalhe" width={FRAME_W} height={FRAME_H}>
+          <ScreenStatsThemeDetail />
+        </DCArtboard>
+        <DCArtboard id="profile" label="07 · Perfil" width={FRAME_W} height={FRAME_H}>
           <ScreenProfile />
         </DCArtboard>
       </DCSection>
