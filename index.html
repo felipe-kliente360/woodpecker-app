@@ -328,7 +328,7 @@
     /* lanceUciParaSan, aplicarLanceSilencioso, sequenciaSan: src/domain/puzzle.js */
 
     /* === COMPONENTE ChessBoard (wrapper Chessboard.js) === */
-    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, draggable, highlightFrom, highlightTo, selectedSquare }) {
+    function ChessBoardView({ boardId, fen, orientation, onDrop, onSquareClick, draggable, highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo }) {
       const onDropRef = useRef(onDrop);
       const onSquareClickRef = useRef(onSquareClick);
       const draggableRef = useRef(draggable !== false);
@@ -337,8 +337,9 @@
       useEffect(() => { onSquareClickRef.current = onSquareClick; }, [onSquareClick]);
       useEffect(() => { draggableRef.current = draggable !== false; }, [draggable]);
 
-      // Aplica/remove highlights: origem do último lance (sutil), destino (mais
-      // saturado) e a casa selecionada via tap-to-move (azul, sobrepõe).
+      // Aplica/remove highlights. 4 tipos: origem/destino do último lance
+      // do adversário (âmbar), casa selecionada via tap (azul + anel),
+      // origem/destino do lance errado (vermelho).
       useEffect(() => {
         if (!boardRef.current) return;
         const apply = () => {
@@ -348,14 +349,18 @@
             $root.find('.highlight-last-from').removeClass('highlight-last-from');
             $root.find('.highlight-last-to').removeClass('highlight-last-to');
             $root.find('.selected-square').removeClass('selected-square');
+            $root.find('.highlight-error-from').removeClass('highlight-error-from');
+            $root.find('.highlight-error-to').removeClass('highlight-error-to');
             if (highlightFrom) $root.find('.square-' + highlightFrom).addClass('highlight-last-from');
             if (highlightTo)   $root.find('.square-' + highlightTo).addClass('highlight-last-to');
             if (selectedSquare) $root.find('.square-' + selectedSquare).addClass('selected-square');
+            if (errorFrom)     $root.find('.square-' + errorFrom).addClass('highlight-error-from');
+            if (errorTo)       $root.find('.square-' + errorTo).addClass('highlight-error-to');
           } catch (e) {}
         };
         const t = setTimeout(apply, 60);
         return () => clearTimeout(t);
-      }, [highlightFrom, highlightTo, selectedSquare, fen, boardId]);
+      }, [highlightFrom, highlightTo, selectedSquare, errorFrom, errorTo, fen, boardId]);
 
       useEffect(() => {
         const cfg = {
@@ -363,6 +368,10 @@
           position: fen || 'start',
           orientation: orientation || 'white',
           pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+          // Animações mais ágeis pra sensação de fluidez no toque/drag
+          moveSpeed: 140,
+          snapbackSpeed: 80,
+          snapSpeed: 30,
           onDragStart: (source, piece) => {
             if (!draggableRef.current) return false;
           },
@@ -432,7 +441,10 @@
 
       useEffect(() => {
         if (boardRef.current && fen) {
-          try { boardRef.current.position(fen, false); } catch (e) {}
+          // Anima a transição entre FENs (lance do adversário, troca de
+          // puzzle). Sem animação, peças "teleportam" e o jogador perde
+          // referência visual do que mudou.
+          try { boardRef.current.position(fen, true); } catch (e) {}
         }
       }, [fen]);
 
@@ -1902,7 +1914,42 @@
       );
     }
 
-    function TelaTreinar({ conjunto, ciclo, puzzles, sessao, ciclosAnteriores, onConcluir, onSalvarSessao, onSair }) {
+    /* === NOTAS INLINE (TelaTreinar) ===
+     * Colapsável, fechado por default. Persiste em conjunto.notas via
+     * onAtualizar do App. Save debounced em 600ms. Minimalista. */
+    function NotasInline({ conjunto, onAtualizar }) {
+      const [aberto, setAberto] = useState(false);
+      const [texto, setTexto] = useState(conjunto.notas || '');
+      const timerRef = useRef(null);
+      useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+      function aoMudar(v) {
+        setTexto(v);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+          onAtualizar({ ...conjunto, notas: v.trim() });
+        }, 600);
+      }
+      const tem = (texto || '').trim().length > 0;
+      return (
+        <details className="notas-inline mt-12" open={aberto}
+          onToggle={(e) => setAberto(e.target.open)}>
+          <summary>
+            <span>📝</span>
+            <span>Notas{tem ? ' · ' + Math.min(texto.length, 80) + ' chars' : ''}</span>
+            <span style={{ marginLeft: 'auto', opacity: 0.6 }}>
+              {aberto ? '▾' : '▸'}
+            </span>
+          </summary>
+          <textarea
+            value={texto}
+            onChange={e => aoMudar(e.target.value)}
+            placeholder="Anote padrões, ideias, sensações sobre este conjunto..."
+            rows={3} />
+        </details>
+      );
+    }
+
+    function TelaTreinar({ conjunto, ciclo, puzzles, sessao, ciclosAnteriores, onConcluir, onSalvarSessao, onSair, onAtualizarConjunto }) {
       // Reflexões a cada N — armazenadas localmente, injetadas em onConcluir
       // via ref (evita stale closure quando o hook chama o callback).
       const [reflexoesLocais, setReflexoesLocais] = useState(
@@ -1923,7 +1970,7 @@
         idx, total, puzzle, fenAtual, orientacao,
         resultados, tempoAcumulado, paceVsPuzzleBaseline, dicaVisao,
         estado, feedback, promoPicker, casaSelecionada,
-        ultimoLanceAdv, erroPuzzle, seg, pausado,
+        ultimoLanceAdv, ultimoLanceErradoCoords, erroPuzzle, seg, pausado,
         onDrop, onSquareClick, escolherPromocao, cancelarPromocao,
         pular, avancar, setPausado, pularPuzzleErro,
       } = j;
@@ -1996,24 +2043,31 @@
             window.TacticalAggregator.CANONICAL_THEMES[tInstrutivo]) || (TEMAS[tInstrutivo] || tInstrutivo))
         : null;
 
+      // Quem joga (durante puzzle)
+      const corTurno = (window.WP && window.WP.Puzzle && fenAtual)
+        ? window.WP.Puzzle.corDoTabuleiro(fenAtual)
+        : 'white';
+      const labelTurno = corTurno === 'white' ? 'Brancas jogam' : 'Pretas jogam';
+
       return (
         <div className="tela-container narrow">
           {/* === STATUS BAR ÚNICA (1 linha sempre) === */}
           <div className="status-bar mb-12">
-            <span className="num-display">{idx + 1}<span className="txt-muted">/{total}</span></span>
-            <span className="sep">·</span>
-            <span className="num-display" title="Tempo no puzzle atual"
-              style={{ opacity: pausado ? 0.4 : 1 }}>
-              {formatarTempo(seg)}
-            </span>
-            <span className="sep">·</span>
-            <span className="num" title="Tempo total acumulado no ciclo"
-              style={{ color: 'var(--txt-mid)' }}>
-              {formatarTempo(tempoAcumulado)}
-            </span>
-            {paceVsPuzzleBaseline !== null && estado === 'jogando' && !pausado && (
-              <>
-                <span className="sep">·</span>
+            <div className="group">
+              <span className="num-display">{idx + 1}<span className="txt-muted">/{total}</span></span>
+              <span className="sep">·</span>
+              <span className="num-display" title="Tempo no puzzle atual"
+                style={{ opacity: pausado ? 0.4 : 1 }}>
+                {formatarTempo(seg)}
+              </span>
+              <span className="sep">·</span>
+              <span className="num" title="Tempo total acumulado no ciclo"
+                style={{ color: 'var(--txt-mid)' }}>
+                {formatarTempo(tempoAcumulado)}
+              </span>
+            </div>
+            <div className="group right">
+              {paceVsPuzzleBaseline !== null && estado === 'jogando' && !pausado && (
                 <span className="num" title="vs Ciclo 1 neste puzzle" style={{
                   color: paceVsPuzzleBaseline > 5
                     ? 'var(--red)'
@@ -2021,20 +2075,16 @@
                 }}>
                   {paceVsPuzzleBaseline >= 0 ? '+' : '−'}{Math.abs(paceVsPuzzleBaseline)}s
                 </span>
-              </>
-            )}
-            <div style={{ marginLeft: 'auto' }} className="hstack gap-6">
+              )}
               {estado === 'jogando' && (
                 <button
                   onClick={() => setPausado(p => !p)}
                   title={pausado ? 'Retomar (P)' : 'Pausar (P)'}
-                  className="btn btn-small ghost"
-                  style={{ padding: '4px 8px', fontSize: 12 }}>
+                  className="icon-btn">
                   {pausado ? '▶' : '⏸'}
                 </button>
               )}
-              <button className="btn btn-small ghost" onClick={onSair}
-                style={{ padding: '4px 8px', fontSize: 12 }}>✕</button>
+              <button className="icon-btn" onClick={onSair} title="Sair">✕</button>
             </div>
           </div>
 
@@ -2051,6 +2101,8 @@
               highlightFrom={ultimoLanceAdv ? ultimoLanceAdv.from : null}
               highlightTo={ultimoLanceAdv ? ultimoLanceAdv.to : null}
               selectedSquare={casaSelecionada}
+              errorFrom={ultimoLanceErradoCoords ? ultimoLanceErradoCoords.from : null}
+              errorTo={ultimoLanceErradoCoords ? ultimoLanceErradoCoords.to : null}
             />
           </div>
 
@@ -2064,74 +2116,91 @@
             </div>
           )}
 
-          {/* === ÁREA DE AÇÃO/FEEDBACK === */}
-          {estado === 'jogando' && (
-            <div className="hstack gap-8 mt-16" style={{ justifyContent: 'center' }}>
-              <button className="btn btn-ghost" onClick={pular}
+          {/* === BOTÃO PRINCIPAL (sempre visível) === */}
+          <div className="mt-16">
+            {estado === 'jogando' ? (
+              <button className="btn btn-ghost btn-block" onClick={pular}
                 disabled={pausado}
                 title="Pular puzzle (espaço)">
                 ⏭ Pular
               </button>
-            </div>
-          )}
-
-          {estado === 'feedback' && feedback && (
-            <div className="vstack gap-10 mt-16">
-              {/* Botão Próximo SEMPRE acima do feedback */}
+            ) : (
               <button className="btn btn-primary btn-block" onClick={avancar}>
                 {idx + 1 >= total ? '🏁 Finalizar ciclo' : '→ Próximo'}
               </button>
+            )}
+          </div>
 
-              {/* Feedback em no máximo 2 linhas */}
-              {feedback.correto ? (
-                /* === ACERTO === Linha 1: ✓ [★] tema · Linha 2: SANs */
-                <div className="feedback-banner green" style={{ marginTop: 0 }}>
-                  <div className="feedback-title hstack gap-8 flex-wrap" style={{ alignItems: 'baseline' }}>
-                    <span>✓</span>
-                    {feedback.visao_instantanea && (
-                      <span className="badge amber" title="Acerto em ≤5s">★ vi de cara</span>
-                    )}
-                    {explicacaoTema && (
-                      <span className="serif fs-13 txt-mid" style={{ fontWeight: 'normal' }}>
-                        {explicacaoTema}
-                      </span>
+          {/* === ZONA FIXA: turno (durante) ↔ feedback (após) === */}
+          <div className={'mt-12' + (estado === 'feedback' && feedback ? ' action-zone feedback-mode' : ' action-zone')}>
+            {estado === 'jogando' && (
+              <div className="turn-indicator">
+                <span className={'turn-dot ' + corTurno}></span>
+                <span className="turn-label">{labelTurno}</span>
+                {puzzle.rating && (
+                  <span className="txt-muted" style={{ marginLeft: 4 }}>
+                    · puzzle {puzzle.rating}
+                  </span>
+                )}
+              </div>
+            )}
+            {estado === 'feedback' && feedback && (
+              <div style={{ width: '100%' }}>
+                {feedback.correto ? (
+                  /* === ACERTO === Linha 1: ✓ [★] tema · Linha 2: SANs */
+                  <div className="feedback-banner green" style={{ marginTop: 0 }}>
+                    <div className="feedback-title hstack gap-8 flex-wrap" style={{ alignItems: 'baseline' }}>
+                      <span>✓</span>
+                      {feedback.visao_instantanea && (
+                        <span className="badge amber" title="Acerto em ≤5s">★ vi de cara</span>
+                      )}
+                      {explicacaoTema && (
+                        <span className="serif fs-13 txt-mid" style={{ fontWeight: 'normal' }}>
+                          {explicacaoTema}
+                        </span>
+                      )}
+                    </div>
+                    {(feedback.sans || []).length > 0 && (
+                      <div className="hstack gap-6 flex-wrap mt-4">
+                        {(feedback.sans || []).map((s, i) => (
+                          <span key={i} className="badge">{s}</span>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  {(feedback.sans || []).length > 0 && (
-                    <div className="hstack gap-6 flex-wrap mt-4">
+                ) : feedback.mostrar_solucao ? (
+                  /* === ERRO 3+ === Linha 1: ✗ Nº erro — solução SANs · Linha 2: tema */
+                  <div className="feedback-banner red" style={{ marginTop: 0, borderLeft: '3px solid var(--amber)' }}>
+                    <div className="feedback-title hstack gap-6 flex-wrap" style={{ alignItems: 'baseline' }}>
+                      <span>{feedback.pulado ? '⏭' : '✗'} {feedback.total_erros}º erro · solução:</span>
                       {(feedback.sans || []).map((s, i) => (
                         <span key={i} className="badge">{s}</span>
                       ))}
                     </div>
-                  )}
-                </div>
-              ) : feedback.mostrar_solucao ? (
-                /* === ERRO 3+ === Linha 1: ✗ Nº erro — solução SANs · Linha 2: tema */
-                <div className="feedback-banner red" style={{ marginTop: 0, borderLeft: '3px solid var(--amber)' }}>
-                  <div className="feedback-title hstack gap-6 flex-wrap" style={{ alignItems: 'baseline' }}>
-                    <span>{feedback.pulado ? '⏭' : '✗'} {feedback.total_erros}º erro · solução:</span>
-                    {(feedback.sans || []).map((s, i) => (
-                      <span key={i} className="badge">{s}</span>
-                    ))}
+                    {explicacaoTema && (
+                      <div className="serif fs-13 txt-mid mt-4" style={{ lineHeight: 1.4 }}>
+                        {explicacaoTema}
+                      </div>
+                    )}
                   </div>
-                  {explicacaoTema && (
-                    <div className="serif fs-13 txt-mid mt-4" style={{ lineHeight: 1.4 }}>
-                      {explicacaoTema}
+                ) : (
+                  /* === ERRO 1-2 === Linha 1: ✗ errou — próximo · Linha 2: Nº erro · solução no 3º */
+                  <div className="feedback-banner red" style={{ marginTop: 0 }}>
+                    <div className="feedback-title">
+                      {feedback.pulado ? '⏭ pulado' : '✗ errou'} — próximo
                     </div>
-                  )}
-                </div>
-              ) : (
-                /* === ERRO 1-2 === Linha 1: ✗ errou — próximo · Linha 2: Nº erro · solução no 3º */
-                <div className="feedback-banner red" style={{ marginTop: 0 }}>
-                  <div className="feedback-title">
-                    {feedback.pulado ? '⏭ pulado' : '✗ errou'} — próximo
+                    <div className="mono fs-10 txt-muted mt-4">
+                      {feedback.total_erros}º erro · solução revelada no 3º
+                    </div>
                   </div>
-                  <div className="mono fs-10 txt-muted mt-4">
-                    {feedback.total_erros}º erro · solução revelada no 3º
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* === NOTAS DO CONJUNTO (colapsável, minimalista) === */}
+          {onAtualizarConjunto && (
+            <NotasInline conjunto={conjunto} onAtualizar={onAtualizarConjunto} />
           )}
 
           <Promocao
@@ -4728,6 +4797,10 @@
                   onConcluir={aoConcluirCiclo}
                   onSalvarSessao={persistirSessao}
                   onSair={sairDoTreino}
+                  onAtualizarConjunto={(novo) => {
+                    atualizarConjunto(novo);
+                    setConjuntoAtivo(c => c && c.id === novo.id ? { ...c, ...novo } : c);
+                  }}
                 />
               )}
               {!carregando && tela === 'conclusao' && conjuntoAtivo && cicloAtual && (

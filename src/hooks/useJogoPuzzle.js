@@ -48,6 +48,9 @@
 
     const [fenAtual, setFenAtual] = useState("");
     const [ultimoLanceErrado, setUltimoLanceErrado] = useState(null);
+    // Casas do lance errado: ficam destacadas em vermelho enquanto o
+    // feedback de erro está visível. Reset ao trocar puzzle.
+    const [ultimoLanceErradoCoords, setUltimoLanceErradoCoords] = useState(null);
     const [ultimoLanceAdv, setUltimoLanceAdv] = useState(null);
     const [promoPicker, setPromoPicker]   = useState(null);
     const [casaSelecionada, setCasaSelecionada] = useState(null);
@@ -130,6 +133,7 @@
         setFeedback(null);
         setUciInput("");
         setUltimoLanceErrado(null);
+        setUltimoLanceErradoCoords(null);
         setErroPuzzle(null);
         setPromoPicker(null);
         setCasaSelecionada(null);
@@ -214,7 +218,11 @@
           mostrar_solucao: mostrarSolucao, total_erros: totalErros,
         });
         setUltimoLanceErrado(m.san);
-        c.undo();
+        // Manter o lance errado no tabuleiro (não fazer undo) + marcar
+        // origem/destino em vermelho. O jogador VÊ o que jogou, em vez
+        // do snap-back que escondia o erro.
+        setUltimoLanceErradoCoords({ from: from, to: to });
+        setUltimoLanceAdv(null);
         setFenAtual(c.fen());
         setEstado("feedback");
         setResultados(rs => rs.concat([{
@@ -406,6 +414,7 @@
       casaSelecionada: casaSelecionada,
       ultimoLanceAdv: ultimoLanceAdv,
       ultimoLanceErrado: ultimoLanceErrado,
+      ultimoLanceErradoCoords: ultimoLanceErradoCoords,
       erroPuzzle: erroPuzzle,
       // Timer
       seg: seg,

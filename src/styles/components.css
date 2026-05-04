@@ -449,34 +449,147 @@
 }
 
 /* === STATUS BAR (TelaTreinar) ===
-   Linha única horizontal: nro/total · puzzle · total · pace coach.
-   Sem cards aninhados, sem labels redundantes. nowrap garante 1 linha
-   mesmo com pause visível. */
+   Linha única horizontal. Esquerda: progresso + clocks. Direita:
+   pace + ações. nowrap + overflow:hidden garantem 1 linha sempre. */
 .status-bar {
   display: flex;
-  gap: 8px;
+  gap: 14px;
   flex-wrap: nowrap;
-  align-items: baseline;
+  align-items: center;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--txt-mid);
-  padding: 8px 12px;
+  padding: 10px 16px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--surface);
   overflow: hidden;
   white-space: nowrap;
+  min-height: 44px;
 }
 .status-bar > * { flex-shrink: 0; }
+.status-bar .group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.status-bar .group.right { margin-left: auto; }
 .status-bar .num-display {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
-  font-size: 14px;
+  font-size: 15px;
   color: var(--txt);
   font-weight: 600;
+  letter-spacing: 0.02em;
 }
-.status-bar .sep { color: var(--border-mid); }
+.status-bar .num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+.status-bar .sep { color: var(--border-mid); opacity: 0.6; }
+.status-bar .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px; height: 30px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--txt-mid);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.status-bar .icon-btn:hover {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--txt);
+}
+@media (max-width: 480px) {
+  .status-bar { padding: 8px 10px; gap: 10px; }
+  .status-bar .group { gap: 8px; }
+  .status-bar .num-display { font-size: 14px; }
+}
+
+/* === ZONA DE TEXTO ABAIXO DO BOARD ===
+   Container fixo: durante puzzle exibe quem joga; após resolução, vira
+   feedback. Altura mínima estável evita layout shift quando troca conteúdo. */
+.action-zone {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--txt-mid);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+.action-zone .turn-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.action-zone .turn-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--border-mid);
+  display: inline-block;
+}
+.action-zone .turn-dot.white { background: #efe6cf; }
+.action-zone .turn-dot.black { background: #2a2a2a; }
+.action-zone .turn-label { color: var(--txt); font-weight: 600; letter-spacing: 0.04em; }
+.action-zone.feedback-mode {
+  align-items: stretch;
+  text-align: left;
+  padding: 0;
+  background: transparent;
+  border: none;
+  min-height: 56px;
+}
+
+/* === CARD DE NOTAS (TelaTreinar) ===
+   Colapsável. Uma linha quando fechado, expande pra textarea pequena. */
+.notas-inline {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.notas-inline summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  color: var(--txt-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.notas-inline summary::-webkit-details-marker { display: none; }
+.notas-inline summary:hover { color: var(--txt-mid); }
+.notas-inline[open] summary { border-bottom: 1px solid var(--border); color: var(--txt-mid); }
+.notas-inline textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--txt);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  resize: vertical;
+  min-height: 60px;
+  max-height: 200px;
+  box-sizing: border-box;
+}
 
 /* === TIMER === */
 .timer {
@@ -530,39 +643,36 @@
 }
 
 /* === HIGHLIGHT ÚLTIMO LANCE ===
-   Sem borda. Origem mais discreta, destino um pouco mais visível. */
+   Origem mais discreta, destino mais visível. Tom âmbar suave (em vez
+   de verde) pra não conflitar com feedback verde de acerto. */
 .highlight-last-from {
-  background-color: rgba(130, 240, 90, 0.14) !important;
+  background-color: rgba(217, 184, 86, 0.18) !important;
+  box-shadow: inset 0 0 0 2px rgba(217, 184, 86, 0.35) !important;
 }
 .highlight-last-to {
-  background-color: rgba(130, 240, 90, 0.30) !important;
+  background-color: rgba(217, 184, 86, 0.36) !important;
+  box-shadow: inset 0 0 0 2px rgba(217, 184, 86, 0.55) !important;
 }
-:root[data-theme="claro"] .highlight-last-from {
-  background-color: rgba(70, 200, 70, 0.16) !important;
-}
-:root[data-theme="claro"] .highlight-last-to {
-  background-color: rgba(70, 200, 70, 0.32) !important;
-}
-/* Casa selecionada (tap-to-move) — fill azul leve + anel circular em torno
-   da peça (estilo Lichess). Coerente com o "só fill" do highlight do
-   adversário, mas diferenciado pela cor azul e pelo anel central. */
+/* Casa selecionada (tap-to-move) — fill azul + anel central estilo Lichess */
 .selected-square {
   position: relative;
-  background-color: rgba(78, 142, 203, 0.16) !important;
+  background-color: rgba(120, 160, 215, 0.20) !important;
 }
 .selected-square::after {
   content: "";
   position: absolute;
-  inset: 5%;
+  inset: 4%;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 3px rgba(78, 142, 203, 0.85);
+  box-shadow: inset 0 0 0 3px rgba(140, 175, 220, 0.85);
   pointer-events: none;
 }
-:root[data-theme="claro"] .selected-square {
-  background-color: rgba(30, 74, 122, 0.14) !important;
+/* Lance errado: vermelho mais saturado. Origem + destino marcados. */
+.highlight-error-from {
+  background-color: rgba(192, 80, 80, 0.20) !important;
 }
-:root[data-theme="claro"] .selected-square::after {
-  box-shadow: inset 0 0 0 3px rgba(30, 74, 122, 0.85);
+.highlight-error-to {
+  background-color: rgba(192, 80, 80, 0.42) !important;
+  box-shadow: inset 0 0 0 2px rgba(220, 100, 100, 0.65) !important;
 }
 
 /* === BANNER FEEDBACK === */
