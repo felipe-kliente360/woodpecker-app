@@ -43,6 +43,7 @@
   <script src="lib/tactical-themes.js"></script>
   <script src="lib/tactical-aggregator.js"></script>
   <script src="lib/chess-analysis.js"></script>
+  <script src="lib/prefetch.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -5255,15 +5256,27 @@
         })();
       }, []);
 
-      // Carrega sugestões de adversário sob demanda. Cache em-memória do
-      // componente — fica até trocar de tipo. Requer meuChesscom setado.
-      async function carregarSugestoesAdv() {
+      // Carrega sugestões de adversário. Consulta WP.Prefetch primeiro
+      // (cache em sessionStorage com TTL 1h, alimentado pelo onboarding
+      // ou por chamadas anteriores). Fallback: chama topAdversarios
+      // direto. Forçar=true ignora cache (ex.: clique no ↻).
+      async function carregarSugestoesAdv(forcar) {
         if (!meuChesscom || !window.ChessAnalysis) return;
+        // Cache hit imediato (sem flicker de loading)
+        if (!forcar && window.WP && window.WP.Prefetch) {
+          const cached = window.WP.Prefetch.lerAdversarios(meuChesscom);
+          if (cached) { setSugestoesAdv(cached); return; }
+        }
         setCarregandoSugestoes(true);
         setErroSugestoes(null);
         try {
-          const lista = await window.ChessAnalysis.topAdversarios(meuChesscom, { maxMonths: 6, top: 5, minGames: 3 });
-          setSugestoesAdv(lista);
+          if (forcar && window.WP && window.WP.Prefetch) {
+            window.WP.Prefetch.invalidar(meuChesscom);
+          }
+          const lista = (window.WP && window.WP.Prefetch)
+            ? await window.WP.Prefetch.adversarios(meuChesscom)
+            : await window.ChessAnalysis.topAdversarios(meuChesscom, { maxMonths: 6, top: 5, minGames: 3 });
+          setSugestoesAdv(lista || []);
         } catch (e) {
           setErroSugestoes(e.message || String(e));
           setSugestoesAdv([]);
@@ -5395,6 +5408,7 @@
         if (!programa) return iniciarAnalise();
         if (!confirm('Reanalisar ' + programa.username + '? Leva alguns minutos.')) return;
         try { await window.ChessAnalysis.deleteProgram(programa.username); } catch (_) {}
+        if (window.WP && window.WP.Prefetch) window.WP.Prefetch.invalidar(programa.username);
         setPrograma(null);
         setUsername(programa.username);
         setTimeout(iniciarAnalise, 50);
@@ -5532,7 +5546,7 @@
                       <div className="between mb-6">
                         <div className="mono fs-10 ls-2 txt-muted">SUGESTÕES · ONDE MAIS PERDI · 6 MESES</div>
                         <button className="btn btn-small ghost"
-                          onClick={carregarSugestoesAdv}
+                          onClick={() => carregarSugestoesAdv(true)}
                           disabled={carregandoSugestoes}
                           style={{ padding: '2px 8px' }}>
                           {carregandoSugestoes ? '...' : '↻'}
@@ -5578,6 +5592,21 @@
                   )}
                 </div>
               )}
+              {ehAuto && programa && programa.analyzed_at && (() => {
+                const ms = Date.now() - new Date(programa.analyzed_at).getTime();
+                if (isNaN(ms) || ms < 0) return null;
+                const min = Math.floor(ms / 60000);
+                let rel;
+                if (min < 1) rel = 'agora';
+                else if (min < 60) rel = 'há ' + min + ' min';
+                else if (min < 24 * 60) rel = 'há ' + Math.floor(min / 60) + ' h';
+                else rel = 'há ' + Math.floor(min / 1440) + ' d';
+                return (
+                  <div className="mono fs-10 txt-muted mb-8">
+                    Última análise: {rel} · pronta pra usar
+                  </div>
+                );
+              })()}
               <div className="hstack gap-8 mb-12 flex-wrap">
                 <button className="btn btn-primary"
                   onClick={iniciarAnalise}
@@ -6120,11 +6149,16 @@
         }
       }
 
-      // Fluxo de onboarding: import chess.com → conjunto inicial de 5
-      // puzzles na faixa do rating + inicia ciclo direto. Marca o conjunto
-      // com eh_onboarding=true pra TelaConclusao detectar fim em 3 ciclos.
-      async function aoConcluirOnboarding(rating, username) {
-        setRatingUsuario(rating, 'chesscom', username);
+      // Fluxo de onboarding: rating definido (chess.com / calibragem /
+      // manual) → conjunto inicial de 5 puzzles na faixa + inicia ciclo
+      // 1 direto. Marca eh_onboarding=true pra TelaConclusao detectar
+      // fim em 3 ciclos. Independente da fonte do rating.
+      async function criarConjuntoStarter(rating, username, fonte) {
+        setRatingUsuario(rating, fonte || 'manual', username || null);
+        if (username && window.WP && window.WP.Prefetch) {
+          // Adversários cacheado já pra "Plano contra adversário" abrir instantâneo.
+          window.WP.Prefetch.adversarios(username);
+        }
         setCarregando(true);
         setErroCarregar(null);
         setCarregandoMsg('Montando seus 5 puzzles iniciais...');
@@ -6152,6 +6186,11 @@
           setConjuntos(cs => cs.concat([novo]));
           memCache.puzzlesPorConjunto[novo.id] = r.puzzles;
           iniciarCiclo(novo, r.puzzles, 1, false);
+          // Análise pesada agendada pra rodar em idle, depois do ciclo
+          // começar — não compete com a CPU dos puzzles iniciais.
+          if (username && window.WP && window.WP.Prefetch) {
+            setTimeout(() => window.WP.Prefetch.agendarAnalise(username), 2000);
+          }
         } catch (e) {
           setErroCarregar('Falha no conjunto inicial: ' + (e.message || e));
         } finally {
@@ -6396,9 +6435,14 @@
                     const v = prompt('Qual seu rating? (600–2800)');
                     const r = parseInt(v, 10);
                     if (!isNaN(r) && r >= 600 && r <= 2800) {
-                      setRatingUsuario(r, 'manual', null);
                       Store.set(Chaves.ONBOARDING_VISTO, true);
-                      setTela('inicio');
+                      // Primeira vez (sem conjuntos) → starter de 5 puzzles
+                      if (conjuntos.length === 0) {
+                        criarConjuntoStarter(r, null, 'manual');
+                      } else {
+                        setRatingUsuario(r, 'manual', null);
+                        setTela('inicio');
+                      }
                     }
                   }}
                 />
@@ -6407,9 +6451,21 @@
                 <ScreenCalibrateUsername
                   onVoltar={() => setTela(Store.get(Chaves.ONBOARDING_VISTO, false) ? 'inicio' : 'calibrar')}
                   onConfirmar={(rating, username) => {
-                    setRatingUsuario(rating, 'chesscom', username);
                     Store.set(Chaves.ONBOARDING_VISTO, true);
-                    setTela('inicio');
+                    // Primeira vez (sem conjuntos) → starter de 5 puzzles
+                    // + prefetch (adversários imediato, análise agendada)
+                    if (conjuntos.length === 0) {
+                      criarConjuntoStarter(rating, username, 'chesscom');
+                    } else {
+                      setRatingUsuario(rating, 'chesscom', username);
+                      // Username configurado em uso pós-onboarding —
+                      // prefetch otimiza próxima criação de conjunto.
+                      if (window.WP && window.WP.Prefetch) {
+                        window.WP.Prefetch.adversarios(username);
+                        window.WP.Prefetch.agendarAnalise(username);
+                      }
+                      setTela('inicio');
+                    }
                   }}
                 />
               )}
@@ -6420,10 +6476,16 @@
                   total={calibracaoResultado.total}
                   tempoMedio={calibracaoResultado.tempoMedio}
                   onCriarConjunto={() => {
-                    setRatingUsuario(calibracaoResultado.rating, 'calibragem', null);
                     Store.set(Chaves.ONBOARDING_VISTO, true);
+                    const rating = calibracaoResultado.rating;
                     setCalibracaoResultado(null);
-                    setTela('criar');
+                    // Primeira vez → starter de 5 puzzles
+                    if (conjuntos.length === 0) {
+                      criarConjuntoStarter(rating, null, 'calibragem');
+                    } else {
+                      setRatingUsuario(rating, 'calibragem', null);
+                      setTela('criar');
+                    }
                   }}
                 />
               )}
