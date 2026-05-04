@@ -3787,9 +3787,7 @@
       const corTurno = (window.WP && window.WP.Puzzle && fenAtual)
         ? window.WP.Puzzle.corDoTabuleiro(fenAtual) : 'white';
       const labelTurno = corTurno === 'white' ? 'Brancas jogam' : 'Pretas jogam';
-      const pacote = Math.floor(idx / 10) + 1;
-      const totalPacotes = Math.ceil(total / 10);
-      const pacoteProgresso = (idx % 10);
+      const tallyFilled = Math.floor((idx / total) * 10);
       const baseRef = (paceVsPuzzleBaseline !== null && paceVsPuzzleBaseline !== undefined);
 
       return (
@@ -3810,13 +3808,13 @@
             </button>
           </div>
 
-          {/* Tally pacote — esquerda: marcas + % discreto do ciclo;
-              direita: nome do pacote + puzzle atual no pacote. */}
+          {/* Tally — 10 barras preenchidas proporcionalmente ao % do ciclo
+              (floor → nenhuma barra parcialmente colorida). */}
           <div className="wp-puzzle-tally-row">
             <div className="hstack gap-8" style={{ alignItems: 'center' }}>
               <span className="wp-tally" style={{ color: 'var(--wp-accent)', gap: 3 }}>
                 {Array.from({ length: 10 }, (_, i) => (
-                  <i key={i} className={i < pacoteProgresso ? 'on' : ''} style={{ height: 18 }} />
+                  <i key={i} className={i < tallyFilled ? 'on' : ''} style={{ height: 18 }} />
                 ))}
               </span>
               <span className="wp-mono wp-puzzle-pct" title="Puzzles passados no ciclo">
@@ -3824,7 +3822,7 @@
               </span>
             </div>
             <span className="wp-mono wp-puzzle-pacote">
-              {conjunto.nome} — puzzle {pacoteProgresso + 1}
+              {conjunto.nome} — puzzle {idx + 1}
             </span>
           </div>
 
