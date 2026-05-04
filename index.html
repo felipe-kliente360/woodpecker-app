@@ -447,25 +447,26 @@
           downSq = sq;
           [downX, downY] = getXY(e);
         }
-        function onUp(e) {
-          if (!draggableRef.current) { downSq = null; return; }
+        // onDocUp no document — mouseup pode disparar no draggedPiece (body),
+        // fora do $board, então jQuery delegation em $board nunca pega.
+        // Capturamos downSq no mousedown (antes do draggedPiece existir) e
+        // checamos dx/dy aqui, sem precisar saber o target atual.
+        function onDocUp(e) {
+          if (!downSq) return;
           if (ehSintetizado(e)) { downSq = null; return; }
-          const sq = e.currentTarget && e.currentTarget.getAttribute('data-square');
-          if (!sq || !downSq) { downSq = null; return; }
           const [x, y] = getXY(e);
           const dx = Math.abs(x - downX);
           const dy = Math.abs(y - downY);
-          // Tap = mesma casa + sem movimento significativo. Threshold 16px
-          // pra acomodar drift natural do dedo em devices touch.
-          if (sq === downSq && dx < 16 && dy < 16) {
-            if (onSquareClickRef.current) onSquareClickRef.current(sq);
+          if (dx < 16 && dy < 16) {
+            if (onSquareClickRef.current) onSquareClickRef.current(downSq);
           }
           downSq = null;
         }
         if ($board && $board.length) {
           $board.on('mousedown touchstart', '[data-square]', onDown);
-          $board.on('mouseup touchend', '[data-square]', onUp);
         }
+        document.addEventListener('mouseup', onDocUp);
+        document.addEventListener('touchend', onDocUp);
 
         const onResize = () => { try { boardRef.current && boardRef.current.resize(); } catch (e) {} };
         window.addEventListener('resize', onResize);
@@ -474,9 +475,10 @@
           if ($board && $board.length) {
             try {
               $board.off('mousedown touchstart', '[data-square]', onDown);
-              $board.off('mouseup touchend', '[data-square]', onUp);
             } catch (e) {}
           }
+          document.removeEventListener('mouseup', onDocUp);
+          document.removeEventListener('touchend', onDocUp);
           window.removeEventListener('resize', onResize);
           clearTimeout(t);
           try { boardRef.current && boardRef.current.destroy(); } catch (e) {}
