@@ -26,6 +26,18 @@ estimativa). Não é compromisso de entrega — é mapa estratégico.
 | Rating bloqueado fora da TelaInicio | TelaCriar mostra read-only; TelaAnalisar não atualiza rating | `d52a5cb` |
 | Adversário usa rating do usuário | Análise extrai temas; faixa de puzzles segue ratingUsuario.valor (não suggested do adversário) | `d52a5cb` |
 
+### Foco no método: nav reduzida + onboarding guiado
+
+| Item | Descrição | Commit |
+|---|---|---|
+| Sidebar reduzida (Início + Evolução) | Únicas guias de nav; Conjuntos/Criar/Analisar viram fluxos internos via CTAs/wizard | `8bbb6ad` |
+| Pattern Flash removido | Tela inteira (~317 linhas) + rota + atalho deletados — fora do escopo do método | `8bbb6ad` |
+| Onboarding guiado v2 | Só import chess.com (sem calibrar) → auto-cria conjunto "Primeiros 5" + dispara ciclo direto | `337120a` |
+| Banner fim do onboarding | TelaConclusao detecta `eh_onboarding && ciclo>=3`; oferece evolução + calibrar + excluir conjunto | `337120a` |
+| Username chess.com persistente | Card editável na home; setChesscomUsername separado do rating — parâmetro definitivo | `d4ed01e` |
+| Sugestões de adversário | `ChessAnalysis.topAdversarios` lista top 5 enfrentados (3 meses, score rapid×2 > blitz×1 > bullet×0.5); clicar preenche o input | `d4ed01e` |
+| Input manual + sugestões | TelaAnalisarJogador modo adversário mostra ambos: input editável + lista clicável abaixo | `d4ed01e` |
+
 ### Onda recente: pressão + análise + experimentos
 
 | Item | Descrição | Commit |
