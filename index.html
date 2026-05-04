@@ -688,46 +688,44 @@
     /* === HEADER === */
     function Header({ onAbrirConfig }) {
       return (
-        <div className="header">
-          <div className="header-left">
-            <svg className="header-logo" viewBox="0 0 32 32" aria-hidden="true">
-              <text className="glyph" x="16" y="26" textAnchor="middle"
-                    fontFamily="Georgia, 'Times New Roman', serif"
-                    fontSize="28" fontWeight="400">♞</text>
-              <circle className="strike" cx="25" cy="7" r="2.8" />
-            </svg>
-            <span className="header-title">WOODPECKER</span>
-            <span className="header-sub">MÉTODO TÁTICO</span>
+        <div className="wp-header">
+          <div className="wp-header-brand">
+            <span className="wp-tally" style={{ color: 'var(--wp-accent)' }}>
+              <i className="on" /><i className="on" /><i className="on" /><i className="on" />
+            </span>
+            <span className="wp-mono wp-header-title">WOODPECKER</span>
           </div>
-          <div className="hstack gap-8">
-            <button className="theme-toggle"
-              onClick={onAbrirConfig}
-              title="Configurações"
-              style={{ padding: '6px 10px' }}>
-              <span>⚙</span>
-            </button>
-          </div>
+          <button
+            className="wp-header-cog"
+            onClick={onAbrirConfig}
+            title="Configurações"
+            aria-label="Configurações">
+            <WpIcon name="settings" size={18} />
+          </button>
         </div>
       );
     }
 
-    /* === SIDEBAR === */
+    /* === SIDEBAR (mobile drawer + desktop fixed) ===
+       Mantém o nome `Sidebar` por compat com App; agora usa nav items
+       padronizados (treino/conjuntos/análises/perfil) e ícones SVG. */
     function Sidebar({ tela, onNav, mobile }) {
       const itens = [
-        { id: 'inicio',   icon: '🏠', label: 'Início' },
-        { id: 'evolucao', icon: '📊', label: 'Evolução' }
+        { id: 'inicio',    icon: 'home',  label: 'Treino'    },
+        { id: 'conjuntos', icon: 'list',  label: 'Conjuntos' },
+        { id: 'evolucao',  icon: 'chart', label: 'Análises'  },
       ];
       return (
         <div className={mobile ? 'mobile-menu' : 'sidebar'}>
           {itens.map(it => (
-            <div
+            <button
               key={it.id}
               className={'nav-item' + (tela === it.id ? ' active' : '')}
               onClick={() => onNav(it.id)}
             >
-              <span className="nav-icon">{it.icon}</span>
+              <span className="nav-icon"><WpIcon name={it.icon} size={18} /></span>
               <span>{it.label}</span>
-            </div>
+            </button>
           ))}
         </div>
       );
