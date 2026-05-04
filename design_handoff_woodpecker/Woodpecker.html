@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Woodpecker — Repaginação</title>
+<link rel="stylesheet" href="styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; }
+  body { font-family: 'Inter Tight', -apple-system, sans-serif; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<!-- tweaks-panel.jsx não incluso no handoff exportado -->
+<script type="text/babel" src="wp-ui.jsx"></script>
+<script type="text/babel" src="screens-onboarding.jsx"></script>
+<script type="text/babel" src="screens-home.jsx"></script>
+<script type="text/babel" src="screens-train.jsx"></script>
+<script type="text/babel" src="screens-stats.jsx"></script>
+
+<script type="text/babel">
+const FRAME_W = 390;
+const FRAME_H = 760;
+
+function App() {
+  return (
+    <DesignCanvas>
+      <DCSection id="onboarding" title="Onboarding & Calibração" subtitle="Boas-vindas, conexão chess.com, calibração por 30 puzzles">
+        <DCArtboard id="welcome" label="01 · Boas-vindas" width={FRAME_W} height={FRAME_H}>
+          <ScreenWelcome />
+        </DCArtboard>
+        <DCArtboard id="calibrate" label="02 · Escolher método" width={FRAME_W} height={FRAME_H}>
+          <ScreenCalibrate />
+        </DCArtboard>
+        <DCArtboard id="username" label="03 · chess.com username" width={FRAME_W} height={FRAME_H}>
+          <ScreenCalibrateUsername />
+        </DCArtboard>
+        <DCArtboard id="puzzles" label="04 · Resolver 30 puzzles" width={FRAME_W} height={FRAME_H}>
+          <ScreenCalibratePuzzles />
+        </DCArtboard>
+        <DCArtboard id="result" label="05 · Rating calibrado" width={FRAME_W} height={FRAME_H}>
+          <ScreenCalibrateResult />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="home" title="Home & Conjuntos" subtitle="Onde o usuário volta todo dia. Foco em constância e ciclo ativo.">
+        <DCArtboard id="home" label="01 · Home / Treino do dia" width={FRAME_W} height={FRAME_H}>
+          <ScreenHome />
+        </DCArtboard>
+        <DCArtboard id="sets" label="02 · Lista de conjuntos" width={FRAME_W} height={FRAME_H}>
+          <ScreenSets />
+        </DCArtboard>
+        <DCArtboard id="newset" label="03 · Novo conjunto" width={FRAME_W} height={FRAME_H}>
+          <ScreenNewSet />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="train" title="Treino — Resolver puzzle" subtitle="A tela mais usada. Tempo do puzzle vs ciclo anterior é o coração.">
+        <DCArtboard id="puz-idle" label="01 · Resolvendo" width={FRAME_W} height={FRAME_H}>
+          <ScreenPuzzle state="idle" />
+        </DCArtboard>
+        <DCArtboard id="puz-correct" label="02 · Acertou (mais rápido)" width={FRAME_W} height={FRAME_H}>
+          <ScreenPuzzle state="correct" />
+        </DCArtboard>
+        <DCArtboard id="puz-almost" label="03 · Quase" width={FRAME_W} height={FRAME_H}>
+          <ScreenPuzzle state="almost" />
+        </DCArtboard>
+        <DCArtboard id="puz-wrong" label="04 · Errou" width={FRAME_W} height={FRAME_H}>
+          <ScreenPuzzle state="wrong" />
+        </DCArtboard>
+        <DCArtboard id="pack" label="05 · Pacote concluído" width={FRAME_W} height={FRAME_H}>
+          <ScreenPackComplete />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="stats" title="Análises & Perfil" subtitle="Total, por conjunto, por tema. Constância como métrica-chave.">
+        <DCArtboard id="stats" label="01 · Análises (total)" width={FRAME_W} height={FRAME_H}>
+          <ScreenStats />
+        </DCArtboard>
+        <DCArtboard id="profile" label="02 · Perfil" width={FRAME_W} height={FRAME_H}>
+          <ScreenProfile />
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,252 @@
+/* Woodpecker — Design System */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap');
+
+:root {
+  /* Surfaces — warm charcoals (woodpecker heartwood) */
+  --wp-bg: oklch(0.16 0.008 60);          /* deepest */
+  --wp-surface: oklch(0.20 0.010 60);     /* cards */
+  --wp-surface-2: oklch(0.235 0.012 60);  /* raised */
+  --wp-surface-3: oklch(0.28 0.014 60);   /* hover/inputs */
+  --wp-line: oklch(0.32 0.012 60);        /* hairlines */
+  --wp-line-soft: oklch(0.26 0.010 60);
+
+  /* Foreground */
+  --wp-text: oklch(0.94 0.012 80);        /* warm cream */
+  --wp-text-2: oklch(0.78 0.012 70);      /* muted */
+  --wp-text-3: oklch(0.58 0.014 65);      /* tertiary */
+  --wp-text-4: oklch(0.42 0.012 60);      /* faint */
+
+  /* Accent — woodpecker ochre (heartwood / beak) */
+  --wp-accent: oklch(0.72 0.13 55);       /* main ochre */
+  --wp-accent-2: oklch(0.62 0.14 45);     /* deeper terracotta */
+  --wp-accent-soft: oklch(0.40 0.08 50);  /* dim ochre on dark */
+  --wp-accent-tint: oklch(0.25 0.04 55);  /* ochre wash bg */
+
+  /* Semantic — earthy, not neon */
+  --wp-good: oklch(0.72 0.10 145);        /* moss green */
+  --wp-good-soft: oklch(0.30 0.04 145);
+  --wp-bad: oklch(0.62 0.14 28);          /* clay red */
+  --wp-bad-soft: oklch(0.28 0.05 28);
+  --wp-warn: oklch(0.78 0.12 80);         /* aged gold */
+
+  /* Board — classic wood */
+  --wp-board-light: oklch(0.78 0.06 75);  /* maple */
+  --wp-board-dark:  oklch(0.42 0.07 50);  /* walnut */
+  --wp-board-edge:  oklch(0.30 0.05 50);
+
+  /* Type */
+  --font-ui: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+  --font-display: 'Fraunces', 'Inter Tight', serif;
+
+  --radius: 4px;
+  --radius-lg: 8px;
+}
+
+* { box-sizing: border-box; }
+
+.wp-app {
+  font-family: var(--font-ui);
+  background: var(--wp-bg);
+  color: var(--wp-text);
+  width: 100%;
+  height: 100%;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+}
+
+.wp-mono { font-family: var(--font-mono); font-feature-settings: 'tnum'; letter-spacing: -0.02em; }
+.wp-display { font-family: var(--font-display); font-optical-sizing: auto; letter-spacing: -0.02em; }
+
+/* Scrollbar hidden inside artboards */
+.wp-app::-webkit-scrollbar { display: none; }
+.wp-app { scrollbar-width: none; }
+
+/* Status bar (fake mobile) */
+.wp-statusbar {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px 0 28px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--wp-text);
+  letter-spacing: -0.01em;
+}
+.wp-statusbar .right { display: flex; gap: 6px; align-items: center; }
+
+/* Tab bar */
+.wp-tabbar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--wp-line-soft);
+  background: var(--wp-bg);
+  padding: 8px 0 28px;
+}
+.wp-tabbar button {
+  background: none;
+  border: 0;
+  color: var(--wp-text-3);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.wp-tabbar button.active { color: var(--wp-text); }
+.wp-tabbar .dot {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: transparent;
+}
+.wp-tabbar button.active .dot { background: var(--wp-accent); }
+
+/* Buttons */
+.wp-btn {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  border: 1px solid var(--wp-line);
+  background: transparent;
+  color: var(--wp-text);
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all .15s;
+}
+.wp-btn:hover { background: var(--wp-surface-2); }
+.wp-btn-primary {
+  background: var(--wp-accent);
+  color: oklch(0.18 0.02 50);
+  border-color: var(--wp-accent);
+  font-weight: 600;
+}
+.wp-btn-primary:hover { background: oklch(0.78 0.13 55); }
+.wp-btn-ghost { border-color: transparent; color: var(--wp-text-2); }
+.wp-btn-ghost:hover { color: var(--wp-text); background: var(--wp-surface); }
+
+/* Input */
+.wp-input {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-line);
+  color: var(--wp-text);
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  width: 100%;
+  outline: none;
+  transition: border-color .15s;
+}
+.wp-input:focus { border-color: var(--wp-accent); }
+.wp-input::placeholder { color: var(--wp-text-4); }
+
+/* Card */
+.wp-card {
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-line-soft);
+  border-radius: var(--radius);
+}
+
+/* Tally — woodpecker motif (vertical hashes) */
+.wp-tally {
+  display: inline-flex;
+  gap: 3px;
+  align-items: flex-end;
+}
+.wp-tally i {
+  display: block;
+  width: 2px;
+  height: 14px;
+  background: currentColor;
+  opacity: 0.5;
+}
+.wp-tally i.on { opacity: 1; }
+
+/* Eyebrow */
+.wp-eyebrow {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--wp-text-3);
+}
+
+/* Big number */
+.wp-bignum {
+  font-family: var(--font-mono);
+  font-size: 64px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  font-feature-settings: 'tnum';
+}
+
+/* Divider */
+.wp-divider {
+  height: 1px;
+  background: var(--wp-line-soft);
+  width: 100%;
+}
+
+/* Subtle pulse */
+@keyframes wp-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.wp-pulse { animation: wp-pulse 2.4s ease-in-out infinite; }
+
+/* Result flashes */
+@keyframes wp-flash-good {
+  0% { background: var(--wp-good-soft); }
+  100% { background: transparent; }
+}
+@keyframes wp-flash-bad {
+  0% { background: var(--wp-bad-soft); }
+  100% { background: transparent; }
+}
+
+/* Spark line container */
+.wp-spark { width: 100%; height: 40px; }
+
+/* Sparkbar */
+.wp-bars {
+  display: flex; align-items: flex-end; gap: 3px; height: 64px;
+}
+.wp-bars .b {
+  flex: 1;
+  background: var(--wp-text-4);
+  border-radius: 1px;
+  min-height: 4px;
+  transition: background .2s;
+}
+.wp-bars .b.cur { background: var(--wp-accent); }
+
+/* List row */
+.wp-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--wp-line-soft);
+}
+.wp-row:last-child { border-bottom: 0; }
+
+/* Skeleton-like wood grain placeholder for board */
+.wp-board {
+  position: relative;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      var(--wp-board-light) 0 12.5%,
+      var(--wp-board-dark) 12.5% 25%
+    );
+}
