@@ -2932,6 +2932,235 @@
       );
     }
 
+    /* === ScreenPuzzle (handoff Telas 9-12: idle / correct / almost / wrong) ===
+       Layout pixel-fiel: top bar close+eyebrow+counter+pause, tally pacote,
+       headline turno + estado, tabuleiro com overlay pill SAN flutuante, área
+       inferior com Dica/Desistir (idle) ou feedback card + Próximo (resolvido).
+       Toda lógica vem do hook useJogoPuzzle existente.
+    */
+    function ScreenPuzzle({ conjunto, ciclo, puzzles, sessao, ciclosAnteriores, onConcluir, onSalvarSessao, onSair }) {
+      const reflexoesRef = useRef([]);
+      const j = useJogoPuzzle({
+        puzzles: puzzles, sessao: sessao,
+        conjunto: conjunto, ciclo: ciclo,
+        ciclosAnteriores: ciclosAnteriores,
+        onConcluirCiclo: (resultados) => onConcluir(resultados, { reflexoes: reflexoesRef.current }),
+        onSalvarSessao: (s) => onSalvarSessao(Object.assign({}, s, { reflexoes: reflexoesRef.current })),
+      });
+
+      const {
+        idx, total, puzzle, fenAtual, orientacao,
+        resultados, tempoAcumulado, paceVsPuzzleBaseline,
+        estado, feedback, promoPicker, casaSelecionada, lancesPossiveis,
+        ultimoLanceAdv, ultimoLanceErradoCoords, ultimoLanceJogadorTo,
+        erroPuzzle, seg, pausado,
+        onDrop, onSquareClick, aoIniciarDrag, aoEncerrarDrag,
+        escolherPromocao, cancelarPromocao,
+        avancar, setPausado, pularPuzzleErro,
+      } = j;
+
+      useEffect(() => {
+        if (!feedback || !window.WP || !window.WP.Audio) return;
+        if (feedback.correto) window.WP.Audio.acerto();
+        else if (!feedback.pulado) window.WP.Audio.erro();
+      }, [feedback]);
+
+      if (erroPuzzle) {
+        return (
+          <div className="wp-onboarding">
+            <div className="feedback-banner red" style={{ marginTop: 0 }}>
+              <div className="feedback-title">Falha ao carregar puzzle</div>
+              <div className="wp-mono" style={{ fontSize: 12 }}>{erroPuzzle}</div>
+            </div>
+            <WpButton variant="primary" full onClick={onSair} style={{ marginTop: 16 }}>
+              Sair do treino
+            </WpButton>
+          </div>
+        );
+      }
+      if (!puzzle) {
+        return (
+          <div className="wp-onboarding">
+            <div className="feedback-banner" style={{ marginTop: 0 }}>
+              <div className="feedback-title">Sem puzzles</div>
+            </div>
+          </div>
+        );
+      }
+
+      // Estado visual: idle | correct | almost | wrong
+      let estadoVis = 'idle';
+      let stateText = 'Encontre a melhor jogada';
+      let stateColor = 'var(--wp-text)';
+      let pillSAN = null;
+      let pillKind = null;
+
+      if (estado === 'feedback' && feedback) {
+        if (feedback.correto) {
+          estadoVis = 'correct';
+          stateText = 'Certo';
+          stateColor = 'var(--wp-good)';
+          pillKind = 'good';
+          // Pega lance correto do puzzle se disponível
+          if (feedback.lances && feedback.lances.length > 0) {
+            try {
+              const fenAntes = puzzle.fen || puzzle.FEN;
+              pillSAN = lanceUciParaSan(feedback.lances[feedback.lances.length - 1], fenAntes) || feedback.lances[feedback.lances.length - 1];
+            } catch (e) { pillSAN = null; }
+          }
+        } else {
+          // Falhou. Diferenciar quase (~mostrar_solucao=false ou pulado) vs errado (mostrar_solucao)
+          if (feedback.mostrar_solucao) {
+            estadoVis = 'wrong';
+            stateText = 'Errado';
+            stateColor = 'var(--wp-bad)';
+            pillKind = 'bad';
+          } else {
+            estadoVis = 'almost';
+            stateText = 'Quase';
+            stateColor = 'var(--wp-warn)';
+            pillKind = 'warn';
+          }
+          if (feedback.lance_jogador_uci) {
+            try {
+              pillSAN = lanceUciParaSan(feedback.lance_jogador_uci, puzzle.fen || puzzle.FEN) || feedback.lance_jogador_uci;
+            } catch (e) { pillSAN = feedback.lance_jogador_uci; }
+            if (estadoVis === 'wrong') pillSAN = pillSAN + ' ?';
+            if (estadoVis === 'almost') pillSAN = pillSAN + ' — bom, mas há melhor';
+          }
+        }
+      }
+
+      const corTurno = (window.WP && window.WP.Puzzle && fenAtual)
+        ? window.WP.Puzzle.corDoTabuleiro(fenAtual) : 'white';
+      const labelTurno = corTurno === 'white' ? 'Brancas jogam' : 'Pretas jogam';
+      const pacote = Math.floor(idx / 10) + 1;
+      const totalPacotes = Math.ceil(total / 10);
+      const pacoteProgresso = (idx % 10);
+      const baseRef = (paceVsPuzzleBaseline !== null && paceVsPuzzleBaseline !== undefined);
+
+      return (
+        <div className="wp-puzzle">
+          {/* Top bar */}
+          <div className="wp-puzzle-topbar">
+            <button className="wp-icon-btn wp-onboarding-back" onClick={onSair} aria-label="Sair">
+              <WpIcon name="close" size={16} />
+            </button>
+            <div className="wp-puzzle-header-center">
+              <div className="wp-eyebrow" style={{ fontSize: 9.5 }}>
+                {conjunto.nome} · Ciclo {ciclo.numero}
+              </div>
+              <div className="wp-mono wp-puzzle-counter">{idx + 1} / {total}</div>
+            </div>
+            <button className="wp-icon-btn wp-onboarding-back" onClick={() => setPausado(p => !p)} aria-label={pausado ? 'Retomar' : 'Pausar'}>
+              <WpIcon name={pausado ? 'play' : 'pause'} size={16} />
+            </button>
+          </div>
+
+          {/* Tally pacote */}
+          <div className="wp-puzzle-tally-row">
+            <span className="wp-tally" style={{ color: 'var(--wp-accent)', gap: 3 }}>
+              {Array.from({ length: 10 }, (_, i) => (
+                <i key={i} className={i < pacoteProgresso ? 'on' : ''} style={{ height: 18 }} />
+              ))}
+            </span>
+            <span className="wp-mono wp-puzzle-pacote">
+              pacote {pacote} de {totalPacotes} · puzzle {pacoteProgresso + 1}
+            </span>
+          </div>
+
+          {/* Above-board stats */}
+          <div className="wp-puzzle-stats">
+            <div>
+              <div className="wp-eyebrow" style={{ fontSize: 9.5 }}>{labelTurno}</div>
+              <div className="wp-puzzle-state" style={{ color: stateColor }}>{stateText}</div>
+            </div>
+            <div className="wp-puzzle-timer">
+              <div className="wp-mono" style={{ fontSize: 11, color: 'var(--wp-text-3)' }}>{formatarTempo(seg)}</div>
+              {baseRef && (
+                <div className="wp-mono" style={{ fontSize: 10, color: 'var(--wp-text-4)', marginTop: 2 }}>
+                  antes {paceVsPuzzleBaseline >= 0 ? '+' : '−'}{Math.abs(paceVsPuzzleBaseline)}s
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Board */}
+          <div className="wp-puzzle-board-wrap">
+            <ChessBoardView
+              boardId={'puzzle-board-' + idx}
+              fen={fenAtual}
+              orientation={orientacao}
+              onDrop={onDrop}
+              onSquareClick={onSquareClick}
+              onPickPiece={aoIniciarDrag}
+              onDragEnd={aoEncerrarDrag}
+              draggable={estado === 'jogando' && !pausado}
+              highlightFrom={ultimoLanceAdv ? ultimoLanceAdv.from : null}
+              highlightTo={ultimoLanceAdv ? ultimoLanceAdv.to : null}
+              selectedSquare={casaSelecionada}
+              errorFrom={ultimoLanceErradoCoords ? ultimoLanceErradoCoords.from : null}
+              errorTo={ultimoLanceErradoCoords ? ultimoLanceErradoCoords.to : null}
+              successTo={estado === 'feedback' && feedback && feedback.correto ? ultimoLanceJogadorTo : null}
+              possibleMoves={lancesPossiveis ? lancesPossiveis.dots : null}
+              possibleCaptures={lancesPossiveis ? lancesPossiveis.captures : null}
+            />
+            {pillSAN && (
+              <div className="wp-puzzle-pill-overlay">
+                <span className={'wp-move-pill ' + pillKind}>{pillSAN}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom action area */}
+          <div className="wp-puzzle-bottom">
+            {estado === 'jogando' && (
+              <div className="hstack gap-8">
+                <WpButton variant="outline" full onClick={pularPuzzleErro || (() => avancar())}>
+                  <WpIcon name="hint" size={14} /> Dica
+                </WpButton>
+                <WpButton variant="outline" full onClick={() => avancar()}>
+                  Desistir
+                </WpButton>
+              </div>
+            )}
+            {estado === 'feedback' && feedback && (
+              <>
+                {feedback.correto && baseRef && paceVsPuzzleBaseline < 0 && (
+                  <div className="wp-card wp-puzzle-feedback-card">
+                    <span style={{ fontSize: 13, color: 'var(--wp-text-2)' }}>
+                      Mais rápido que ciclo 1
+                    </span>
+                    <span className="wp-mono" style={{ fontSize: 14, color: 'var(--wp-good)' }}>
+                      −{Math.abs(paceVsPuzzleBaseline)}s
+                    </span>
+                  </div>
+                )}
+                <WpButton variant="primary" full onClick={() => avancar()}>
+                  {idx + 1 < total ? 'Próximo · puzzle ' + (idx + 2) : 'Concluir ciclo'}
+                </WpButton>
+              </>
+            )}
+          </div>
+
+          {promoPicker && (
+            <div className="modal-overlay" onClick={cancelarPromocao}>
+              <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 320 }}>
+                <div className="wp-card-title">Escolha a promoção</div>
+                <div className="hstack gap-8" style={{ marginTop: 12, justifyContent: 'center' }}>
+                  {['q', 'r', 'b', 'n'].map(p => (
+                    <WpButton key={p} variant="outline" onClick={() => escolherPromocao(p)}>
+                      {p.toUpperCase()}
+                    </WpButton>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     function TelaTreinar({ conjunto, ciclo, puzzles, sessao, ciclosAnteriores, onConcluir, onSalvarSessao, onSair, onAtualizarConjunto }) {
       // Reflexões a cada N — armazenadas localmente, injetadas em onConcluir
       // via ref (evita stale closure quando o hook chama o callback).
@@ -5831,7 +6060,7 @@
                 />
               )}
               {!carregando && tela === 'treinar' && conjuntoAtivo && cicloAtual && puzzlesAtivos && (
-                <TelaTreinar
+                <ScreenPuzzle
                   conjunto={conjuntoAtivo}
                   ciclo={cicloAtual}
                   puzzles={puzzlesAtivos}

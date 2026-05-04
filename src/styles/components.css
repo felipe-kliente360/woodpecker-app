@@ -1187,6 +1187,88 @@
   opacity: 0.45;
   cursor: not-allowed !important;
 }
+
+/* === ScreenPuzzle (handoff Telas 9-12) ===
+   Layout fullscreen mobile-first. */
+.wp-puzzle {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100vh;
+  background: var(--wp-bg);
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+.wp-puzzle-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+}
+.wp-puzzle-header-center {
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+}
+.wp-puzzle-counter {
+  font-size: 12px;
+  color: var(--wp-text-2);
+  margin-top: 2px;
+}
+.wp-puzzle-tally-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  margin-top: 4px;
+}
+.wp-puzzle-pacote {
+  font-size: 11px;
+  color: var(--wp-text-3);
+}
+.wp-puzzle-stats {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 24px 20px 12px;
+}
+.wp-puzzle-state {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 4px;
+  transition: color 0.3s;
+}
+.wp-puzzle-timer { text-align: right; }
+.wp-puzzle-board-wrap {
+  position: relative;
+  padding: 0 20px;
+}
+.wp-puzzle-pill-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+  padding-bottom: 12px;
+}
+.wp-puzzle-bottom {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 20px 20px 24px;
+  gap: 10px;
+}
+.wp-puzzle-feedback-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border-color: var(--wp-good-soft);
+}
 .wp-onboarding-brand {
   display: flex;
   align-items: center;
