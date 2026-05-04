@@ -131,7 +131,6 @@
         setUciInput("");
         setUltimoLanceErrado(null);
         setErroPuzzle(null);
-        setLancePendente(null);
         setPromoPicker(null);
         setCasaSelecionada(null);
         setPausado(false);
