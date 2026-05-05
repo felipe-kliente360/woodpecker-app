@@ -1595,7 +1595,6 @@
       const Conjunto = window.WP.Conjunto;
       const Ciclo = window.WP.Ciclo;
       const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
-      const concluidos = useMemo(() => Conjunto.conjuntosConcluidos(conjuntos), [conjuntos]);
       const podeNovo = ativos.length < Conjunto.LIMITE_ATIVOS;
       // Streak e tempoHoje incluem ciclos concluídos + sessão em andamento.
       // Qualquer puzzle finalizado (acerto, erro, pulado) já conta no dia.
@@ -1613,16 +1612,34 @@
         [ciclos, sessaoSalva, hojeISO]
       );
 
-      // Conjunto em andamento: prefere o que tem sessão salva (progresso
-      // parcial); caso contrário, primeiro ativo. Garante que quem voltou
-      // pra retomar treino vê o seu conjunto destacado, não outro.
-      const emAndamento = useMemo(() => {
-        if (sessaoSalva) {
-          const cj = ativos.find(c => c.id === sessaoSalva.conjunto_id);
-          if (cj) return cj;
+      // Ordena ativos por recência (sessão > último data_fim/data_inicio
+      // de ciclo > criado_em). Garante que o card destaque o que o usuário
+      // estava jogando de fato — nem ordem de criação nem id arbitrário.
+      const ativosOrdenados = useMemo(() => {
+        function recencia(c) {
+          let t = 0;
+          if (sessaoSalva && sessaoSalva.conjunto_id === c.id && sessaoSalva.iniciado_em) {
+            t = Math.max(t, sessaoSalva.iniciado_em);
+          }
+          const cs = ciclosDoConjunto(ciclos, c.id);
+          for (const ci of cs) {
+            if (ci.data_fim)     t = Math.max(t, ci.data_fim);
+            if (ci.data_inicio)  t = Math.max(t, ci.data_inicio);
+            if (ci.iniciado_em)  t = Math.max(t, ci.iniciado_em);
+          }
+          if (t === 0 && c.criado_em) t = c.criado_em;
+          return t;
         }
-        return ativos[0] || null;
-      }, [ativos, sessaoSalva]);
+        return ativos.slice().sort((a, b) => recencia(b) - recencia(a));
+      }, [ativos, ciclos, sessaoSalva]);
+
+      const emAndamento = ativosOrdenados[0] || null;
+      const outros = useMemo(
+        () => emAndamento
+          ? ativosOrdenados.filter(c => c.id !== emAndamento.id)
+          : ativosOrdenados,
+        [ativosOrdenados, emAndamento]
+      );
       const ciclosEm = emAndamento ? ciclosDoConjunto(ciclos, emAndamento.id) : [];
       const ultCiclo = ciclosEm[ciclosEm.length - 1] || null;
       const prevCiclo = ciclosEm[ciclosEm.length - 2] || null;
@@ -1796,7 +1813,7 @@
                 </div>
               )}
 
-              <WpButton variant="primary" full onClick={() => onContinuar()} style={{ marginTop: 18 }}>
+              <WpButton variant="primary" full onClick={() => onTreinar(emAndamento)} style={{ marginTop: 18 }}>
                 Continuar — pacote {proxPacote}
               </WpButton>
             </div>
@@ -1809,57 +1826,41 @@
             </WpCard>
           )}
 
-          {(ativos.length > 0 || concluidos.length > 0) && (
+          {(outros.length > 0 || podeNovo) && (
             <>
-              <WpEyebrow style={{ marginTop: 28, marginBottom: 8 }}>Outros conjuntos</WpEyebrow>
-              <div className="wp-list">
-                {ativos.slice(emAndamento ? 1 : 0).concat(concluidos).map((c, i) => {
+              {outros.length > 0 && (
+                <WpEyebrow style={{ marginTop: 28, marginBottom: 8 }}>Outros conjuntos</WpEyebrow>
+              )}
+              <div className="wp-list" style={outros.length === 0 ? { marginTop: 28 } : null}>
+                {outros.map((c, i) => {
                   const cs = ciclosDoConjunto(ciclos, c.id);
                   const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)] || 5;
-                  const idx = i + (emAndamento ? 2 : 1);
-                  const ehConcluido = !!c.concluido;
+                  const idx = i + 2;
                   return (
-                    <div key={c.id} className={'wp-row wp-home-conjunto' + (ehConcluido ? ' wp-home-conjunto--concluido' : '')}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: ehConcluido ? 0.7 : 1 }}>
-                      {ehConcluido ? (
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                          <span className="wp-mono wp-home-conjunto-idx">
-                            {String(idx).padStart(2, '0')}
-                          </span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div className="wp-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
-                            <div className="wp-home-conjunto-meta" style={{ color: 'var(--wp-good)' }}>
-                              concluído · {cs.length} ciclos
-                            </div>
+                    <div key={c.id} className="wp-row wp-home-conjunto"
+                      style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <button className="wp-row--button"
+                        onClick={() => onTreinar(c)}
+                        style={{
+                          flex: 1, display: 'flex', alignItems: 'center', gap: 12,
+                          background: 'transparent', border: 0, padding: 0,
+                          color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer',
+                          minWidth: 0,
+                        }}>
+                        <span className="wp-mono wp-home-conjunto-idx">
+                          {String(idx).padStart(2, '0')}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="wp-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
+                          <div className="wp-home-conjunto-meta">
+                            {(c.tamanho || '?')} puzzles · ciclo {cs.length}/{meta}
                           </div>
-                          <span className="wp-mono" style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', color: 'var(--wp-good)' }}>
-                            CONCLUÍDO
-                          </span>
                         </div>
-                      ) : (
-                        <button className="wp-row--button"
-                          onClick={() => onTreinar(c)}
-                          style={{
-                            flex: 1, display: 'flex', alignItems: 'center', gap: 12,
-                            background: 'transparent', border: 0, padding: 0,
-                            color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer',
-                            minWidth: 0,
-                          }}>
-                          <span className="wp-mono wp-home-conjunto-idx">
-                            {String(idx).padStart(2, '0')}
-                          </span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div className="wp-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
-                            <div className="wp-home-conjunto-meta">
-                              {(c.tamanho || '?')} puzzles · ciclo {cs.length}/{meta}
-                            </div>
-                          </div>
-                          <span style={{ color: 'var(--wp-accent)' }}>
-                            <WpTally total={meta} done={cs.length} />
-                          </span>
-                        </button>
-                      )}
-                      {!ehConcluido && onConcluir && cs.length >= 2 && (
+                        <span style={{ color: 'var(--wp-accent)' }}>
+                          <WpTally total={meta} done={cs.length} />
+                        </span>
+                      </button>
+                      {onConcluir && cs.length >= 2 && (
                         <button
                           className="wp-icon-btn"
                           aria-label="Concluir conjunto"
@@ -1901,7 +1902,7 @@
                   style={!podeNovo ? { opacity: 0.45, cursor: 'not-allowed' } : null}
                   title={!podeNovo ? 'Limite de ' + Conjunto.LIMITE_ATIVOS + ' conjuntos ativos atingido' : ''}>
                   <span className="wp-mono wp-home-conjunto-idx">
-                    {String(ativos.length + concluidos.length + 1).padStart(2, '0')}
+                    {String(ativos.length + 1).padStart(2, '0')}
                   </span>
                   <span className="wp-row-label" style={{ color: 'var(--wp-text-3)' }}>
                     {podeNovo ? '+ Novo conjunto' : 'Limite ' + Conjunto.LIMITE_ATIVOS + '/' + Conjunto.LIMITE_ATIVOS + ' atingido'}
