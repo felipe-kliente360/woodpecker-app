@@ -1814,7 +1814,7 @@
                           </span>
                         </button>
                       )}
-                      {!ehConcluido && onConcluir && cs.length >= 1 && (
+                      {!ehConcluido && onConcluir && cs.length >= 2 && (
                         <button
                           className="wp-icon-btn"
                           aria-label="Concluir conjunto"
@@ -2367,7 +2367,7 @@
                         Ciclo <span style={{ color: 'var(--wp-text)' }}>{cicloN}</span> de {meta}
                       </span>
                       <div className="hstack gap-8">
-                        {!ehConcluido && onConcluir && cicloN >= 1 && (
+                        {!ehConcluido && onConcluir && cicloN >= 2 && (
                           <button
                             className="wp-icon-btn"
                             onClick={() => {
