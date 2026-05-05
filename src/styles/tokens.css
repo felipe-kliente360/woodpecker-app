@@ -44,7 +44,7 @@
 
   /* === TABULEIRO === */
   --wp-board-light: oklch(0.78 0.06 75);  /* maple */
-  --wp-board-dark:  oklch(0.42 0.07 50);  /* walnut */
+  --wp-board-dark:  oklch(0.50 0.07 50);  /* walnut clareado (ref lichess brown) */
   --wp-board-edge:  oklch(0.30 0.05 50);
 
   /* === TIPOGRAFIA === */
