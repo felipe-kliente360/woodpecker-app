@@ -849,34 +849,6 @@
     /* Header/Sidebar/Footer legados removidos na Fase 14 — substituídos por
        WpScreen (que renderiza WpSidebar + WpTabBar) na Fase 7. */
 
-    /* === MODAL DE RETOMADA === */
-    function ModalRetomada({ sessao, conjunto, onRetomar, onDescartar }) {
-      const total = sessao.puzzle_ids_ciclo.length;
-      const idx = sessao.index_atual;
-      const pct = total ? Math.round((idx / total) * 100) : 0;
-      const acertos = sessao.resultados_parciais.filter(r => r.correto).length;
-      return (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="fs-15 bold serif mb-12">⏸ Sessão Interrompida</div>
-            <div className="fs-13 serif txt-mid mb-12">Você tinha uma sessão em andamento:</div>
-            <div className="vstack gap-6 mb-20 mono fs-12 txt-mid">
-              <div>· Conjunto: <span className="txt-primary bold">{conjunto ? conjunto.nome : '—'}</span></div>
-              <div>· Ciclo: <span className="bold">{sessao.ciclo_numero}</span></div>
-              <div>· Progresso: {idx} de {total} puzzles ({pct}%)</div>
-              <div>· Acertos até agora: <span className="txt-green bold">{acertos}</span></div>
-            </div>
-            <div className="vstack gap-10">
-              <button className="btn btn-primary btn-block" onClick={onRetomar}>▶ Retomar Sessão</button>
-              <button className="btn btn-ghost btn-block" style={{color:'var(--red)'}} onClick={onDescartar}>
-                Descartar e começar do zero
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     /* === TELA INÍCIO === */
     /* === SEÇÃO BACKUP / IMPORTAÇÃO === */
     /* === SETTINGS MODAL ===
@@ -6942,7 +6914,6 @@
       const [onbPending, setOnbPending] = useState(null);
       const [erroCarregar, setErroCarregar] = useState(null);
       const [sessaoSalva, setSessaoSalva] = useState(() => Store.get(Chaves.SESSAO, null));
-      const [showModalRetomar, setShowModalRetomar] = useState(() => !!Store.get(Chaves.SESSAO, null));
       const [evolucaoConjunto, setEvolucaoConjunto] = useState(null);
       const [presetCriar, setPresetCriar] = useState(null);
       // Estado de qual tipo abrir TelaAnalisarJogador. Definido pelos
@@ -7271,17 +7242,16 @@
         await iniciarTreino(alvo);
       }
 
-      // Retomar sessão
+      // Retomar sessão. Nunca limpa sessaoSalva por conta própria —
+      // mesmo em erro de carregamento, mantém pra próxima tentativa.
+      // Único lugar que zera é aoConcluirCiclo (fim natural do ciclo).
       async function retomarSessao() {
         if (!sessaoSalva) return;
         const conjunto = conjuntos.find(c => c.id === sessaoSalva.conjunto_id);
         if (!conjunto) {
-          alert('Conjunto da sessão não foi encontrado. Sessão descartada.');
-          limparSessao();
-          setShowModalRetomar(false);
+          alert('Conjunto da sessão em andamento não foi encontrado (foi excluído?). Progresso preservado caso o conjunto volte via importação.');
           return;
         }
-        setShowModalRetomar(false);
         setCarregando(true);
         setCarregandoMsg('Restaurando sessão...');
         try {
@@ -7301,16 +7271,10 @@
           setPuzzlesAtivos(puzzles);
           setTela('treinar');
         } catch (e) {
-          alert('Falha ao restaurar sessão: ' + (e.message || e));
-          limparSessao();
+          alert('Falha ao restaurar sessão: ' + (e.message || e) + ' — progresso preservado, tente de novo.');
         } finally {
           setCarregando(false);
         }
-      }
-
-      function descartarSessao() {
-        limparSessao();
-        setShowModalRetomar(false);
       }
 
       function sairDoTreino() {
@@ -7356,15 +7320,6 @@
                 setMostraConfig(false);
               }}
               onFechar={() => setMostraConfig(false)} />
-          )}
-
-          {showModalRetomar && sessaoSalva && (
-            <ModalRetomada
-              sessao={sessaoSalva}
-              conjunto={conjuntos.find(c => c.id === sessaoSalva.conjunto_id)}
-              onRetomar={retomarSessao}
-              onDescartar={descartarSessao}
-            />
           )}
 
           <WpScreen
