@@ -66,11 +66,44 @@
     if (!_timer) _timer = setTimeout(_flush, 3000);
   }
 
+  // Identifica o usuário: re-atribui eventos históricos do beta_id para a
+  // chess.com username. Idempotente — roda apenas 1× por beta_id.
+  // Chamado quando o usuário configura chess.com pela primeira vez.
+  function identificar(chessUsername) {
+    if (!chessUsername) return;
+    var Store  = global.WP.Store;
+    var Chaves = global.WP.Chaves;
+    if (!Store || !Chaves) return;
+
+    var betaId = Store.get(Chaves.BETA_ID, null);
+    if (!betaId) return;
+    if (betaId === chessUsername) return;
+    if (Store.get(Chaves.BETA_ID_MIGRADO, false)) return;
+
+    // Flush pendentes com user_id antigo. Depois pequeno delay e migra
+    // no servidor — UPDATE pega tanto histórico quanto o que acabou de chegar.
+    _flush();
+    setTimeout(function () {
+      fetch('https://rziwpiaxybuvgrabtwir.supabase.co/rest/v1/rpc/migrar_user_id', {
+        method: 'POST',
+        headers: {
+          'apikey':        ANON_KEY,
+          'Authorization': 'Bearer ' + ANON_KEY,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({ old_id: betaId, new_id: chessUsername }),
+        keepalive: true,
+      }).then(function (res) {
+        if (res.ok) Store.set(Chaves.BETA_ID_MIGRADO, true);
+      }).catch(function () { /* silent */ });
+    }, 800);
+  }
+
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'hidden') _flush();
     });
   }
 
-  global.WP.Telemetria = { registrar: registrar, flush: _flush };
+  global.WP.Telemetria = { registrar: registrar, flush: _flush, identificar: identificar };
 })(typeof window !== 'undefined' ? window : globalThis);

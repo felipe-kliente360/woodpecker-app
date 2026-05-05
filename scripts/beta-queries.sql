@@ -6,23 +6,48 @@
 
 
 -- ----------------------------------------------------------------------------
+-- 0. SETUP — função de migração de identidade (rodar 1x, idempotente)
+-- ----------------------------------------------------------------------------
+-- Chamada pelo client quando usuário configura chess.com pela primeira vez.
+-- Re-atribui eventos do beta_id (anônimo) pra chess username.
+create or replace function migrar_user_id(old_id text, new_id text)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  update eventos
+  set user_id = new_id, identified = true
+  where user_id = old_id;
+end;
+$$;
+
+grant execute on function migrar_user_id(text, text) to anon;
+
+
+-- ----------------------------------------------------------------------------
 -- 1. FUNIL DE ATIVAÇÃO — onboarding funciona?
+-- analise_aberta = abriu a tela (cacheado ou novo); analise_executada = rodou de fato.
 -- ----------------------------------------------------------------------------
 with funil as (
   select
     count(distinct user_id) filter (where evento = 'app_aberto')        as abriram,
     count(distinct user_id) filter (where evento = 'conjunto_criado')   as criaram,
     count(distinct user_id) filter (where evento = 'ciclo_concluido')   as completaram,
-    count(distinct user_id) filter (where evento = 'analise_executada') as analisaram
+    count(distinct user_id) filter (where evento = 'analise_aberta')    as abriram_analise,
+    count(distinct user_id) filter (where evento = 'analise_executada') as rodaram_analise,
+    count(distinct user_id) filter (where evento = 'evolucao_aberta')   as viram_evolucao
   from eventos
 )
 select etapa, usuarios,
        coalesce(conv || '%', '—') as conv_etapa_anterior
 from (
-  select 1 as ord, '1. Abriram app'        as etapa, abriram      as usuarios, null::int as conv from funil
-  union all select 2, '2. Criaram conjunto',  criaram,     round(criaram::numeric     / nullif(abriram,0) * 100)::int from funil
-  union all select 3, '3. Completaram ciclo', completaram, round(completaram::numeric / nullif(criaram,0) * 100)::int from funil
-  union all select 4, '4. Usaram análise',    analisaram,  round(analisaram::numeric  / nullif(abriram,0) * 100)::int from funil
+  select 1 as ord, '1. Abriram app'           as etapa, abriram         as usuarios, null::int as conv from funil
+  union all select 2, '2. Criaram conjunto',     criaram,         round(criaram::numeric         / nullif(abriram,0) * 100)::int from funil
+  union all select 3, '3. Completaram ciclo',    completaram,     round(completaram::numeric     / nullif(criaram,0) * 100)::int from funil
+  union all select 4, '4. Abriram análise',      abriram_analise, round(abriram_analise::numeric / nullif(abriram,0) * 100)::int from funil
+  union all select 5, '5. Rodaram análise',      rodaram_analise, round(rodaram_analise::numeric / nullif(abriram_analise,0) * 100)::int from funil
+  union all select 6, '6. Viram evolução',       viram_evolucao,  round(viram_evolucao::numeric  / nullif(abriram,0) * 100)::int from funil
 ) f
 order by ord;
 

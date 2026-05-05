@@ -33,10 +33,12 @@ https.get(options, res => {
     const identified = new Set(events.filter(e => e.identified).map(e => e.user_id));
     const anon = new Set([...allUsers].filter(u => !identified.has(u)));
 
-    const abriram    = setOf('app_aberto');
-    const criaramSet = setOf('conjunto_criado');
-    const ciclos_ok  = setOf('ciclo_concluido');
-    const analisaram = setOf('analise_executada');
+    const abriram         = setOf('app_aberto');
+    const criaramSet      = setOf('conjunto_criado');
+    const ciclos_ok       = setOf('ciclo_concluido');
+    const abriram_analise = setOf('analise_aberta');
+    const rodaram_analise = setOf('analise_executada');
+    const viram_evolucao  = setOf('evolucao_aberta');
 
     const opensByUser = {};
     events.filter(e => e.evento === 'app_aberto').forEach(e => {
@@ -91,8 +93,14 @@ https.get(options, res => {
     console.log('  Acurácia média        : ' + avgAcc + '%');
     console.log('');
     console.log('ANÁLISE CHESS.COM');
-    console.log('  Usaram análise        : ' + analisaram.size + pct(analisaram.size, N));
-    console.log('  Total de análises     : ' + countOf('analise_executada'));
+    console.log('  Abriram a tela        : ' + abriram_analise.size + pct(abriram_analise.size, N));
+    console.log('  Rodaram análise nova  : ' + rodaram_analise.size + pct(rodaram_analise.size, N));
+    console.log('  Total de aberturas    : ' + countOf('analise_aberta'));
+    console.log('  Total de execuções    : ' + countOf('analise_executada'));
+    console.log('');
+    console.log('EVOLUÇÃO');
+    console.log('  Viram evolução        : ' + viram_evolucao.size + pct(viram_evolucao.size, N));
+    console.log('  Total de aberturas    : ' + countOf('evolucao_aberta'));
     console.log('');
     console.log('CONJUNTOS');
     console.log('  Criados (total)       : ' + countOf('conjunto_criado'));
@@ -108,7 +116,7 @@ https.get(options, res => {
     console.log('  Conversão onboarding  : ' + conv_onb + '% (abriu → criou conjunto)');
     console.log('  Conversão valor       : ' + conv_valor + '% (criou conjunto → completou ciclo)');
     console.log('  Retenção D1+          : ' + ret_d1 + '% (voltou em outro dia)');
-    console.log('  Análise utilizada por : ' + (N > 0 ? Math.round(analisaram.size/N*100) : 0) + '% dos usuários');
+    console.log('  Análise utilizada por : ' + (N > 0 ? Math.round(abriram_analise.size/N*100) : 0) + '% dos usuários');
     console.log('');
   });
 }).on('error', e => { console.error('HTTP error:', e.message); process.exit(1); });

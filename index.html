@@ -5599,6 +5599,15 @@
       const [conjuntoId, setConjuntoId] = useState(
         conjuntoInicial ? conjuntoInicial.id : (conjuntos[0] && conjuntos[0].id) || null
       );
+
+      useEffect(() => {
+        if (window.WP && window.WP.Telemetria) {
+          window.WP.Telemetria.registrar('evolucao_aberta', {
+            origem: conjuntoInicial ? 'conjunto' : 'aba',
+            conjunto_id: conjuntoInicial ? conjuntoInicial.id : null,
+          });
+        }
+      }, []);
       const conjunto = conjuntos.find(c => c.id === conjuntoId);
       const cs = conjuntoId ? ciclosDoConjunto(ciclos, conjuntoId) : [];
 
@@ -6176,6 +6185,12 @@
 
       // Carregar último programa do IndexedDB ao abrir (sempre o auto)
       useEffect(() => {
+        if (window.WP && window.WP.Telemetria) {
+          window.WP.Telemetria.registrar('analise_aberta', {
+            tipo_inicial: tipoInicial || 'auto',
+            tem_chesscom: !!meuChesscom,
+          });
+        }
         (async () => {
           const u = (Store.get(Chaves.ANALISE_USERNAME, '') || meuChesscom || '').trim();
           if (!u || !window.ChessAnalysis) return;
@@ -6937,15 +6952,27 @@
         // Definir rating também encerra onboarding (pra modal não voltar)
         Store.set(Chaves.ONBOARDING_VISTO, true);
         Store.set(Chaves.RATING_DATA, novo.data);
-        if (novo.chesscom) Store.set(Chaves.RATING_CHESSCOM_USERNAME, novo.chesscom);
+        if (novo.chesscom) {
+          Store.set(Chaves.RATING_CHESSCOM_USERNAME, novo.chesscom);
+          // Migra eventos do beta_id pro chess username (idempotente)
+          if (window.WP && window.WP.Telemetria) {
+            window.WP.Telemetria.identificar(novo.chesscom);
+          }
+        }
       }
       // Editar/setar só o username chess.com (parâmetro independente de
       // rating). Usado pra trocar de conta sem reimportar rating.
       function setChesscomUsername(u) {
         const limpo = (u || '').trim();
         setRatingUsuarioState(prev => ({ ...prev, chesscom: limpo || null }));
-        if (limpo) Store.set(Chaves.RATING_CHESSCOM_USERNAME, limpo);
-        else Store.remove(Chaves.RATING_CHESSCOM_USERNAME);
+        if (limpo) {
+          Store.set(Chaves.RATING_CHESSCOM_USERNAME, limpo);
+          if (window.WP && window.WP.Telemetria) {
+            window.WP.Telemetria.identificar(limpo);
+          }
+        } else {
+          Store.remove(Chaves.RATING_CHESSCOM_USERNAME);
+        }
       }
 
       const [conjuntoAtivo, setConjuntoAtivo] = useState(null);

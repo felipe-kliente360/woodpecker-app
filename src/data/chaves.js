@@ -29,5 +29,8 @@
     BETA_ID:            "wp_beta_id",
     // Beta: usuário viu o disclosure de coleta de dados
     BETA_DISCLOSURE_OK: "wp_beta_disclosure_ok",
+    // Beta: já migramos eventos antigos do beta_id pra chess username
+    // (idempotente — roda apenas uma vez por beta_id)
+    BETA_ID_MIGRADO:    "wp_beta_id_migrado",
   };
 })(typeof window !== "undefined" ? window : globalThis);
