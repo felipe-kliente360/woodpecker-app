@@ -1587,18 +1587,36 @@
         [ciclos, sessaoSalva, hojeISO]
       );
 
-      // Conjunto em andamento = primeiro ativo (com último ciclo).
-      const emAndamento = ativos[0] || null;
+      // Conjunto em andamento: prefere o que tem sessão salva (progresso
+      // parcial); caso contrário, primeiro ativo. Garante que quem voltou
+      // pra retomar treino vê o seu conjunto destacado, não outro.
+      const emAndamento = useMemo(() => {
+        if (sessaoSalva) {
+          const cj = ativos.find(c => c.id === sessaoSalva.conjunto_id);
+          if (cj) return cj;
+        }
+        return ativos[0] || null;
+      }, [ativos, sessaoSalva]);
       const ciclosEm = emAndamento ? ciclosDoConjunto(ciclos, emAndamento.id) : [];
       const ultCiclo = ciclosEm[ciclosEm.length - 1] || null;
       const prevCiclo = ciclosEm[ciclosEm.length - 2] || null;
       const deltaPct = (ultCiclo && prevCiclo && prevCiclo.tempo_total_s)
         ? Math.round((1 - ultCiclo.tempo_total_s / prevCiclo.tempo_total_s) * 100)
         : null;
-      const proxPacote = ultCiclo ? Math.floor(((ultCiclo.acertos || 0) + (ultCiclo.erros || 0)) / 10) + 1 : 1;
+      // Sessão parcial sobrepõe o ciclo concluído pra refletir o que o
+      // usuário está REALMENTE fazendo agora. Sem isso, depois de fechar
+      // o ciclo 1 e jogar 26 puzzles do ciclo 2, o card mostrava 100/100
+      // do ciclo 1 — invisível pro usuário que o progresso novo existe.
+      const sessaoEm = (sessaoSalva && emAndamento && sessaoSalva.conjunto_id === emAndamento.id)
+        ? sessaoSalva : null;
       const totalPuzzles = emAndamento ? (emAndamento.tamanho || 100) : 100;
-      const concluidosPacote = ultCiclo ? ((ultCiclo.acertos || 0) + (ultCiclo.erros || 0)) : 0;
-      const cicloAtual = ultCiclo ? ultCiclo.numero : 0;
+      const concluidosPacote = sessaoEm
+        ? ((sessaoEm.resultados_parciais && sessaoEm.resultados_parciais.length) || 0)
+        : (ultCiclo ? ((ultCiclo.acertos || 0) + (ultCiclo.erros || 0)) : 0);
+      const cicloAtual = sessaoEm
+        ? sessaoEm.ciclo_numero
+        : (ultCiclo ? ultCiclo.numero : 0);
+      const proxPacote = Math.floor(concluidosPacote / 10) + 1;
       const metaCiclos = emAndamento ? (Conjunto.META_CICLOS[Conjunto.tipoDe(emAndamento)] || 5) : 5;
 
       function formatarHMS(s) {
@@ -2277,7 +2295,7 @@
        Lista de conjuntos com cycle bars (5 cols). Tap → onTreinar (continua
        último ciclo) ou onEvolucao (analytics). Empty state: card placeholder
        dashed. */
-    function ScreenSets({ conjuntos, ciclos, onTreinar, onEvolucao, onCriar, onExcluir, onConcluir }) {
+    function ScreenSets({ conjuntos, ciclos, sessaoSalva, onTreinar, onEvolucao, onCriar, onExcluir, onConcluir }) {
       const Conjunto = window.WP.Conjunto;
       const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
       const concluidos = useMemo(() => Conjunto.conjuntosConcluidos(conjuntos), [conjuntos]);
@@ -2340,7 +2358,11 @@
               {lista.map((c, i) => {
                 const cs = ciclosDoConjunto(ciclos, c.id);
                 const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)] || 5;
-                const cicloN = cs.length;
+                const sessaoDeste = sessaoSalva && sessaoSalva.conjunto_id === c.id ? sessaoSalva : null;
+                const parcial = sessaoDeste && sessaoDeste.resultados_parciais
+                  ? sessaoDeste.resultados_parciais.length : 0;
+                // Em andamento = ciclo da sessão; senão = ciclos concluídos.
+                const cicloN = sessaoDeste ? sessaoDeste.ciclo_numero : cs.length;
                 const ehConcluido = !!c.concluido;
                 return (
                   <div key={c.id} className={'wp-card wp-set-card' + (ehConcluido ? ' wp-set-card--concluido' : '')}>
@@ -2352,6 +2374,9 @@
                         <div className="wp-em-title" style={{ fontSize: 16 }}>{c.nome}</div>
                         <div className="wp-em-meta">
                           {(c.tamanho || '?')} puzzles · {Conjunto.tipoDe(c)}
+                          {parcial > 0 && (
+                            <> · <span style={{ color: 'var(--wp-accent)' }}>{parcial}/{c.tamanho || '?'} em andamento</span></>
+                          )}
                         </div>
                       </div>
                       {ehConcluido ? (
@@ -2368,7 +2393,7 @@
                         Ciclo <span style={{ color: 'var(--wp-text)' }}>{cicloN}</span> de {meta}
                       </span>
                       <div className="hstack gap-8">
-                        {!ehConcluido && onConcluir && cicloN >= 2 && (
+                        {!ehConcluido && onConcluir && cs.length >= 2 && (
                           <button
                             className="wp-icon-btn"
                             onClick={() => {
@@ -7062,6 +7087,13 @@
 
       // Iniciar treino
       async function iniciarTreino(conjunto) {
+        // Sessão em andamento desse conjunto: retoma direto do ponto onde
+        // parou. Sem perguntar, sem criar ciclo novo, sem passar por
+        // selecao. "Continuar" é continuar — sempre.
+        if (sessaoSalva && sessaoSalva.conjunto_id === conjunto.id) {
+          await retomarSessao();
+          return;
+        }
         const cs = ciclosDoConjunto(ciclos, conjunto.id);
         setConjuntoAtivo(conjunto);
         if (cs.length === 0) {
@@ -7391,6 +7423,7 @@
                 <ScreenSets
                   conjuntos={conjuntos}
                   ciclos={ciclos}
+                  sessaoSalva={sessaoSalva}
                   onTreinar={iniciarTreino}
                   onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
                   onCriar={() => setTela('criar-tipo')}
