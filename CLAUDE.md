@@ -110,3 +110,14 @@ ref).
 
 Quando o usuário pedir "roadmap" sem mais contexto, apresentar nesse
 formato — não em listas com bullets.
+
+## Estratégia (benchmark, GTM, monetização)
+
+Para discussão de **estratégia, benchmark competitivo, go-to-market
+ou monetização**, a fonte é `STRATEGY.md` na raiz. `ROADMAP.md` é o
+"como e quando"; `STRATEGY.md` é o "porquê e pra quem".
+
+Quando o usuário tocar em qualquer um desses temas (roadmap
+estratégico, lançamento, concorrentes, público-alvo, preço,
+diferenciais), **ler `STRATEGY.md` antes de responder** e atualizá-lo
+se a conversa produzir nova tese. É arquivo vivo, não foto.
