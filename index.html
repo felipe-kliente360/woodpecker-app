@@ -169,7 +169,12 @@
       return lista;
     }
 
-    async function montarConjunto(rating, variacao, temas, tamanho, onProgress) {
+    async function montarConjunto(rating, variacao, temas, tamanho, onProgress, opts) {
+      opts = opts || {};
+      // pesos: mapa { tema: peso numérico }. Quando presente, faz amostragem
+      // proporcional por bucket (peso alto = mais puzzles desse tema).
+      // Sem pesos → embaralha tudo e fatia (uniforme, comportamento legado).
+      const pesos = opts.pesos || null;
       const FLOOR = 600, CEIL = 2800;
       const STEP = 100;
 
@@ -233,8 +238,44 @@
       }
 
       onProgress && onProgress("Embaralhando " + filtrados.length + " puzzles...");
-      filtrados = embaralhar(filtrados);
-      const escolhidos = filtrados.slice(0, tamanho);
+
+      // Amostragem ponderada por tema: cada puzzle entra no bucket do
+      // PRIMEIRO tema da lista de prioridade que ele tenha (evita
+      // double-count). Distribui `tamanho` proporcional aos pesos.
+      // Bucket que esgotar antes do alvo cede o déficit pra sobra.
+      let escolhidos;
+      let alvoPorTema = null;
+      const somaPesos = pesos ? temas.reduce((a, t) => a + (pesos[t] || 0), 0) : 0;
+      if (pesos && somaPesos > 0) {
+        const buckets = {};
+        for (const t of temas) buckets[t] = [];
+        for (const p of filtrados) {
+          const pTemas = p.temas || p.themes || [];
+          const t = temas.find(x => pTemas.includes(x));
+          if (t) buckets[t].push(p);
+        }
+        for (const t of temas) buckets[t] = embaralhar(buckets[t]);
+        alvoPorTema = {};
+        for (const t of temas) {
+          alvoPorTema[t] = Math.round(tamanho * (pesos[t] || 0) / somaPesos);
+        }
+        const escolhidosArr = [];
+        const sobraArr = [];
+        for (const t of temas) {
+          const fatia = buckets[t].splice(0, alvoPorTema[t]);
+          escolhidosArr.push(...fatia);
+          sobraArr.push(...buckets[t]);
+        }
+        // Bucket esgotado: completa com sobra de outros temas (aleatório).
+        if (escolhidosArr.length < tamanho) {
+          const faltam = tamanho - escolhidosArr.length;
+          escolhidosArr.push(...embaralhar(sobraArr).slice(0, faltam));
+        }
+        escolhidos = embaralhar(escolhidosArr);
+      } else {
+        filtrados = embaralhar(filtrados);
+        escolhidos = filtrados.slice(0, tamanho);
+      }
       const dist = {};
       for (const p of escolhidos) {
         for (const t of (p.temas || p.themes || [])) {
@@ -253,6 +294,8 @@
           total_encontrado: filtrados.length,
           rating_medio: ratingMedio,
           dist_temas: dist,
+          alvo_por_tema: alvoPorTema,
+          pesos: pesos,
           faixas_usadas: chaves,
           expandido: expandiu,
           variacao_efetiva: { down: varDown, up: varUp },
@@ -3343,32 +3386,47 @@
       async function montarEFinalizar() {
         const tamanho = SIZE_VALUE[sizeId] || 500;
         let temas = [];
+        let pesos = null;
         let prog = null;
         let nomePrefix = 'Conjunto';
         let tipo = 'padrao';
         let usernameRef = null;
+        // Pesos = (100 - eficiência) — tema com 30% eficiência pesa 70,
+        // tema com 90% pesa 10. Distribui o conjunto proporcionalmente
+        // à fraqueza, em vez de divisão uniforme. Padding (completarTemas
+        // sem dado real) recebe peso baixo (5) só pra não sumir.
+        function pesosDeFraquezas(progAlvo) {
+          const fr = derivarFraquezasReais(progAlvo, 5);
+          const out = {};
+          for (const f of fr) out[f.theme] = Math.max(1, 100 - f.score);
+          return { temas: fr.map(f => f.theme), pesos: out };
+        }
         if (flow === 'improvement' && programa) {
           prog = programa;
-          const detectados = (programa.themes || []).map(t => t.theme);
+          const fp = pesosDeFraquezas(programa);
           temas = (window.WP_HELPERS && window.WP_HELPERS.completarTemas)
-            ? window.WP_HELPERS.completarTemas(detectados, 5)
-            : detectados.slice(0, 5);
+            ? window.WP_HELPERS.completarTemas(fp.temas, 5)
+            : fp.temas.slice(0, 5);
+          pesos = Object.assign({}, fp.pesos);
+          for (const t of temas) if (pesos[t] == null) pesos[t] = 5;
           nomePrefix = 'Análise · ' + programa.username;
           tipo = 'pessoal';
           usernameRef = programa.username;
         } else if (flow === 'opponent' && foePrograma) {
           prog = foePrograma;
-          const detectados = (foePrograma.themes || []).map(t => t.theme);
+          const fp = pesosDeFraquezas(foePrograma);
           temas = (window.WP_HELPERS && window.WP_HELPERS.completarTemas)
-            ? window.WP_HELPERS.completarTemas(detectados, 5)
-            : detectados.slice(0, 5);
+            ? window.WP_HELPERS.completarTemas(fp.temas, 5)
+            : fp.temas.slice(0, 5);
+          pesos = Object.assign({}, fp.pesos);
+          for (const t of temas) if (pesos[t] == null) pesos[t] = 5;
           nomePrefix = 'Vs ' + foePrograma.username;
           tipo = 'adversario';
           usernameRef = foePrograma.username;
         }
         setMontando(true);
         try {
-          const r = await montarConjunto(ratingValor, 200, temas, tamanho, setProgresso);
+          const r = await montarConjunto(ratingValor, 200, temas, tamanho, setProgresso, { pesos });
           if (!r.puzzles || r.puzzles.length === 0) {
             alert('Não foi possível montar o conjunto.');
             setMontando(false);
