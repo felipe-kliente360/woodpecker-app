@@ -40,9 +40,9 @@
 
   function _flush() {
     _timer = null;
-    if (_queue.length === 0) return;
+    if (_queue.length === 0) return Promise.resolve();
     var batch = _queue.splice(0);
-    fetch(ENDPOINT, {
+    return fetch(ENDPOINT, {
       method: 'POST',
       headers: {
         'apikey':        ANON_KEY,
@@ -78,13 +78,24 @@
     var betaId = Store.get(Chaves.BETA_ID, null);
     if (!betaId) return;
     if (betaId === chessUsername) return;
+
+    // Reescreve eventos pendentes desta sessão pro novo user_id —
+    // sem isso eles iriam pra DB com beta_id e dependeriam do UPDATE
+    // do servidor pra unificar (sujeito a race com o INSERT).
+    for (var i = 0; i < _queue.length; i++) {
+      if (_queue[i].user_id === betaId) {
+        _queue[i].user_id    = chessUsername;
+        _queue[i].identified = true;
+      }
+    }
+
     if (Store.get(Chaves.BETA_ID_MIGRADO, false)) return;
 
-    // Flush pendentes com user_id antigo. Depois pequeno delay e migra
-    // no servidor — UPDATE pega tanto histórico quanto o que acabou de chegar.
-    _flush();
-    setTimeout(function () {
-      fetch('https://rziwpiaxybuvgrabtwir.supabase.co/rest/v1/rpc/migrar_user_id', {
+    // Migração de eventos persistidos em sessões anteriores. Espera o
+    // flush completar antes do UPDATE — senão o UPDATE pode rodar antes
+    // do INSERT chegar no Postgres e zerar a migração.
+    _flush().then(function () {
+      return fetch('https://rziwpiaxybuvgrabtwir.supabase.co/rest/v1/rpc/migrar_user_id', {
         method: 'POST',
         headers: {
           'apikey':        ANON_KEY,
@@ -92,11 +103,10 @@
           'Content-Type':  'application/json',
         },
         body: JSON.stringify({ old_id: betaId, new_id: chessUsername }),
-        keepalive: true,
-      }).then(function (res) {
-        if (res.ok) Store.set(Chaves.BETA_ID_MIGRADO, true);
-      }).catch(function () { /* silent */ });
-    }, 800);
+      });
+    }).then(function (res) {
+      if (res && res.ok) Store.set(Chaves.BETA_ID_MIGRADO, true);
+    }).catch(function () { /* silent */ });
   }
 
   if (typeof document !== 'undefined') {
