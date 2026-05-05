@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:rziwpiaxybuvgrabtwir.supabase.co)"
+    ]
+  },
+  "sandbox": {
+    "network": {
+      "allowedDomains": [
+        "rziwpiaxybuvgrabtwir.supabase.co"
+      ]
+    }
+  }
+}
