@@ -27,46 +27,51 @@ grant execute on function migrar_user_id(text, text) to anon;
 
 -- ----------------------------------------------------------------------------
 -- 1. FUNIL DE ATIVAÇÃO — onboarding funciona?
--- analise_aberta = abriu a tela (cacheado ou novo); analise_executada = rodou de fato.
+-- Onboarding = ciclo do conjunto starter de 5 puzzles (auto-criado no welcome).
+-- Ciclos "reais" filtram (dados->>'total')::int > 5.
 -- ----------------------------------------------------------------------------
 with funil as (
   select
-    count(distinct user_id) filter (where evento = 'app_aberto')        as abriram,
-    count(distinct user_id) filter (where evento = 'conjunto_criado')   as criaram,
-    count(distinct user_id) filter (where evento = 'ciclo_concluido')   as completaram,
-    count(distinct user_id) filter (where evento = 'analise_aberta')    as abriram_analise,
-    count(distinct user_id) filter (where evento = 'analise_executada') as rodaram_analise,
-    count(distinct user_id) filter (where evento = 'evolucao_aberta')   as viram_evolucao
+    count(distinct user_id) filter (where evento = 'app_aberto')                                          as abriram,
+    count(distinct user_id) filter (where evento = 'ciclo_concluido' and (dados->>'total')::int = 5)     as concluiram_onb,
+    count(distinct user_id) filter (where evento = 'conjunto_criado')                                     as criaram,
+    count(distinct user_id) filter (where evento = 'ciclo_concluido' and (dados->>'total')::int > 5)     as completaram,
+    count(distinct user_id) filter (where evento = 'analise_aberta')                                      as abriram_analise,
+    count(distinct user_id) filter (where evento = 'analise_executada')                                   as rodaram_analise,
+    count(distinct user_id) filter (where evento = 'evolucao_aberta')                                     as viram_evolucao
   from eventos
 )
 select etapa, usuarios,
        coalesce(conv || '%', '—') as conv_etapa_anterior
 from (
-  select 1 as ord, '1. Abriram app'           as etapa, abriram         as usuarios, null::int as conv from funil
-  union all select 2, '2. Criaram conjunto',     criaram,         round(criaram::numeric         / nullif(abriram,0) * 100)::int from funil
-  union all select 3, '3. Completaram ciclo',    completaram,     round(completaram::numeric     / nullif(criaram,0) * 100)::int from funil
-  union all select 4, '4. Abriram análise',      abriram_analise, round(abriram_analise::numeric / nullif(abriram,0) * 100)::int from funil
-  union all select 5, '5. Rodaram análise',      rodaram_analise, round(rodaram_analise::numeric / nullif(abriram_analise,0) * 100)::int from funil
-  union all select 6, '6. Viram evolução',       viram_evolucao,  round(viram_evolucao::numeric  / nullif(abriram,0) * 100)::int from funil
+  select 1 as ord, '1. Abriram app'                 as etapa, abriram         as usuarios, null::int as conv from funil
+  union all select 2, '2. Concluíram onboarding',     concluiram_onb,  round(concluiram_onb::numeric  / nullif(abriram,0)         * 100)::int from funil
+  union all select 3, '3. Criaram conjunto',          criaram,         round(criaram::numeric         / nullif(abriram,0)         * 100)::int from funil
+  union all select 4, '4. Completou ciclo real',      completaram,     round(completaram::numeric     / nullif(criaram,0)         * 100)::int from funil
+  union all select 5, '5. Abriram análise',           abriram_analise, round(abriram_analise::numeric / nullif(abriram,0)         * 100)::int from funil
+  union all select 6, '6. Rodaram análise',           rodaram_analise, round(rodaram_analise::numeric / nullif(abriram_analise,0) * 100)::int from funil
+  union all select 7, '7. Viram evolução',            viram_evolucao,  round(viram_evolucao::numeric  / nullif(abriram,0)         * 100)::int from funil
 ) f
 order by ord;
 
 
 -- ----------------------------------------------------------------------------
 -- 2. VISÃO POR USUÁRIO — quem fez o quê
+-- Ciclos/puzzles/acurácia excluem onboarding (total = 5).
 -- ----------------------------------------------------------------------------
 select
   user_id,
-  bool_or(identified)                                               as identified,
-  count(distinct criado_em::date)                                   as dias_ativos,
-  count(*) filter (where evento = 'conjunto_criado')                as conjuntos,
-  count(*) filter (where evento = 'ciclo_concluido')                as ciclos,
-  sum((dados->>'total')::int) filter (where evento = 'ciclo_concluido') as puzzles,
+  bool_or(identified)                                                                                            as identified,
+  count(distinct criado_em::date)                                                                                as dias_ativos,
+  count(*) filter (where evento = 'conjunto_criado')                                                             as conjuntos,
+  count(*) filter (where evento = 'ciclo_concluido' and (dados->>'total')::int = 5)                              as ciclos_onb,
+  count(*) filter (where evento = 'ciclo_concluido' and (dados->>'total')::int > 5)                              as ciclos,
+  sum((dados->>'total')::int) filter (where evento = 'ciclo_concluido' and (dados->>'total')::int > 5)           as puzzles,
   round(avg((dados->>'acertos')::numeric / nullif((dados->>'total')::numeric, 0))
-        filter (where evento = 'ciclo_concluido') * 100)            as acuracia_pct,
-  count(*) filter (where evento = 'analise_executada')              as analises,
-  min(criado_em)::date                                              as primeiro_dia,
-  max(criado_em)::date                                              as ultimo_dia
+        filter (where evento = 'ciclo_concluido' and (dados->>'total')::int > 5) * 100)                          as acuracia_pct,
+  count(*) filter (where evento = 'analise_executada')                                                           as analises,
+  min(criado_em)::date                                                                                           as primeiro_dia,
+  max(criado_em)::date                                                                                           as ultimo_dia
 from eventos
 group by user_id
 order by puzzles desc nulls last;
@@ -74,13 +79,15 @@ order by puzzles desc nulls last;
 
 -- ----------------------------------------------------------------------------
 -- 3. ATIVIDADE POR DIA — quem volta?
+-- "ciclos" exclui onboarding; "ciclos_onb" exibido separado pra contexto.
 -- ----------------------------------------------------------------------------
 select
-  criado_em::date                                       as dia,
-  count(distinct user_id)                               as usuarios_unicos,
-  count(*) filter (where evento = 'app_aberto')         as aberturas,
-  count(*) filter (where evento = 'ciclo_concluido')    as ciclos,
-  count(*) filter (where evento = 'conjunto_criado')    as conjuntos_criados
+  criado_em::date                                                                       as dia,
+  count(distinct user_id)                                                               as usuarios_unicos,
+  count(*) filter (where evento = 'app_aberto')                                         as aberturas,
+  count(*) filter (where evento = 'ciclo_concluido' and (dados->>'total')::int > 5)     as ciclos,
+  count(*) filter (where evento = 'ciclo_concluido' and (dados->>'total')::int = 5)     as ciclos_onb,
+  count(*) filter (where evento = 'conjunto_criado')                                    as conjuntos_criados
 from eventos
 group by criado_em::date
 order by dia desc;
@@ -130,6 +137,7 @@ order by 2 desc;
 
 -- ----------------------------------------------------------------------------
 -- 6. LOOP DE VALOR — quem está realmente treinando
+-- Exclui ciclos do conjunto starter de 5 puzzles (onboarding).
 -- ----------------------------------------------------------------------------
 select
   user_id,
@@ -140,6 +148,6 @@ select
   max((dados->>'ciclo_numero')::int)                                                    as ciclo_max,
   count(*) filter (where (dados->>'apenas_erros')::boolean)                             as ciclos_so_erros
 from eventos
-where evento = 'ciclo_concluido'
+where evento = 'ciclo_concluido' and (dados->>'total')::int > 5
 group by user_id
 order by puzzles desc nulls last;
