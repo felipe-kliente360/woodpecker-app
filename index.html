@@ -1399,20 +1399,20 @@
             <div className="mono fs-10 ls-2 txt-muted mb-4">CRIAR CONJUNTO</div>
             <div className="serif bold fs-17 mb-12">Que tipo de treino?</div>
             <div className="vstack gap-8">
-              <button className="choice-card" onClick={() => escolher('padrao')}>
-                <div className="choice-icon">♞</div>
-                <div className="choice-title">Padrão</div>
-                <div className="choice-desc">
-                  Manutenção tática. Sortido de todos os temas na sua faixa de rating.
-                </div>
-              </button>
               <button className="choice-card"
                 onClick={() => temChesscom && escolher('pessoal')}
                 disabled={!temChesscom}
                 style={!temChesscom ? { opacity: 0.45, cursor: 'not-allowed' } : null}
                 title={!temChesscom ? 'Configure chess.com no rating primeiro' : ''}>
                 <div className="choice-icon">🎯</div>
-                <div className="choice-title">Plano pessoal</div>
+                <div className="choice-title">
+                  Plano pessoal
+                  <span className="wp-mono" style={{
+                    marginLeft: 8, fontSize: 9, letterSpacing: '0.12em',
+                    color: 'var(--wp-accent)', border: '1px solid var(--wp-accent)',
+                    borderRadius: 3, padding: '2px 6px', verticalAlign: 'middle',
+                  }}>RECOMENDADO</span>
+                </div>
                 <div className="choice-desc">
                   Análise das suas partidas. Foca nas suas fraquezas reais.
                   {!temChesscom && <span className="txt-muted"> · requer chess.com</span>}
@@ -1424,10 +1424,17 @@
                 style={!temChesscom ? { opacity: 0.45, cursor: 'not-allowed' } : null}
                 title={!temChesscom ? 'Configure chess.com no rating primeiro' : ''}>
                 <div className="choice-icon">⚔</div>
-                <div className="choice-title">Contra adversário</div>
+                <div className="choice-title">Vencer um adversário</div>
                 <div className="choice-desc">
-                  Análise das partidas de um oponente. Foca nos pontos cegos dele.
+                  Onde ele peca taticamente.
                   {!temChesscom && <span className="txt-muted"> · requer chess.com</span>}
+                </div>
+              </button>
+              <button className="choice-card" onClick={() => escolher('padrao')}>
+                <div className="choice-icon">♞</div>
+                <div className="choice-title">Padrão</div>
+                <div className="choice-desc">
+                  Manutenção tática. Sortido de todos os temas na sua faixa de rating.
                 </div>
               </button>
             </div>
@@ -2469,7 +2476,9 @@
        Confirmação dispara onCriarPadrao | onCriarPessoal | onCriarAdversario
        (handlers do App; pessoal/adversário entram em TelaAnalisar). */
     function ScreenNewSet({ temChesscom, onVoltar, onCriarPadrao, onCriarPessoal, onCriarAdversario }) {
-      const [tipo, setTipo] = useState('padrao');
+      // Plano pessoal pré-selecionado quando há chess.com configurado
+      // (caminho recomendado). Sem chess.com cai em padrão.
+      const [tipo, setTipo] = useState(() => temChesscom ? 'pessoal' : 'padrao');
       function aoConfirmar() {
         if (tipo === 'padrao') onCriarPadrao();
         else if (tipo === 'pessoal' && temChesscom) onCriarPessoal();
@@ -2495,22 +2504,18 @@
           </p>
 
           <div className="vstack gap-10" style={{ marginTop: 28 }}>
-            <WpCard selected={tipo === 'padrao'} onClick={() => setTipo('padrao')}>
-              <div className="hstack gap-12" style={{ alignItems: 'baseline', marginBottom: 6 }}>
-                <span className="wp-mono wp-home-conjunto-idx">01</span>
-                <span className="wp-card-title" style={{ fontSize: 16 }}>Padrão</span>
-              </div>
-              <div className="wp-card-desc">Temas sortidos no seu rating.</div>
-              <div className="wp-mono wp-card-meta">50 ou 100 puzzles</div>
-            </WpCard>
-
             <WpCard
               selected={tipo === 'pessoal'}
               onClick={() => temChesscom && setTipo('pessoal')}
               className={!temChesscom ? 'wp-card--disabled' : ''}>
               <div className="hstack gap-12" style={{ alignItems: 'baseline', marginBottom: 6 }}>
-                <span className="wp-mono wp-home-conjunto-idx">02</span>
-                <span className="wp-card-title" style={{ fontSize: 16 }}>Plano de melhoria</span>
+                <span className="wp-mono wp-home-conjunto-idx">01</span>
+                <span className="wp-card-title" style={{ fontSize: 16 }}>Plano pessoal</span>
+                <span className="wp-mono" style={{
+                  marginLeft: 'auto', fontSize: 9, letterSpacing: '0.12em',
+                  color: 'var(--wp-accent)', border: '1px solid var(--wp-accent)',
+                  borderRadius: 3, padding: '2px 6px',
+                }}>RECOMENDADO</span>
               </div>
               <div className="wp-card-desc">
                 Importa fraquezas do chess.com.
@@ -2524,14 +2529,23 @@
               onClick={() => temChesscom && setTipo('adversario')}
               className={!temChesscom ? 'wp-card--disabled' : ''}>
               <div className="hstack gap-12" style={{ alignItems: 'baseline', marginBottom: 6 }}>
-                <span className="wp-mono wp-home-conjunto-idx">03</span>
-                <span className="wp-card-title" style={{ fontSize: 16 }}>Adversário específico</span>
+                <span className="wp-mono wp-home-conjunto-idx">02</span>
+                <span className="wp-card-title" style={{ fontSize: 16 }}>Vencer um adversário</span>
               </div>
               <div className="wp-card-desc">
-                Aberturas e padrões dele.
+                Onde ele peca taticamente.
                 {!temChesscom && <span style={{ color: 'var(--wp-text-4)' }}> · requer chess.com</span>}
               </div>
               <div className="wp-mono wp-card-meta">username + 100 puzzles</div>
+            </WpCard>
+
+            <WpCard selected={tipo === 'padrao'} onClick={() => setTipo('padrao')}>
+              <div className="hstack gap-12" style={{ alignItems: 'baseline', marginBottom: 6 }}>
+                <span className="wp-mono wp-home-conjunto-idx">03</span>
+                <span className="wp-card-title" style={{ fontSize: 16 }}>Padrão</span>
+              </div>
+              <div className="wp-card-desc">Temas sortidos no seu rating.</div>
+              <div className="wp-mono wp-card-meta">50 ou 100 puzzles</div>
             </WpCard>
           </div>
 
