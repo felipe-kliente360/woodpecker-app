@@ -70,9 +70,13 @@
     return ultimo.tempo_total_s / baseline.tempo_total_s;
   }
 
-  // Está pronto pra concluir? Regras (todas as tipologias):
-  //   >= meta_ciclos (5) OR halving (razão <= 0.5)
-  // Retorna { pronto: bool, motivo: 'meta' | 'halving' | null }.
+  // Está pronto pra concluir? Regra única (todas as tipologias):
+  //   >= meta_ciclos (5)
+  // Halving (razão <= 0.5) é um marco visual/celebrativo, mas NÃO
+  // dispara auto-conclusão — bater 50% no ciclo 2 ou 3 é plausível e
+  // não significa que o método terminou. O usuário escolhe explicitamente
+  // concluir antes do ciclo 5 via botão Concluir.
+  // Retorna { pronto: bool, motivo: 'meta' | null }.
   function prontoPraConcluir(conjunto, ciclos) {
     if (!conjunto || conjunto.concluido) return { pronto: false, motivo: null };
     const t = tipoDe(conjunto);
@@ -80,8 +84,6 @@
     if (cs.length === 0) return { pronto: false, motivo: null };
     const meta = META_CICLOS[t];
     if (meta && cs.length >= meta) return { pronto: true, motivo: "meta" };
-    const r = razaoBaseline(cs);
-    if (r != null && r <= 0.5) return { pronto: true, motivo: "halving" };
     return { pronto: false, motivo: null };
   }
 

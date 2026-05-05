@@ -71,17 +71,14 @@ test("prontoPraConcluir: pessoal pronto após 5 ciclos (meta canônica)", () => 
   assert.equal(r.motivo, "meta");
 });
 
-test("prontoPraConcluir: pessoal pronto por halving (razão <= 0.5)", () => {
+test("prontoPraConcluir: halving NÃO dispara auto-conclusão (só meta de 5 ciclos)", () => {
   const C = dom();
   const conj = { id: "a", tipo: "pessoal" };
   const ciclos = [
     { conjunto_id: "a", numero: 1, tempo_total_s: 2000 }, // baseline
-    { conjunto_id: "a", numero: 2, tempo_total_s: 1500 },
-    { conjunto_id: "a", numero: 3, tempo_total_s: 900 },  // razão 0.45 → halving
+    { conjunto_id: "a", numero: 2, tempo_total_s: 800 },  // razão 0.4 → halving, mas não conclui
   ];
-  const r = C.prontoPraConcluir(conj, ciclos);
-  assert.equal(r.pronto, true);
-  assert.equal(r.motivo, "halving");
+  assert.equal(C.prontoPraConcluir(conj, ciclos).pronto, false);
 });
 
 test("prontoPraConcluir: adversario também usa meta canônica (5 ciclos)", () => {
