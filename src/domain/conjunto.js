@@ -24,13 +24,13 @@
     adversario: "⚔",
   };
 
-  // Meta de ciclos por tipo. Padrão é open-ended (null) — usuário marca
-  // manualmente. Pessoal segue Smith/Tikkanen (6-7). Adversário é prep
-  // pontual (3-4).
+  // Meta canônica do método: 5 ciclos por conjunto, qualquer tipo.
+  // Ao final do ciclo 5, conjunto é auto-concluído. Halving (razão <= 0.5)
+  // também conclui antecipadamente.
   const META_CICLOS = {
-    padrao:     null,
-    pessoal:    7,
-    adversario: 4,
+    padrao:     5,
+    pessoal:    5,
+    adversario: 5,
   };
 
   // Limite máximo de conjuntos ativos simultâneos. Estrito.
@@ -70,15 +70,12 @@
     return ultimo.tempo_total_s / baseline.tempo_total_s;
   }
 
-  // Está pronto pra concluir? Regras por tipo:
-  //   padrao:     nunca automático (usuário decide)
-  //   pessoal:    >= meta_ciclos OR halving (razão <= 0.5)
-  //   adversario: >= meta_ciclos OR halving
+  // Está pronto pra concluir? Regras (todas as tipologias):
+  //   >= meta_ciclos (5) OR halving (razão <= 0.5)
   // Retorna { pronto: bool, motivo: 'meta' | 'halving' | null }.
   function prontoPraConcluir(conjunto, ciclos) {
     if (!conjunto || conjunto.concluido) return { pronto: false, motivo: null };
     const t = tipoDe(conjunto);
-    if (t === TIPOS.PADRAO) return { pronto: false, motivo: null };
     const cs = (ciclos || []).filter(c => c.conjunto_id === conjunto.id);
     if (cs.length === 0) return { pronto: false, motivo: null };
     const meta = META_CICLOS[t];

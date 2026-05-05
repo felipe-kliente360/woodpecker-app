@@ -1564,10 +1564,11 @@
     function ScreenHome({
       conjuntos, ciclos, ratingUsuario,
       onContinuar, onTreinar, onEvolucao, onCriar, onIrParaPerfil,
-      onCalibrar, onConectarChesscom, onExcluir,
+      onCalibrar, onConectarChesscom, onExcluir, onConcluir,
     }) {
       const Conjunto = window.WP.Conjunto;
       const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
+      const concluidos = useMemo(() => Conjunto.conjuntosConcluidos(conjuntos), [conjuntos]);
       const podeNovo = ativos.length < Conjunto.LIMITE_ATIVOS;
       const streak = window.WP.Ciclo.streakAtual(ciclos);
       const semana = useMemo(() => window.WP.Ciclo.streakPorDia(ciclos, 7), [ciclos]);
@@ -1763,38 +1764,70 @@
             </WpCard>
           )}
 
-          {ativos.length > 0 && (
+          {(ativos.length > 0 || concluidos.length > 0) && (
             <>
               <WpEyebrow style={{ marginTop: 28, marginBottom: 8 }}>Outros conjuntos</WpEyebrow>
               <div className="wp-list">
-                {ativos.slice(emAndamento ? 1 : 0).map((c, i) => {
+                {ativos.slice(emAndamento ? 1 : 0).concat(concluidos).map((c, i) => {
                   const cs = ciclosDoConjunto(ciclos, c.id);
                   const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)] || 5;
                   const idx = i + (emAndamento ? 2 : 1);
+                  const ehConcluido = !!c.concluido;
                   return (
-                    <div key={c.id} className="wp-row wp-home-conjunto"
-                      style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <button className="wp-row--button"
-                        onClick={() => onTreinar(c)}
-                        style={{
-                          flex: 1, display: 'flex', alignItems: 'center', gap: 12,
-                          background: 'transparent', border: 0, padding: 0,
-                          color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer',
-                          minWidth: 0,
-                        }}>
-                        <span className="wp-mono wp-home-conjunto-idx">
-                          {String(idx).padStart(2, '0')}
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="wp-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
-                          <div className="wp-home-conjunto-meta">
-                            {(c.tamanho || '?')} puzzles · ciclo {cs.length}/{meta}
+                    <div key={c.id} className={'wp-row wp-home-conjunto' + (ehConcluido ? ' wp-home-conjunto--concluido' : '')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: ehConcluido ? 0.7 : 1 }}>
+                      {ehConcluido ? (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                          <span className="wp-mono wp-home-conjunto-idx">
+                            {String(idx).padStart(2, '0')}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="wp-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
+                            <div className="wp-home-conjunto-meta" style={{ color: 'var(--wp-good)' }}>
+                              concluído · {cs.length} ciclos
+                            </div>
                           </div>
+                          <span className="wp-mono" style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', color: 'var(--wp-good)' }}>
+                            CONCLUÍDO
+                          </span>
                         </div>
-                        <span style={{ color: 'var(--wp-accent)' }}>
-                          <WpTally total={meta} done={cs.length} />
-                        </span>
-                      </button>
+                      ) : (
+                        <button className="wp-row--button"
+                          onClick={() => onTreinar(c)}
+                          style={{
+                            flex: 1, display: 'flex', alignItems: 'center', gap: 12,
+                            background: 'transparent', border: 0, padding: 0,
+                            color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer',
+                            minWidth: 0,
+                          }}>
+                          <span className="wp-mono wp-home-conjunto-idx">
+                            {String(idx).padStart(2, '0')}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="wp-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
+                            <div className="wp-home-conjunto-meta">
+                              {(c.tamanho || '?')} puzzles · ciclo {cs.length}/{meta}
+                            </div>
+                          </div>
+                          <span style={{ color: 'var(--wp-accent)' }}>
+                            <WpTally total={meta} done={cs.length} />
+                          </span>
+                        </button>
+                      )}
+                      {!ehConcluido && onConcluir && cs.length >= 1 && (
+                        <button
+                          className="wp-icon-btn"
+                          aria-label="Concluir conjunto"
+                          title="Concluir conjunto"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Concluir "' + c.nome + '"? O conjunto sai da rotina mas continua listado nas análises.')) {
+                              onConcluir(c.id);
+                            }
+                          }}>
+                          <WpIcon name="check" size={14} />
+                        </button>
+                      )}
                       {onExcluir && (
                         <button
                           className="wp-icon-btn"
@@ -1802,10 +1835,10 @@
                           title="Excluir conjunto"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const cs = ciclosDoConjunto(ciclos, c.id);
-                            const concluidos = cs.filter(x => x.data_fim).length;
-                            const aviso = concluidos >= 2
-                              ? '\n\nObs: como esse conjunto tem ' + concluidos + ' ciclos concluídos, os dados de ciclo permanecem nas Análises.'
+                            const csConj = ciclosDoConjunto(ciclos, c.id);
+                            const concl = csConj.filter(x => x.data_fim).length;
+                            const aviso = concl >= 2
+                              ? '\n\nObs: como esse conjunto tem ' + concl + ' ciclos concluídos, os dados de ciclo permanecem nas Análises.'
                               : '';
                             if (confirm('Excluir o conjunto "' + c.nome + '"? Os puzzles deste conjunto saem da rotina.' + aviso)) {
                               onExcluir(c.id);
@@ -1823,7 +1856,7 @@
                   style={!podeNovo ? { opacity: 0.45, cursor: 'not-allowed' } : null}
                   title={!podeNovo ? 'Limite de ' + Conjunto.LIMITE_ATIVOS + ' conjuntos ativos atingido' : ''}>
                   <span className="wp-mono wp-home-conjunto-idx">
-                    {String(ativos.length + 1).padStart(2, '0')}
+                    {String(ativos.length + concluidos.length + 1).padStart(2, '0')}
                   </span>
                   <span className="wp-row-label" style={{ color: 'var(--wp-text-3)' }}>
                     {podeNovo ? '+ Novo conjunto' : 'Limite ' + Conjunto.LIMITE_ATIVOS + '/' + Conjunto.LIMITE_ATIVOS + ' atingido'}
@@ -2243,9 +2276,11 @@
        Lista de conjuntos com cycle bars (5 cols). Tap → onTreinar (continua
        último ciclo) ou onEvolucao (analytics). Empty state: card placeholder
        dashed. */
-    function ScreenSets({ conjuntos, ciclos, onTreinar, onEvolucao, onCriar, onExcluir }) {
+    function ScreenSets({ conjuntos, ciclos, onTreinar, onEvolucao, onCriar, onExcluir, onConcluir }) {
       const Conjunto = window.WP.Conjunto;
       const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
+      const concluidos = useMemo(() => Conjunto.conjuntosConcluidos(conjuntos), [conjuntos]);
+      const lista = useMemo(() => ativos.concat(concluidos), [ativos, concluidos]);
 
       function CycleBars({ c }) {
         const cs = ciclosDoConjunto(ciclos, c.id);
@@ -2292,7 +2327,7 @@
             </button>
           </div>
 
-          {ativos.length === 0 ? (
+          {lista.length === 0 ? (
             <WpCard onClick={onCriar} className="wp-em-empty">
               <div className="wp-card-title">Comece um conjunto</div>
               <div className="wp-card-desc">
@@ -2301,12 +2336,13 @@
             </WpCard>
           ) : (
             <div className="vstack gap-12">
-              {ativos.map((c, i) => {
+              {lista.map((c, i) => {
                 const cs = ciclosDoConjunto(ciclos, c.id);
                 const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(c)] || 5;
                 const cicloN = cs.length;
+                const ehConcluido = !!c.concluido;
                 return (
-                  <div key={c.id} className="wp-card wp-set-card">
+                  <div key={c.id} className={'wp-card wp-set-card' + (ehConcluido ? ' wp-set-card--concluido' : '')}>
                     <div className="wp-set-row">
                       <span className="wp-mono wp-home-conjunto-idx">
                         {String(i + 1).padStart(2, '0')}
@@ -2317,9 +2353,11 @@
                           {(c.tamanho || '?')} puzzles · {Conjunto.tipoDe(c)}
                         </div>
                       </div>
-                      {cicloN > 0 && cicloN < meta && (
+                      {ehConcluido ? (
+                        <span className="wp-mono wp-em-badge" style={{ color: 'var(--wp-good)', borderColor: 'var(--wp-good-soft)' }}>CONCLUÍDO</span>
+                      ) : cicloN > 0 && cicloN < meta ? (
                         <span className="wp-mono wp-em-badge">ATIVO</span>
-                      )}
+                      ) : null}
                     </div>
 
                     <CycleBars c={c} />
@@ -2329,14 +2367,27 @@
                         Ciclo <span style={{ color: 'var(--wp-text)' }}>{cicloN}</span> de {meta}
                       </span>
                       <div className="hstack gap-8">
+                        {!ehConcluido && onConcluir && cicloN >= 1 && (
+                          <button
+                            className="wp-icon-btn"
+                            onClick={() => {
+                              if (confirm('Concluir "' + c.nome + '"? O conjunto sai da rotina mas continua listado nas análises.')) {
+                                onConcluir(c.id);
+                              }
+                            }}
+                            aria-label="Concluir conjunto"
+                            title="Concluir conjunto">
+                            <WpIcon name="check" size={16} />
+                          </button>
+                        )}
                         {onExcluir && (
                           <button
                             className="wp-icon-btn wp-set-delete"
                             onClick={() => {
                               const csConj = ciclosDoConjunto(ciclos, c.id);
-                              const concluidos = csConj.filter(x => x.data_fim).length;
-                              const aviso = concluidos >= 2
-                                ? '\n\nObs: como esse conjunto tem ' + concluidos + ' ciclos concluídos, os dados de ciclo permanecem nas Análises.'
+                              const concl = csConj.filter(x => x.data_fim).length;
+                              const aviso = concl >= 2
+                                ? '\n\nObs: como esse conjunto tem ' + concl + ' ciclos concluídos, os dados de ciclo permanecem nas Análises.'
                                 : '';
                               if (confirm('Excluir o conjunto "' + c.nome + '"? Os puzzles deste conjunto saem da rotina.' + aviso)) {
                                 onExcluir(c.id);
@@ -2348,9 +2399,11 @@
                           </button>
                         )}
                         <WpButton variant="ghost" onClick={() => onEvolucao(c)}>Análises</WpButton>
-                        <WpButton variant="outline" onClick={() => onTreinar(c)}>
-                          {cicloN === 0 ? 'Começar' : (cicloN >= meta ? 'Revisar' : 'Continuar')}
-                        </WpButton>
+                        {!ehConcluido && (
+                          <WpButton variant="outline" onClick={() => onTreinar(c)}>
+                            {cicloN === 0 ? 'Começar' : (cicloN >= meta ? 'Revisar' : 'Continuar')}
+                          </WpButton>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2819,7 +2872,9 @@
       if (!programa || !programa.themes) return [];
       const profile = programa.profile || {};
       const weighted = profile.weighted_top || [];
-      const breakdown = profile.breakdown || profile.raw_breakdown || {};
+      // Prefere raw_breakdown (contagem inteira de erros) sobre breakdown
+      // (ponderado A=1.5/B=1.2/C=0.6 → produz decimais que poluem a UI).
+      const breakdown = profile.raw_breakdown || profile.breakdown || {};
       const scoreByTheme = {};
       for (const w of weighted) scoreByTheme[w.theme] = w.score || 0;
       const scores = Object.values(scoreByTheme);
@@ -2843,7 +2898,7 @@
         return {
           theme: t.theme,
           score: visual,
-          erros: totalReal > 0 ? totalReal : (FALLBACK_ERR[t.priority] || 5),
+          erros: totalReal > 0 ? Math.round(totalReal) : (FALLBACK_ERR[t.priority] || 5),
         };
       });
     }
@@ -4294,11 +4349,15 @@
         return traduzirTema(tts[0]);
       }
 
-      const eyebrowText = statusConcluir.pronto
-        ? 'Conjunto concluído'
-        : 'Ciclo ' + ciclo.numero + ' / ' + (Conjunto.META_CICLOS[Conjunto.tipoDe(conjunto)] || 5) + ' concluído';
-      const cicloNum = ciclo.numero;
       const meta = Conjunto.META_CICLOS[Conjunto.tipoDe(conjunto)] || 5;
+      // Conjunto concluído (manual ou auto via meta/halving) bloqueia
+      // continuar pra próximo ciclo. statusConcluir.pronto cobre o caso
+      // do auto-conclude ainda não ter propagado pelo state.
+      const conjConcluido = !!conjunto.concluido || statusConcluir.pronto;
+      const eyebrowText = conjConcluido
+        ? 'Conjunto concluído'
+        : 'Ciclo ' + ciclo.numero + ' / ' + meta + ' concluído';
+      const cicloNum = ciclo.numero;
 
       return (
         <div className="wp-onboarding wp-pack-complete">
@@ -4363,21 +4422,16 @@
 
           <div style={{ flex: 1 }} />
           <div className="hstack gap-8" style={{ marginTop: 32 }}>
-            <WpButton variant="outline" onClick={onEvolucao} style={{ flex: 1 }}>
+            <WpButton variant={conjConcluido ? 'primary' : 'outline'} onClick={onEvolucao} style={{ flex: 1 }}>
               Análises
             </WpButton>
-            {!statusConcluir.pronto && (
+            {!conjConcluido && (
               <WpButton variant="primary" onClick={onProximoCiclo} style={{ flex: 2 }}>
                 Próximo ciclo
               </WpButton>
             )}
-            {statusConcluir.pronto && (
-              <WpButton variant="primary" onClick={onProximoCiclo} style={{ flex: 2 }}>
-                Concluir conjunto
-              </WpButton>
-            )}
           </div>
-          {errados.length > 0 && !statusConcluir.pronto && (
+          {errados.length > 0 && !conjConcluido && (
             <WpButton variant="ghost" full onClick={onApenasErros} style={{ marginTop: 8 }}>
               Apenas erros · {errados.length} {errados.length === 1 ? 'puzzle' : 'puzzles'}
             </WpButton>
@@ -7083,6 +7137,19 @@
         limparSessao();
         setTela('conclusao');
 
+        // Auto-conclusão: ao terminar o ciclo 5 (ou bater halving),
+        // conjunto vira "concluído" — sai da lista de ativos e não pode
+        // mais ser retomado. Permanece listado em "concluídos".
+        if (conjuntoAtivo && !conjuntoAtivo.concluido) {
+          const ciclosDoConj = ciclos
+            .filter(c => c.conjunto_id === conjuntoAtivo.id)
+            .concat([cicloFinal]);
+          const status = window.WP.Conjunto.prontoPraConcluir(conjuntoAtivo, ciclosDoConj);
+          if (status.pronto) {
+            concluirConjunto(conjuntoAtivo.id);
+          }
+        }
+
         // Conjunto de calibragem: ao concluir, gravar rating do usuário
         // automaticamente — fonte 'calibragem'. Substitui valores
         // anteriores (assume calibragem mais recente é a verdade).
@@ -7315,6 +7382,7 @@
                   onCalibrar={() => setTela('calibrar')}
                   onConectarChesscom={() => setTela('calibrar-user')}
                   onExcluir={excluirConjunto}
+                  onConcluir={concluirConjunto}
                 />
               )}
               {!carregando && tela === 'conjuntos' && (
@@ -7325,6 +7393,7 @@
                   onEvolucao={(c) => { setEvolucaoConjunto(c); setTela('evolucao'); }}
                   onCriar={() => setTela('criar-tipo')}
                   onExcluir={excluirConjunto}
+                  onConcluir={concluirConjunto}
                 />
               )}
               {!carregando && tela === 'criar-tipo' && (

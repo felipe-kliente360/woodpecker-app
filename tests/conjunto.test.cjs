@@ -47,22 +47,26 @@ test("contagemPorTipo: conta só ativos por tipo", () => {
   assert.deepEqual(r, { padrao: 1, pessoal: 1, adversario: 1 });
 });
 
-test("prontoPraConcluir: tipo padrao nunca é automático", () => {
+test("prontoPraConcluir: padrao auto-conclui ao chegar em 5 ciclos", () => {
   const C = dom();
   const conj = { id: "a", tipo: "padrao" };
-  const ciclos = Array.from({ length: 20 }).map((_, i) => ({
+  const ciclos4 = Array.from({ length: 4 }).map((_, i) => ({
     conjunto_id: "a", numero: i + 1, tempo_total_s: 1000,
   }));
-  assert.deepEqual(C.prontoPraConcluir(conj, ciclos), { pronto: false, motivo: null });
+  assert.equal(C.prontoPraConcluir(conj, ciclos4).pronto, false);
+  const ciclos5 = ciclos4.concat([{ conjunto_id: "a", numero: 5, tempo_total_s: 1000 }]);
+  const r = C.prontoPraConcluir(conj, ciclos5);
+  assert.equal(r.pronto, true);
+  assert.equal(r.motivo, "meta");
 });
 
-test("prontoPraConcluir: tipo pessoal pronto após 7 ciclos (meta)", () => {
+test("prontoPraConcluir: pessoal pronto após 5 ciclos (meta canônica)", () => {
   const C = dom();
   const conj = { id: "a", tipo: "pessoal" };
-  const ciclos7 = Array.from({ length: 7 }).map((_, i) => ({
+  const ciclos5 = Array.from({ length: 5 }).map((_, i) => ({
     conjunto_id: "a", numero: i + 1, tempo_total_s: 1000,
   }));
-  const r = C.prontoPraConcluir(conj, ciclos7);
+  const r = C.prontoPraConcluir(conj, ciclos5);
   assert.equal(r.pronto, true);
   assert.equal(r.motivo, "meta");
 });
@@ -80,24 +84,24 @@ test("prontoPraConcluir: pessoal pronto por halving (razão <= 0.5)", () => {
   assert.equal(r.motivo, "halving");
 });
 
-test("prontoPraConcluir: adversario com meta menor (4 ciclos)", () => {
+test("prontoPraConcluir: adversario também usa meta canônica (5 ciclos)", () => {
   const C = dom();
   const conj = { id: "a", tipo: "adversario" };
-  const ciclos3 = Array.from({ length: 3 }).map((_, i) => ({
+  const ciclos4 = Array.from({ length: 4 }).map((_, i) => ({
     conjunto_id: "a", numero: i + 1, tempo_total_s: 1000,
   }));
-  assert.equal(C.prontoPraConcluir(conj, ciclos3).pronto, false);
-  const ciclos4 = ciclos3.concat([{ conjunto_id: "a", numero: 4, tempo_total_s: 1000 }]);
-  assert.equal(C.prontoPraConcluir(conj, ciclos4).pronto, true);
+  assert.equal(C.prontoPraConcluir(conj, ciclos4).pronto, false);
+  const ciclos5 = ciclos4.concat([{ conjunto_id: "a", numero: 5, tempo_total_s: 1000 }]);
+  assert.equal(C.prontoPraConcluir(conj, ciclos5).pronto, true);
 });
 
 test("prontoPraConcluir: já concluido retorna false", () => {
   const C = dom();
   const conj = { id: "a", tipo: "pessoal", concluido: true };
-  const ciclos7 = Array.from({ length: 7 }).map((_, i) => ({
+  const ciclos5 = Array.from({ length: 5 }).map((_, i) => ({
     conjunto_id: "a", numero: i + 1, tempo_total_s: 1000,
   }));
-  assert.equal(C.prontoPraConcluir(conj, ciclos7).pronto, false);
+  assert.equal(C.prontoPraConcluir(conj, ciclos5).pronto, false);
 });
 
 test("concluir: imutável, retorna novo objeto com flags", () => {
