@@ -179,6 +179,29 @@
       const FLOOR = 600, CEIL = 2800;
       const STEP = 100;
 
+      // Premissa do método: NUNCA repetir puzzle dentro de um conjunto.
+      // Dataset/faixas podem ter sobreposições residuais e temas vêm com
+      // duplicatas vez ou outra (padding + análise convergem). Toda lista
+      // que cresce passa por aqui antes de virar resultado.
+      const idDe = (p) => p.id || p.puzzleId;
+      const dedupePorId = (arr) => {
+        const visto = new Set();
+        const out = [];
+        for (const p of arr) {
+          const id = idDe(p);
+          if (id != null && !visto.has(id)) { visto.add(id); out.push(p); }
+        }
+        return out;
+      };
+      const temasUniq = [];
+      {
+        const visto = new Set();
+        for (const t of (temas || [])) {
+          if (!visto.has(t)) { visto.add(t); temasUniq.push(t); }
+        }
+      }
+      temas = temasUniq;
+
       // Quanto podemos expandir em cada direção a partir do rating
       const maxDown = Math.max(0, rating - FLOOR);
       const maxUp   = Math.max(0, CEIL - rating);
@@ -214,6 +237,7 @@
             chavesBaixadas.add(k);
           }
         }
+        todos = dedupePorId(todos);
         filtrados = filtrar(min, max);
         return { chaves, min, max };
       };
@@ -246,6 +270,7 @@
       // Bucket que esgotar antes do alvo cede o déficit pra sobra.
       let escolhidos;
       let alvoPorTema = null;
+      let temasFallback = [];
       const somaPesos = pesos ? temas.reduce((a, t) => a + (pesos[t] || 0), 0) : 0;
       if (pesos && somaPesos > 0) {
         const buckets = {};
@@ -260,23 +285,60 @@
         for (const t of temas) {
           alvoPorTema[t] = Math.round(tamanho * (pesos[t] || 0) / somaPesos);
         }
+        const idsEscolhidos = new Set();
         const escolhidosArr = [];
         const sobraArr = [];
         for (const t of temas) {
           const fatia = buckets[t].splice(0, alvoPorTema[t]);
-          escolhidosArr.push(...fatia);
-          sobraArr.push(...buckets[t]);
+          for (const p of fatia) {
+            const id = idDe(p);
+            if (!idsEscolhidos.has(id)) { idsEscolhidos.add(id); escolhidosArr.push(p); }
+          }
+          for (const p of buckets[t]) {
+            const id = idDe(p);
+            if (!idsEscolhidos.has(id)) sobraArr.push(p);
+          }
         }
-        // Bucket esgotado: completa com sobra de outros temas (aleatório).
+        // Bucket esgotado: completa com sobra dos MESMOS temas (proporcional
+        // à disponibilidade — embaralhar mantém aleatório dentro do pool).
         if (escolhidosArr.length < tamanho) {
-          const faltam = tamanho - escolhidosArr.length;
-          escolhidosArr.push(...embaralhar(sobraArr).slice(0, faltam));
+          for (const p of embaralhar(sobraArr)) {
+            if (escolhidosArr.length >= tamanho) break;
+            const id = idDe(p);
+            if (!idsEscolhidos.has(id)) {
+              idsEscolhidos.add(id);
+              escolhidosArr.push(p);
+            }
+          }
+        }
+        // Ainda faltando: traz puzzles de OUTROS temas dentro do range —
+        // qualquer puzzle do nível, contanto que não repita. Registra os
+        // temas extras pro stats/UI.
+        if (escolhidosArr.length < tamanho) {
+          const adicionais = todos.filter(p => {
+            const r = p.rating || 0;
+            if (r < min || r > max) return false;
+            return !idsEscolhidos.has(idDe(p));
+          });
+          const extrasSet = new Set();
+          for (const p of embaralhar(adicionais)) {
+            if (escolhidosArr.length >= tamanho) break;
+            idsEscolhidos.add(idDe(p));
+            escolhidosArr.push(p);
+            for (const t of (p.temas || p.themes || [])) {
+              if (!temas.includes(t)) extrasSet.add(t);
+            }
+          }
+          temasFallback = [...extrasSet];
         }
         escolhidos = embaralhar(escolhidosArr);
       } else {
-        filtrados = embaralhar(filtrados);
+        filtrados = embaralhar(dedupePorId(filtrados));
         escolhidos = filtrados.slice(0, tamanho);
       }
+      // Defesa final: garante que a saída nunca tenha id repetido, mesmo
+      // que algum caminho acima escape. Premissa do método é absoluta.
+      escolhidos = dedupePorId(escolhidos);
       const dist = {};
       for (const p of escolhidos) {
         for (const t of (p.temas || p.themes || [])) {
@@ -301,7 +363,8 @@
           expandido: expandiu,
           variacao_efetiva: { down: varDown, up: varUp },
           range_efetivo: { min, max },
-          tamanho_pedido: tamanho
+          tamanho_pedido: tamanho,
+          temas_fallback: temasFallback
         }
       };
     }
@@ -6005,9 +6068,17 @@
         todos = todos.concat(lista);
       }
       const mapa = new Map(todos.map(p => [p.id || p.puzzleId, p]));
-      const ordenados = (conjunto.puzzle_ids || [])
-        .map(id => mapa.get(id))
-        .filter(Boolean);
+      // Dedupe por id mesmo nesta camada — conjuntos legados podem ter
+      // gravado puzzle_ids com repetição antes do fix em montarConjunto.
+      const visto = new Set();
+      const ordenados = [];
+      for (const id of (conjunto.puzzle_ids || [])) {
+        if (visto.has(id)) continue;
+        const p = mapa.get(id);
+        if (!p) continue;
+        visto.add(id);
+        ordenados.push(p);
+      }
       memCache.puzzlesPorConjunto[conjunto.id] = ordenados;
       return ordenados;
     }
@@ -7370,7 +7441,17 @@
         try {
           const todos = await carregarPuzzlesDoConjunto(conjunto, setCarregandoMsg);
           const mapa = new Map(todos.map(p => [p.id || p.puzzleId, p]));
-          const puzzles = sessaoSalva.puzzle_ids_ciclo.map(id => mapa.get(id)).filter(Boolean);
+          // Dedupe defensivo — sessões legadas podem ter ids duplicados
+          // gravados antes do fix em montarConjunto.
+          const vistosCiclo = new Set();
+          const puzzles = [];
+          for (const id of sessaoSalva.puzzle_ids_ciclo) {
+            if (vistosCiclo.has(id)) continue;
+            const p = mapa.get(id);
+            if (!p) continue;
+            vistosCiclo.add(id);
+            puzzles.push(p);
+          }
           const ciclo = {
             id: gerarId(),
             conjunto_id: conjunto.id,
