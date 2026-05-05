@@ -277,6 +277,7 @@
         setResultados(rs => rs.concat([{
           puzzle_id: puzzle.id || puzzle.puzzleId, correto: false,
           tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating,
+          finalizado_em: Date.now(),
         }]));
         return true;
       }
@@ -350,6 +351,7 @@
         puzzle_id: puzzle.id || puzzle.puzzleId, correto: true,
         tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating,
         visao_instantanea: visaoInstantanea,
+        finalizado_em: Date.now(),
       }]));
     }
 
@@ -386,6 +388,7 @@
       setResultados(rs => rs.concat([{
         puzzle_id: puzzle.id || puzzle.puzzleId, correto: false,
         tempo_s: tempo, temas: puzzle.temas || puzzle.themes || [], rating: puzzle.rating,
+        finalizado_em: Date.now(),
       }]));
     }
 

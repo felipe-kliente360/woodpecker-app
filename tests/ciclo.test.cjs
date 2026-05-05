@@ -10,6 +10,14 @@ function dom() {
 
 const DIA = 86400000;
 
+// Helpers — usam fuso local pra casar com a chave da função.
+function msLocal(y, m, d, h) {
+  return new Date(y, m - 1, d, h || 12, 0, 0, 0).getTime();
+}
+function dataLocal(y, m, d, h) {
+  return new Date(y, m - 1, d, h || 12, 0, 0, 0);
+}
+
 test("metricasAtividade — vazio", () => {
   const { Ciclo } = dom();
   assert.deepEqual(Ciclo.metricasAtividade([]), {
@@ -30,9 +38,9 @@ test("metricasAtividade — soma total e dias únicos", () => {
     { data_fim: ag, numero: 4 },
   ]);
   assert.equal(m.total, 4);
-  // Janela de 5 dias com 4 ciclos. UTC pode esticar pra 4 dias únicos
-  // se "ag" cair na primeira hora do dia (offset −1h sai pro dia anterior).
-  assert.ok(m.diasAtivos >= 2 && m.diasAtivos <= 4, "dias únicos varia com UTC");
+  // 4 ciclos espalhados em até 4 dias distintos (3 ou 4 dependendo
+  // de onde "agora" cai no dia local).
+  assert.ok(m.diasAtivos >= 2 && m.diasAtivos <= 4);
   assert.ok(m.diasDesde >= 0 && m.diasDesde < 1);
 });
 
@@ -46,50 +54,140 @@ test("nivelDoRating — faixas em pt-BR", () => {
   assert.equal(Ciclo.nivelDoRating(2200), "Mestre");
 });
 
-test("streakPorDia — array com tamanho dias, ordenado mais antigo → hoje", () => {
+test("chaveLocal — YYYY-MM-DD no fuso local", () => {
   const { Ciclo } = dom();
-  const hoje = new Date('2026-05-15T12:00:00Z');
-  const r = Ciclo.streakPorDia([], 7, hoje);
+  // 22h local → mesmo dia (ao contrário de UTC, que joga pra dia seguinte
+  // em fusos negativos).
+  assert.equal(Ciclo.chaveLocal(dataLocal(2026, 5, 15, 22)), "2026-05-15");
+  assert.equal(Ciclo.chaveLocal(msLocal(2026, 1, 9, 3)), "2026-01-09");
+});
+
+test("streakPorDia — array tamanho dias, ordenado mais antigo → hoje", () => {
+  const { Ciclo } = dom();
+  const hoje = dataLocal(2026, 5, 15, 12);
+  const r = Ciclo.streakPorDia([], 7, { hoje });
   assert.equal(r.length, 7);
-  assert.equal(r[6].data, '2026-05-15');
-  assert.equal(r[0].data, '2026-05-09');
+  assert.equal(r[6].data, "2026-05-15");
+  assert.equal(r[0].data, "2026-05-09");
   assert.equal(r[6].count, 0);
 });
 
-test("streakPorDia — conta ciclos por dia corretamente", () => {
+test("streakPorDia — conta puzzles por dia (resultados.finalizado_em)", () => {
   const { Ciclo } = dom();
-  const hoje = new Date('2026-05-15T12:00:00Z');
+  const hoje = dataLocal(2026, 5, 15, 12);
   const ciclos = [
-    { data_fim: new Date('2026-05-15T08:00:00Z').getTime() },
-    { data_fim: new Date('2026-05-15T20:00:00Z').getTime() },
-    { data_fim: new Date('2026-05-13T12:00:00Z').getTime() },
+    {
+      data_fim: msLocal(2026, 5, 15, 18),
+      resultados: [
+        { tempo_s: 30, finalizado_em: msLocal(2026, 5, 15, 8) },
+        { tempo_s: 45, finalizado_em: msLocal(2026, 5, 15, 20) },
+        { tempo_s: 60, finalizado_em: msLocal(2026, 5, 13, 12) },
+      ],
+    },
   ];
-  const r = Ciclo.streakPorDia(ciclos, 7, hoje);
-  const hojeEntry = r.find(e => e.data === '2026-05-15');
-  const ontem = r.find(e => e.data === '2026-05-14');
-  const antes = r.find(e => e.data === '2026-05-13');
-  assert.equal(hojeEntry.count, 2);
-  assert.equal(ontem.count, 0);
-  assert.equal(antes.count, 1);
+  const r = Ciclo.streakPorDia(ciclos, 7, { hoje });
+  assert.equal(r.find(e => e.data === "2026-05-15").count, 2);
+  assert.equal(r.find(e => e.data === "2026-05-14").count, 0);
+  assert.equal(r.find(e => e.data === "2026-05-13").count, 1);
 });
 
-test("streakAtual — conta dias consecutivos a partir de hoje", () => {
+test("streakPorDia — fallback pra data_fim quando puzzle não tem finalizado_em (legado)", () => {
   const { Ciclo } = dom();
-  const hoje = new Date('2026-05-15T12:00:00Z');
-  const dia = (d) => new Date('2026-05-' + String(d).padStart(2, '0') + 'T12:00:00Z').getTime();
-  // Hoje, ontem e anteontem com ciclo; antes não → streak 3
+  const hoje = dataLocal(2026, 5, 15, 12);
   const ciclos = [
-    { data_fim: dia(15) }, { data_fim: dia(14) }, { data_fim: dia(13) },
-    { data_fim: dia(11) }, // gap em 12 → não conta antes
+    {
+      data_fim: msLocal(2026, 5, 14, 18),
+      tempo_total_s: 100,
+      resultados: [{ tempo_s: 50 }, { tempo_s: 50 }], // sem finalizado_em
+    },
   ];
-  assert.equal(Ciclo.streakAtual(ciclos, hoje), 3);
+  const r = Ciclo.streakPorDia(ciclos, 7, { hoje });
+  // 2 puzzles agrupados no dia do data_fim
+  assert.equal(r.find(e => e.data === "2026-05-14").count, 2);
 });
 
-test("streakAtual — sem ciclo hoje retorna 0", () => {
+test("streakPorDia — inclui sessão em andamento (resultados_parciais)", () => {
   const { Ciclo } = dom();
-  const hoje = new Date('2026-05-15T12:00:00Z');
+  const hoje = dataLocal(2026, 5, 15, 12);
+  const sessao = {
+    resultados_parciais: [
+      { tempo_s: 20, finalizado_em: msLocal(2026, 5, 15, 11) },
+      { tempo_s: 25, correto: false, finalizado_em: msLocal(2026, 5, 15, 11) },
+    ],
+  };
+  const r = Ciclo.streakPorDia([], 7, { hoje, sessao });
+  assert.equal(r.find(e => e.data === "2026-05-15").count, 2);
+});
+
+test("streakAtual — soma dia atual com 1 puzzle parcial (sem ciclo concluído)", () => {
+  const { Ciclo } = dom();
+  const hoje = dataLocal(2026, 5, 15, 12);
+  const sessao = {
+    resultados_parciais: [
+      { tempo_s: 12, finalizado_em: msLocal(2026, 5, 15, 11) },
+    ],
+  };
+  // Sem ciclos concluídos — só a sessão. Streak hoje = 1.
+  assert.equal(Ciclo.streakAtual([], { hoje, sessao }), 1);
+});
+
+test("streakAtual — dias consecutivos misturando ciclos + sessão", () => {
+  const { Ciclo } = dom();
+  const hoje = dataLocal(2026, 5, 15, 12);
   const ciclos = [
-    { data_fim: new Date('2026-05-14T12:00:00Z').getTime() },
+    {
+      data_fim: msLocal(2026, 5, 14, 18),
+      resultados: [{ tempo_s: 30, finalizado_em: msLocal(2026, 5, 14, 18) }],
+    },
+    {
+      data_fim: msLocal(2026, 5, 13, 18),
+      resultados: [{ tempo_s: 30, finalizado_em: msLocal(2026, 5, 13, 18) }],
+    },
   ];
-  assert.equal(Ciclo.streakAtual(ciclos, hoje), 0);
+  const sessao = {
+    resultados_parciais: [{ tempo_s: 20, finalizado_em: msLocal(2026, 5, 15, 10) }],
+  };
+  assert.equal(Ciclo.streakAtual(ciclos, { hoje, sessao }), 3);
+});
+
+test("streakAtual — sem atividade hoje retorna 0", () => {
+  const { Ciclo } = dom();
+  const hoje = dataLocal(2026, 5, 15, 12);
+  const ciclos = [{
+    data_fim: msLocal(2026, 5, 14, 18),
+    resultados: [{ tempo_s: 30, finalizado_em: msLocal(2026, 5, 14, 18) }],
+  }];
+  assert.equal(Ciclo.streakAtual(ciclos, { hoje }), 0);
+});
+
+test("tempoNoDia — soma puzzles do dia, ciclo + sessão", () => {
+  const { Ciclo } = dom();
+  const hoje = dataLocal(2026, 5, 15, 12);
+  const ciclos = [
+    {
+      data_fim: msLocal(2026, 5, 15, 18),
+      resultados: [
+        { tempo_s: 30, finalizado_em: msLocal(2026, 5, 15, 8) },
+        { tempo_s: 45, finalizado_em: msLocal(2026, 5, 14, 20) }, // ontem, não conta
+      ],
+    },
+  ];
+  const sessao = {
+    resultados_parciais: [
+      { tempo_s: 60, finalizado_em: msLocal(2026, 5, 15, 11) },
+    ],
+  };
+  // 30 (ciclo, hoje) + 60 (sessão, hoje) = 90
+  assert.equal(Ciclo.tempoNoDia(ciclos, sessao, hoje), 90);
+});
+
+test("tempoNoDia — fallback legado usa tempo_total_s do ciclo no data_fim", () => {
+  const { Ciclo } = dom();
+  const hoje = dataLocal(2026, 5, 15, 12);
+  const ciclos = [{
+    data_fim: msLocal(2026, 5, 15, 18),
+    tempo_total_s: 200,
+    resultados: [{ tempo_s: 100 }, { tempo_s: 100 }], // sem finalizado_em
+  }];
+  assert.equal(Ciclo.tempoNoDia(ciclos, null, hoje), 200);
 });

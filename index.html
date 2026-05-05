@@ -707,7 +707,7 @@
     /* === ScreenProfile (handoff Tela 15) ===
        Avatar + nome + chess.com handle, grid 3-col stats hairline,
        settings rows (Treino + Conta), footer "WOODPECKER · v1.0". */
-    function ScreenProfile({ ratingUsuario, conjuntos, ciclos, onCalibrar, onConectarChesscom, onAbrirSettings, onSetChesscomUsername, onLogout }) {
+    function ScreenProfile({ ratingUsuario, conjuntos, ciclos, sessaoSalva, onCalibrar, onConectarChesscom, onAbrirSettings, onSetChesscomUsername, onLogout }) {
       const inicial = ratingUsuario && ratingUsuario.chesscom
         ? ratingUsuario.chesscom.charAt(0).toUpperCase()
         : 'W';
@@ -719,7 +719,7 @@
         : 'sem conta vinculada';
       const ratingValor = ratingUsuario && ratingUsuario.valor ? ratingUsuario.valor : '—';
       const ciclosCompletos = ciclos.filter(c => c.acertos !== undefined).length;
-      const streak = window.WP.Ciclo.streakAtual(ciclos);
+      const streak = window.WP.Ciclo.streakAtual(ciclos, { sessao: sessaoSalva });
 
       return (
         <div className="wp-content">
@@ -1562,29 +1562,30 @@
     /* === ScreenHome (handoff Tela 6) ===
        Daily entry point: streak + calendar + em-andamento + outros conjuntos. */
     function ScreenHome({
-      conjuntos, ciclos, ratingUsuario,
+      conjuntos, ciclos, sessaoSalva, ratingUsuario,
       onContinuar, onTreinar, onEvolucao, onCriar, onIrParaPerfil,
       onCalibrar, onConectarChesscom, onExcluir, onConcluir,
     }) {
       const Conjunto = window.WP.Conjunto;
+      const Ciclo = window.WP.Ciclo;
       const ativos = useMemo(() => Conjunto.conjuntosAtivos(conjuntos), [conjuntos]);
       const concluidos = useMemo(() => Conjunto.conjuntosConcluidos(conjuntos), [conjuntos]);
       const podeNovo = ativos.length < Conjunto.LIMITE_ATIVOS;
-      const streak = window.WP.Ciclo.streakAtual(ciclos);
-      const semana = useMemo(() => window.WP.Ciclo.streakPorDia(ciclos, 7), [ciclos]);
+      // Streak e tempoHoje incluem ciclos concluídos + sessão em andamento.
+      // Qualquer puzzle finalizado (acerto, erro, pulado) já conta no dia.
+      // Datas em fuso local — toISOString() (UTC) bagunça contagens.
+      const streak = useMemo(() => Ciclo.streakAtual(ciclos, { sessao: sessaoSalva }), [ciclos, sessaoSalva]);
+      const semana = useMemo(() => Ciclo.streakPorDia(ciclos, 7, { sessao: sessaoSalva }), [ciclos, sessaoSalva]);
       const inicial = ratingUsuario && ratingUsuario.chesscom
         ? ratingUsuario.chesscom.charAt(0).toUpperCase() : 'W';
       const ratingValor = ratingUsuario && ratingUsuario.valor ? ratingUsuario.valor : '—';
 
-      // Dia da semana hoje (0=domingo)
       const hoje = new Date();
-      const hojeISO = hoje.toISOString().slice(0, 10);
-      const tempoHoje = useMemo(() => {
-        const total = ciclos
-          .filter(c => c.data_fim && new Date(c.data_fim).toISOString().slice(0, 10) === hojeISO)
-          .reduce((s, c) => s + (c.tempo_total_s || 0), 0);
-        return total;
-      }, [ciclos, hojeISO]);
+      const hojeISO = Ciclo.chaveLocal(hoje);
+      const tempoHoje = useMemo(
+        () => Ciclo.tempoNoDia(ciclos, sessaoSalva, hoje),
+        [ciclos, sessaoSalva, hojeISO]
+      );
 
       // Conjunto em andamento = primeiro ativo (com último ciclo).
       const emAndamento = ativos[0] || null;
@@ -5360,7 +5361,7 @@
     /* === ScreenStats (handoff Tela 14) ===
        Velocidade vs ciclo 1 + barras de tempo médio + constância 30 dias +
        por conjunto + força relativa por tema. */
-    function ScreenStats({ conjuntos, ciclos, conjuntoInicial, onVoltar, onIrParaConjunto }) {
+    function ScreenStats({ conjuntos, ciclos, sessaoSalva, conjuntoInicial, onVoltar, onIrParaConjunto }) {
       const Conjunto = window.WP.Conjunto;
       const conjuntoSel = conjuntoInicial || conjuntos[0] || null;
       const ciclosSel = conjuntoSel ? ciclosDoConjunto(ciclos, conjuntoSel.id) : ciclos;
@@ -5378,7 +5379,7 @@
       }
       const cur = ciclosSel.length - 1;
 
-      const grid30 = useMemo(() => window.WP.Ciclo.streakPorDia(ciclos, 30), [ciclos]);
+      const grid30 = useMemo(() => window.WP.Ciclo.streakPorDia(ciclos, 30, { sessao: sessaoSalva }), [ciclos, sessaoSalva]);
       const dias30Ativos = grid30.filter(d => d.count > 0).length;
 
       const errosTemas = useMemo(() => {
@@ -7373,6 +7374,7 @@
                 <ScreenHome
                   conjuntos={conjuntos}
                   ciclos={ciclos}
+                  sessaoSalva={sessaoSalva}
                   ratingUsuario={ratingUsuario}
                   onContinuar={continuarTreino}
                   onTreinar={iniciarTreino}
@@ -7467,6 +7469,7 @@
                 <ScreenStats
                   conjuntos={conjuntos}
                   ciclos={ciclos}
+                  sessaoSalva={sessaoSalva}
                   conjuntoInicial={evolucaoConjunto}
                   onIrParaConjunto={(c) => { setEvolucaoConjunto(c); }}
                   onVoltar={() => setTela('conjuntos')}
@@ -7487,6 +7490,7 @@
                   ratingUsuario={ratingUsuario}
                   conjuntos={conjuntos}
                   ciclos={ciclos}
+                  sessaoSalva={sessaoSalva}
                   onCalibrar={() => setTela('calibrar')}
                   onConectarChesscom={() => setTela('calibrar-user')}
                   onAbrirSettings={() => setMostraConfig(true)}
