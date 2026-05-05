@@ -34,6 +34,7 @@
   <script src="lib/audio.js"></script>
   <script src="src/data/chaves.js"></script>
   <script src="src/data/store.js"></script>
+  <script src="src/data/telemetria.js"></script>
   <script src="src/domain/puzzle.js"></script>
   <script src="src/domain/ciclo.js"></script>
   <script src="src/domain/rating.js"></script>
@@ -1168,6 +1169,9 @@
               Iniciar
             </WpButton>
           </div>
+          <p style={{ marginTop: 16, fontSize: 11, color: 'var(--wp-text-4)', textAlign: 'center', lineHeight: 1.5 }}>
+            Beta — coletamos eventos de uso anônimos para melhorar o app.
+          </p>
         </div>
       );
     }
@@ -5997,6 +6001,29 @@
       );
     }
 
+    /* Banner one-time para usuários existentes (pós-onboarding) que
+       ainda não viram o disclosure de telemetria de beta. */
+    function BetaBanner({ onDismiss }) {
+      return (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 16px',
+          background: 'var(--wp-surface-2)',
+          borderBottom: '1px solid var(--wp-line-soft)',
+          fontSize: 12, color: 'var(--wp-text-3)',
+        }}>
+          <span style={{ flex: 1 }}>
+            Beta — coletamos eventos de uso anônimos para melhorar o app.
+          </span>
+          <button
+            onClick={onDismiss}
+            style={{ background: 'none', border: 'none', cursor: 'pointer',
+                     color: 'var(--wp-text-3)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}
+            aria-label="Fechar">×</button>
+        </div>
+      );
+    }
+
     /* Tela de "preparação" mostrada durante o onboarding enquanto os
        puzzles são montados em background. Substitui o LoadingPuzzles
        genérico nas duas situações iniciais (5 puzzles ambientação ou
@@ -6281,6 +6308,12 @@
         try {
           const p = await window.ChessAnalysis.analyzePlayer(u, onProg);
           setPrograma(p);
+          if (window.WP && window.WP.Telemetria) {
+            window.WP.Telemetria.registrar('analise_executada', {
+              tipo:      tipo,
+              partidas:  p && p.games ? p.games.length : null,
+            });
+          }
           // Não atualizamos mais o rating do usuário a partir da análise
           // — rating é decisão exclusiva da TelaInicio (calibragem ou
           // import lite chess.com). Análise só extrai temas.
@@ -6925,6 +6958,26 @@
       useEffect(() => { Store.set(Chaves.CONJUNTOS, conjuntos); }, [conjuntos]);
       useEffect(() => { Store.set(Chaves.CICLOS, ciclos); }, [ciclos]);
 
+      // Beta disclosure: controla visibilidade do BetaBanner
+      const [betaDisclosureOk, setBetaDisclosureOk] = useState(
+        () => Store.get(Chaves.BETA_DISCLOSURE_OK, false)
+      );
+      function marcarDisclosureOk() {
+        Store.set(Chaves.BETA_DISCLOSURE_OK, true);
+        setBetaDisclosureOk(true);
+      }
+
+      // Telemetria: registra app_aberto uma vez por montagem
+      useEffect(() => {
+        if (!window.WP || !window.WP.Telemetria) return;
+        window.WP.Telemetria.registrar('app_aberto', {
+          conjuntos_count:  conjuntos.length,
+          ciclos_count:     ciclos.length,
+          rating_fonte:     ratingUsuario && ratingUsuario.fonte || null,
+          tem_chesscom:     !!(ratingUsuario && ratingUsuario.chesscom),
+        });
+      }, []);
+
       function navegar(t) {
         if (tela === 'treinar') {
           if (!confirm('Sair do treino? Sua sessão será salva para retomada.')) return;
@@ -6975,6 +7028,13 @@
       function aoSalvarConjunto(novo, puzzles, treinar) {
         setConjuntos(cs => cs.concat([novo]));
         memCache.puzzlesPorConjunto[novo.id] = puzzles;
+        if (window.WP && window.WP.Telemetria) {
+          window.WP.Telemetria.registrar('conjunto_criado', {
+            tipo:        novo.tipo || null,
+            tamanho:     novo.tamanho || (puzzles && puzzles.length) || null,
+            temas_count: novo.temas ? novo.temas.length : null,
+          });
+        }
         if (treinar) {
           iniciarCiclo(novo, puzzles, 1, false);
         } else {
@@ -7198,6 +7258,17 @@
         setCicloAtual(cicloFinal);
         limparSessao();
         setTela('conclusao');
+        if (window.WP && window.WP.Telemetria) {
+          window.WP.Telemetria.registrar('ciclo_concluido', {
+            ciclo_numero:   cicloFinal.numero,
+            total:          total,
+            acertos:        acertos,
+            erros:          erros,
+            tempo_total_s:  tempoTotal,
+            apenas_erros:   !!cicloFinal.apenas_erros,
+            tipo_conjunto:  conjuntoAtivo ? (conjuntoAtivo.tipo || null) : null,
+          });
+        }
 
         // Auto-conclusão: ao terminar o ciclo 5 (ou bater halving),
         // conjunto vira "concluído" — sai da lista de ativos e não pode
@@ -7322,6 +7393,10 @@
               onFechar={() => setMostraConfig(false)} />
           )}
 
+          {!betaDisclosureOk && !fullscreen && (
+            <BetaBanner onDismiss={marcarDisclosureOk} />
+          )}
+
           <WpScreen
             active={abaAtiva}
             onTab={navegar}
@@ -7344,8 +7419,9 @@
 
               {tela === 'welcome' && (
                 <ScreenWelcome
-                  onComecar={() => setTela('calibrar')}
+                  onComecar={() => { marcarDisclosureOk(); setTela('calibrar'); }}
                   onPular={() => {
+                    marcarDisclosureOk();
                     Store.set(Chaves.ONBOARDING_VISTO, true);
                     setTela('inicio');
                   }}

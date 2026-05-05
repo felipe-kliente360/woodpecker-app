@@ -25,5 +25,9 @@
     RATING_FONTE:             "wp_rating_fonte",      // 'calibragem' | 'chesscom' (legado: 'manual')
     RATING_DATA:              "wp_rating_data",        // timestamp do último update
     RATING_CHESSCOM_USERNAME: "wp_rating_chesscom_username",
+    // Beta: identificador anônimo local (fallback quando sem chess.com)
+    BETA_ID:            "wp_beta_id",
+    // Beta: usuário viu o disclosure de coleta de dados
+    BETA_DISCLOSURE_OK: "wp_beta_disclosure_ok",
   };
 })(typeof window !== "undefined" ? window : globalThis);
