@@ -67,8 +67,10 @@
   }
 
   // Identifica o usuário: re-atribui eventos históricos do beta_id para a
-  // chess.com username. Idempotente — roda apenas 1× por beta_id.
-  // Chamado quando o usuário configura chess.com pela primeira vez.
+  // chess.com username. RPC é idempotente (UPDATE WHERE user_id=old_id
+  // matcha 0 rows após primeira execução), então roda em toda chamada
+  // sem flag de cache — assim usuários afetados pela race antiga
+  // (BETA_ID_MIGRADO=true mas com órfãos no DB) se auto-curam.
   function identificar(chessUsername) {
     if (!chessUsername) return;
     var Store  = global.WP.Store;
@@ -89,11 +91,8 @@
       }
     }
 
-    if (Store.get(Chaves.BETA_ID_MIGRADO, false)) return;
-
-    // Migração de eventos persistidos em sessões anteriores. Espera o
-    // flush completar antes do UPDATE — senão o UPDATE pode rodar antes
-    // do INSERT chegar no Postgres e zerar a migração.
+    // Espera o flush completar antes do UPDATE — senão o UPDATE pode
+    // rodar antes do INSERT chegar no Postgres e zerar a migração.
     _flush().then(function () {
       return fetch('https://rziwpiaxybuvgrabtwir.supabase.co/rest/v1/rpc/migrar_user_id', {
         method: 'POST',
@@ -104,8 +103,6 @@
         },
         body: JSON.stringify({ old_id: betaId, new_id: chessUsername }),
       });
-    }).then(function (res) {
-      if (res && res.ok) Store.set(Chaves.BETA_ID_MIGRADO, true);
     }).catch(function () { /* silent */ });
   }
 

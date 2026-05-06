@@ -7080,9 +7080,15 @@
         setBetaDisclosureOk(true);
       }
 
-      // Telemetria: registra app_aberto uma vez por montagem
+      // Telemetria: registra app_aberto uma vez por montagem.
+      // Se já houver chess.com username, re-tenta identificar — RPC
+      // idempotente que captura órfãos de migrações anteriores
+      // (race da versão antiga) sem custo após a primeira passagem.
       useEffect(() => {
         if (!window.WP || !window.WP.Telemetria) return;
+        if (ratingUsuario && ratingUsuario.chesscom) {
+          window.WP.Telemetria.identificar(ratingUsuario.chesscom);
+        }
         window.WP.Telemetria.registrar('app_aberto', {
           conjuntos_count:  conjuntos.length,
           ciclos_count:     ciclos.length,
