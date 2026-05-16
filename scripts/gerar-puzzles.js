@@ -21,7 +21,7 @@ const path     = require('path');
 const zlib     = require('zlib');
 const readline = require('readline');
 
-const COTA      = 2000;
+const COTA      = 6000;
 const DUMP      = process.argv[2] || '/tmp/lichess_db_puzzle.csv.zst';
 // Default escreve em puzzles/. WP_PUZZLES_OUT permite gerar pra um
 // diretório de rascunho e conferir antes de substituir os arquivos reais.
